@@ -28,3 +28,11 @@ All gameplay logic lives in `src/` as library modules, declared in `main.rs`:
 - **`enemy.rs`** — `EnemyKind` enum (Goblin, Skeleton, Orc, Troll, DarkMage, Dragon), `Enemy` struct with level-scaled stats and xp reward. `Enemy::new(kind, level)` applies base stats plus per-level growth. Implements `Combatant`.
 
 Tests live in `tests/` as integration tests (one file per module). `src/lib.rs` owns the module tree and makes them importable; `src/main.rs` is the binary entry point.
+
+## Design Documents
+
+Game design vision lives in `docs/`. Consult these when implementing or designing new systems:
+
+- **`docs/narrative.md`** — Story concept: sci-fi time-loop aboard The Meridian, three NPCs with hidden arcs (Dr. Sable Orin, Unit Kaleo, Recruiter Doss), 5-loop structure, branching endings
+- **`docs/armor_and_shields.md`** — Layered armor system (ablative/reactive/thermal lining), directional shields, frequency tuning, shared squad shield bubbles, bleed/overcharge mechanics
+- **`docs/weapons_and_abilities.md`** — Temporal weapon abilities (Displacement, Rewind, Stasis, Acceleration, Entropic Rounds, Echo Strike) and the Temporal Flux resource system
