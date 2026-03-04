@@ -1,6 +1,7 @@
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use carbonthrone::level::{Level, SurpriseState};
+use carbonthrone::terrain::Tile;
 
 fn rng() -> StdRng {
     StdRng::seed_from_u64(42)
@@ -83,4 +84,57 @@ fn different_seeds_produce_different_levels() {
     let same = a.enemies.len() == b.enemies.len()
         && a.enemies.iter().zip(b.enemies.iter()).all(|((x, _), (y, _))| x.kind == y.kind);
     assert!(!same);
+}
+
+// ── Biome and terrain tests ───────────────────────────────────────────────
+
+#[test]
+fn level_has_a_biome() {
+    let level = Level::generate(1, &mut rng());
+    // Just verify the biome field exists and is valid (all variants are valid)
+    let _ = level.biome;
+}
+
+#[test]
+fn level_map_dimensions_match_cols_rows() {
+    let level = Level::generate(1, &mut rng());
+    assert_eq!(level.map.cols, level.cols);
+    assert_eq!(level.map.rows, level.rows);
+}
+
+#[test]
+fn enemy_spawn_tiles_are_open() {
+    let level = Level::generate(1, &mut rng());
+    for (_, pos) in &level.enemies {
+        assert_eq!(
+            level.map.get(pos.x, pos.y),
+            Tile::Open,
+            "enemy spawn at ({}, {}) should be Open",
+            pos.x, pos.y
+        );
+    }
+}
+
+#[test]
+fn all_biome_variants_can_be_generated() {
+    let mut rng = rng();
+    let mut saw_void_station = false;
+    let mut saw_neon_district = false;
+    let mut saw_bio_lab = false;
+    let mut saw_asteroid_colony = false;
+
+    use carbonthrone::terrain::Biome;
+    for _ in 0..200 {
+        match Level::generate(1, &mut rng).biome {
+            Biome::VoidStation    => saw_void_station = true,
+            Biome::NeonDistrict   => saw_neon_district = true,
+            Biome::BioLab         => saw_bio_lab = true,
+            Biome::AsteroidColony => saw_asteroid_colony = true,
+        }
+    }
+
+    assert!(saw_void_station);
+    assert!(saw_neon_district);
+    assert!(saw_bio_lab);
+    assert!(saw_asteroid_colony);
 }

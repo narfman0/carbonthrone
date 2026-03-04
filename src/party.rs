@@ -47,7 +47,7 @@ impl Party {
     /// Returns true if every member's Health is at zero (or the entity has no Health).
     pub fn is_wiped(&self, world: &World) -> bool {
         self.members.iter().all(|&e| {
-            world.get::<Health>(e).map_or(true, |h| !h.is_alive())
+            world.get::<Health>(e).is_none_or(|h| !h.is_alive())
         })
     }
 }

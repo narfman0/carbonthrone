@@ -4,13 +4,14 @@ use bevy::prelude::*;
 
 use crate::{
     action_points::ActionPoints,
-    combat::calc_damage,
     health::Health,
-    position::Position,
     side::Side,
     stats::Stats,
     turn::{Action, apply_action, ATTACK_AP_COST},
 };
+
+// Re-export so callers can import TurnAction from `simulation` as before.
+pub use crate::turn::TurnAction;
 
 /// Hard cap on rounds to prevent infinite loops.
 pub const MAX_ROUNDS: u32 = 1000;
@@ -24,13 +25,6 @@ pub enum BattleOutcome {
 }
 
 // ── Step-based simulation ────────────────────────────────────────────────────
-
-/// One action that occurred during a combatant's turn.
-#[derive(Debug, Clone)]
-pub enum TurnAction {
-    Attack { target: Entity, damage: i32 },
-    Move { to: Position },
-}
 
 /// Result returned by `BattleStep::step()`.
 #[derive(Debug)]
@@ -111,10 +105,9 @@ impl BattleStep {
             match choose_action(world, actor, actor_side) {
                 Some(Action::Pass) | None => break,
                 Some(action) => {
-                    if let Some(ev) = preview_action(world, actor, &action) {
+                    if let Some(ev) = apply_action(world, actor, &action) {
                         actions.push(ev);
                     }
-                    apply_action(world, actor, &action);
                 }
             }
         }
@@ -212,17 +205,4 @@ fn choose_action(world: &mut World, actor: Entity, actor_side: Side) -> Option<A
         Some(t) => Action::Attack { target: t },
         None => Action::Pass,
     })
-}
-
-/// Compute what an action will do (for logging), without applying it.
-fn preview_action(world: &World, actor: Entity, action: &Action) -> Option<TurnAction> {
-    match action {
-        Action::Attack { target } => {
-            let atk = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
-            let def = world.get::<Stats>(*target).map(|s| s.defense).unwrap_or(0);
-            Some(TurnAction::Attack { target: *target, damage: calc_damage(atk, def) })
-        }
-        Action::Move { destination } => Some(TurnAction::Move { to: *destination }),
-        Action::Pass => None,
-    }
 }

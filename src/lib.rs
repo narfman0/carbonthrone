@@ -10,5 +10,6 @@ pub mod position;
 pub mod side;
 pub mod simulation;
 pub mod stats;
+pub mod terrain;
 pub mod turn;
 pub mod weapon;

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo clippy --jobs 1)",
+      "Bash(cargo init:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo build)"
+    ]
+  }
+}

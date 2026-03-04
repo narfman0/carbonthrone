@@ -3,6 +3,7 @@ use bevy::prelude::Resource;
 use rand::Rng;
 use crate::enemy::{Enemy, EnemyKind};
 use crate::position::Position;
+use crate::terrain::{Biome, LevelMap, generate_map};
 
 /// Who, if anyone, has the initiative advantage at the start of an encounter.
 #[derive(Debug, Clone, PartialEq)]
@@ -24,8 +25,12 @@ pub struct Level {
     pub cols: u32,
     /// Grid height (number of rows along the Y axis).
     pub rows: u32,
+    /// The scifi biome theme for this level.
+    pub biome: Biome,
     /// Each enemy paired with its starting grid position (z = 0).
     pub enemies: Vec<(Enemy, Position)>,
+    /// The terrain map for this level.
+    pub map: LevelMap,
     pub surprise: SurpriseState,
 }
 
@@ -37,6 +42,7 @@ impl Level {
     pub fn generate(depth: u32, rng: &mut impl Rng) -> Self {
         let cols: u32 = rng.gen_range(8..=16);
         let rows: u32 = rng.gen_range(8..=16);
+        let biome = random_biome(rng);
         let enemy_level = depth.max(1);
         let enemy_count: usize = rng.gen_range(1..=4);
 
@@ -51,13 +57,25 @@ impl Level {
             }
         }
 
+        let reserved: Vec<(i32, i32)> = enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
+        let map = generate_map(cols, rows, biome, &reserved, rng);
+
         let surprise = match rng.gen_range(0..4u32) {
             0 => SurpriseState::PartyAmbushed,
             1 => SurpriseState::EnemyAmbushed,
             _ => SurpriseState::Normal,
         };
 
-        Self { depth, cols, rows, enemies, surprise }
+        Self { depth, cols, rows, biome, enemies, map, surprise }
+    }
+}
+
+fn random_biome(rng: &mut impl Rng) -> Biome {
+    match rng.gen_range(0..4u32) {
+        0 => Biome::VoidStation,
+        1 => Biome::NeonDistrict,
+        2 => Biome::BioLab,
+        _ => Biome::AsteroidColony,
     }
 }
 

@@ -8,6 +8,8 @@ use crossterm::{
     execute,
     terminal::{self, ClearType},
 };
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
 
 use carbonthrone::action_points::ActionPoints;
 use carbonthrone::character::{Character, CharacterClass};
@@ -18,6 +20,7 @@ use carbonthrone::position::Position;
 use carbonthrone::side::Side;
 use carbonthrone::simulation::{BattleOutcome, BattleStep, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;
+use carbonthrone::terrain::{BattleRng, Biome, generate_map};
 
 fn main() {
     let mut world = World::new();
@@ -74,6 +77,11 @@ fn main() {
 // ── World setup ──────────────────────────────────────────────────────────────
 
 fn setup_battle(world: &mut World) {
+    // Player spawn positions (col 0, rows 0–1)
+    let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
+    // Enemy spawn positions (col 9, rows 0–1)
+    let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
+
     for (i, (name, class)) in [
         ("Aldric", CharacterClass::Warrior),
         ("Lyra", CharacterClass::Rogue),
@@ -83,6 +91,7 @@ fn setup_battle(world: &mut World) {
     {
         let stats = Stats::for_class(&class);
         let hp = stats.max_hp;
+        let (px, py) = player_positions[i];
         world.spawn((
             Character::new(name, class),
             stats,
@@ -90,13 +99,13 @@ fn setup_battle(world: &mut World) {
             ActionPoints::new(4),
             Experience::new(),
             Side::Player,
-            Position::new(0, i as i32, 0),
+            Position::new(px, py, 0),
         ));
     }
 
-    for (i, (kind, level, col)) in [
-        (EnemyKind::Goblin, 1u32, 9i32),
-        (EnemyKind::Orc, 2u32, 9i32),
+    for (i, (kind, level)) in [
+        (EnemyKind::Goblin, 1u32),
+        (EnemyKind::Orc, 2u32),
     ]
     .into_iter()
     .enumerate()
@@ -104,15 +113,26 @@ fn setup_battle(world: &mut World) {
         let enemy = Enemy::new(kind, level);
         let hp = enemy.stats.max_hp;
         let stats = enemy.stats.clone();
+        let (ex, ey) = enemy_positions[i];
         world.spawn((
             enemy,
             stats,
             Health::new(hp),
             ActionPoints::new(4),
             Side::Enemy,
-            Position::new(col, i as i32, 0),
+            Position::new(ex, ey, 0),
         ));
     }
+
+    // Generate terrain map, keeping all spawn positions open.
+    let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
+    let biomes = [Biome::VoidStation, Biome::NeonDistrict, Biome::BioLab, Biome::AsteroidColony];
+    let biome = biomes[rng.gen_range(0..4)];
+    let mut reserved: Vec<(i32, i32)> = player_positions.to_vec();
+    reserved.extend_from_slice(enemy_positions);
+    let map = generate_map(10, 10, biome, &reserved, &mut rng);
+    world.insert_resource(map);
+    world.insert_resource(BattleRng(rng));
 }
 
 // ── Rendering ────────────────────────────────────────────────────────────────
@@ -160,6 +180,13 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     out += &format!("  {}\r\n", map_string(world));
     out += "\r\n";
 
+    // Biome and legend
+    if let Some(map) = world.get_resource::<carbonthrone::terrain::LevelMap>() {
+        out += &format!("  Biome: {}\r\n", map.biome.display_name());
+    }
+    out += "  . open  # obstacle  c partial-cover  C full-cover\r\n";
+    out += "\r\n";
+
     // Action log for last turn
     out += &format!("  {}\r\n", "-".repeat(WIDTH - 2));
     if let Some(event) = last {
@@ -173,9 +200,13 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
                 }
                 for action in &event.actions {
                     match action {
-                        TurnAction::Attack { target, damage } => {
+                        TurnAction::Attack { target, damage, hit } => {
                             let tname = entity_name(world, *target);
-                            out += &format!("  > {} attacks {} for {} dmg\r\n", name, tname, damage);
+                            if *hit {
+                                out += &format!("  > {} attacks {} for {} dmg\r\n", name, tname, damage);
+                            } else {
+                                out += &format!("  > {} attacks {} -- MISS\r\n", name, tname);
+                            }
                         }
                         TurnAction::Move { to } => {
                             out += &format!("  > {} moves to ({}, {})\r\n", name, to.x, to.y);
@@ -252,11 +283,20 @@ fn entity_name(world: &World, entity: Entity) -> String {
 }
 
 fn map_string(world: &mut World) -> String {
-    let mut q = world.query::<(Entity, &Position, &Side, &Health)>();
-    let mut cells: HashMap<(i32, i32), char> = HashMap::new();
-    let mut max_x = 9i32;
-    let mut max_y = 1i32;
+    // Collect terrain data first (immutable borrow, released before query).
+    let terrain = world.get_resource::<carbonthrone::terrain::LevelMap>().map(|map| {
+        let max_x = map.cols as i32 - 1;
+        let max_y = map.rows as i32 - 1;
+        let cells: HashMap<(i32, i32), char> = (0..=max_y)
+            .flat_map(|y| (0..=max_x).map(move |x| ((x, y), map.get(x, y).glyph())))
+            .collect();
+        (max_x, max_y, cells)
+    });
 
+    let (mut max_x, mut max_y, mut cells) = terrain.unwrap_or_else(|| (9, 1, HashMap::new()));
+
+    // Overlay entity glyphs on top of terrain.
+    let mut q = world.query::<(Entity, &Position, &Side, &Health)>();
     for (_e, pos, side, health) in q.iter(world) {
         max_x = max_x.max(pos.x);
         max_y = max_y.max(pos.y);
