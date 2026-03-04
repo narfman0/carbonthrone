@@ -3,7 +3,8 @@
     "allow": [
       "Bash(cargo init:*)",
       "Bash(cargo test:*)",
-      "Bash(cargo search bevy)"
+      "Bash(cargo search bevy)",
+      "Bash(cargo build)"
     ]
   }
 }

@@ -7,5 +7,8 @@ pub mod health;
 pub mod level;
 pub mod party;
 pub mod position;
+pub mod side;
+pub mod simulation;
 pub mod stats;
+pub mod turn;
 pub mod weapon;
