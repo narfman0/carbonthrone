@@ -1,53 +1,285 @@
+use std::collections::HashMap;
+use std::io::{self, Write};
+
 use bevy::prelude::*;
+use crossterm::{
+    cursor,
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
+    execute,
+    terminal::{self, ClearType},
+};
+
 use carbonthrone::action_points::ActionPoints;
 use carbonthrone::character::{Character, CharacterClass};
 use carbonthrone::enemy::{Enemy, EnemyKind};
 use carbonthrone::experience::Experience;
 use carbonthrone::health::Health;
-use carbonthrone::party::Party;
 use carbonthrone::position::Position;
+use carbonthrone::side::Side;
+use carbonthrone::simulation::{BattleOutcome, BattleStep, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;
 
 fn main() {
     let mut world = World::new();
+    setup_battle(&mut world);
 
-    // Spawn character entities with all ECS components.
-    // Characters start along the left edge of the grid (x=0), one row each.
-    let mut party = Party::new();
+    let mut battle = BattleStep::new(&mut world);
+    let mut last_event: Option<TurnEvent> = None;
+
+    let mut stdout = io::stdout();
+    terminal::enable_raw_mode().expect("enable raw mode");
+
+    loop {
+        execute!(
+            stdout,
+            terminal::Clear(ClearType::All),
+            cursor::MoveTo(0, 0)
+        )
+        .unwrap();
+
+        let frame = render(&mut world, &battle, last_event.as_ref());
+        write!(stdout, "{}", frame).unwrap();
+        stdout.flush().unwrap();
+
+        let battle_over = last_event.as_ref().and_then(|e| e.outcome.as_ref()).is_some();
+
+        loop {
+            let Ok(ev) = event::read() else { continue };
+            match ev {
+                Event::Key(k) if k.kind == KeyEventKind::Press => match k.code {
+                    KeyCode::Char('c') if k.modifiers.contains(KeyModifiers::CONTROL) => {
+                        terminal::disable_raw_mode().unwrap();
+                        return;
+                    }
+                    KeyCode::Char('q') | KeyCode::Esc => {
+                        terminal::disable_raw_mode().unwrap();
+                        return;
+                    }
+                    KeyCode::Char(' ') if !battle_over => {
+                        last_event = Some(battle.step(&mut world));
+                        break;
+                    }
+                    _ if battle_over => {
+                        terminal::disable_raw_mode().unwrap();
+                        return;
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+    }
+}
+
+// ── World setup ──────────────────────────────────────────────────────────────
+
+fn setup_battle(world: &mut World) {
     for (i, (name, class)) in [
         ("Aldric", CharacterClass::Warrior),
-        ("Lyra",   CharacterClass::Rogue),
-    ].into_iter().enumerate() {
+        ("Lyra", CharacterClass::Rogue),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let stats = Stats::for_class(&class);
         let hp = stats.max_hp;
-        let entity = world.spawn((
+        world.spawn((
             Character::new(name, class),
             stats,
             Health::new(hp),
             ActionPoints::new(4),
             Experience::new(),
+            Side::Player,
             Position::new(0, i as i32, 0),
-        )).id();
-        party.add_member(entity).unwrap();
-    }
-    world.insert_resource(party);
-
-    // Each enemy is an Entity carrying an Enemy component and a Position.
-    world.spawn((Enemy::new(EnemyKind::Goblin, 1), Position::new(9, 0, 0)));
-    world.spawn((Enemy::new(EnemyKind::Orc, 2),    Position::new(9, 1, 0)));
-
-    // Query enemies with their positions.
-    let mut enemy_query = world.query::<(&Enemy, &Position)>();
-    for (e, pos) in enemy_query.iter(&world) {
-        println!("Enemy: {} (hp {}) at ({},{},{})", e.name, e.current_hp, pos.x, pos.y, pos.z);
+        ));
     }
 
-    // Query characters with their positions.
-    let mut char_query = world.query::<(&Character, &Health, &Position)>();
-    for (c, h, pos) in char_query.iter(&world) {
-        println!("Character: {} (hp {}/{}) at ({},{},{})", c.name, h.current, h.max, pos.x, pos.y, pos.z);
+    for (i, (kind, level, col)) in [
+        (EnemyKind::Goblin, 1u32, 9i32),
+        (EnemyKind::Orc, 2u32, 9i32),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let enemy = Enemy::new(kind, level);
+        let hp = enemy.stats.max_hp;
+        let stats = enemy.stats.clone();
+        world.spawn((
+            enemy,
+            stats,
+            Health::new(hp),
+            ActionPoints::new(4),
+            Side::Enemy,
+            Position::new(col, i as i32, 0),
+        ));
+    }
+}
+
+// ── Rendering ────────────────────────────────────────────────────────────────
+
+const WIDTH: usize = 58;
+
+fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> String {
+    let mut out = String::new();
+    let bar = "=".repeat(WIDTH);
+
+    // Title
+    out += &format!("{}\r\n", bar);
+    out += &format!("{:^width$}\r\n", "C A R B O N T H R O N E", width = WIDTH);
+    out += &format!("{}\r\n", bar);
+    out += "\r\n";
+
+    // Round / side
+    let side_label = match battle.side {
+        Side::Player => "Player Side",
+        Side::Enemy => "Enemy Side",
+    };
+    if let Some(next) = battle.next_actor() {
+        let name = entity_name(world, next);
+        out += &format!("  Round {}  |  {}  |  Next: {}\r\n", battle.round, side_label, name);
+    } else {
+        out += &format!("  Round {}  |  {}\r\n", battle.round, side_label);
+    }
+    out += "\r\n";
+
+    // Combatant HP
+    let players = side_entities(world, Side::Player);
+    let enemies = side_entities(world, Side::Enemy);
+    let rows = players.len().max(enemies.len());
+
+    out += &format!("  {:<27}  {}\r\n", "PLAYERS", "ENEMIES");
+    out += &format!("  {}\r\n", "-".repeat(WIDTH - 2));
+    for i in 0..rows {
+        let left = players.get(i).map(|&(e, cur, max)| combatant_line(world, e, cur, max)).unwrap_or_default();
+        let right = enemies.get(i).map(|&(e, cur, max)| combatant_line(world, e, cur, max)).unwrap_or_default();
+        out += &format!("  {:<27}  {}\r\n", left, right);
+    }
+    out += "\r\n";
+
+    // Battle map
+    out += &format!("  {}\r\n", map_string(world));
+    out += "\r\n";
+
+    // Action log for last turn
+    out += &format!("  {}\r\n", "-".repeat(WIDTH - 2));
+    if let Some(event) = last {
+        match event.actor {
+            Some(actor) => {
+                let name = entity_name(world, actor);
+                let side_str = match event.side { Side::Player => "Player", Side::Enemy => "Enemy" };
+                out += &format!("  -- {}'s turn ({}) --\r\n", name, side_str);
+                if event.actions.is_empty() {
+                    out += "  > (no actions)\r\n";
+                }
+                for action in &event.actions {
+                    match action {
+                        TurnAction::Attack { target, damage } => {
+                            let tname = entity_name(world, *target);
+                            out += &format!("  > {} attacks {} for {} dmg\r\n", name, tname, damage);
+                        }
+                        TurnAction::Move { to } => {
+                            out += &format!("  > {} moves to ({}, {})\r\n", name, to.x, to.y);
+                        }
+                    }
+                }
+            }
+            None => out += "  -- (side change) --\r\n",
+        }
+
+        if let Some(ref outcome) = event.outcome {
+            out += "\r\n";
+            let msg = match outcome {
+                BattleOutcome::PlayerVictory => "*** VICTORY! The party prevails! ***",
+                BattleOutcome::PlayerDefeated => "*** DEFEAT! The party has fallen. ***",
+                BattleOutcome::Draw => "*** DRAW! The battle ends in stalemate. ***",
+            };
+            out += &format!("  {}\r\n", msg);
+        }
+    } else {
+        out += "  (press SPACE to begin)\r\n";
     }
 
-    let party = world.resource::<Party>();
-    println!("Party size: {}", party.size());
+    // Controls footer
+    out += "\r\n";
+    out += &format!("{}\r\n", bar);
+    if last.and_then(|e| e.outcome.as_ref()).is_some() {
+        out += &format!("  {:<width$}\r\n", "[any key] quit", width = WIDTH - 2);
+    } else {
+        out += &format!("  {:<27}  {}\r\n", "[SPACE] next turn", "[Q / ESC] quit");
+    }
+    out += &format!("{}\r\n", bar);
+
+    out
+}
+
+/// Returns `(entity, current_hp, max_hp)` for all living+dead entities on a side,
+/// sorted by descending speed (so display order matches turn order).
+fn side_entities(world: &mut World, side: Side) -> Vec<(Entity, i32, i32)> {
+    let mut q = world.query::<(Entity, &Side, &Health, &Stats)>();
+    let mut v: Vec<(Entity, i32, i32, i32)> = q
+        .iter(world)
+        .filter(|(_, s, _, _)| **s == side)
+        .map(|(e, _, h, stats)| (e, h.current, h.max, stats.speed))
+        .collect();
+    v.sort_by(|a, b| b.3.cmp(&a.3));
+    v.into_iter().map(|(e, cur, max, _)| (e, cur, max)).collect()
+}
+
+fn combatant_line(world: &World, entity: Entity, current: i32, max: i32) -> String {
+    let name = entity_name(world, entity);
+    let bar = hp_bar(current, max);
+    let dead = if current <= 0 { " (dead)" } else { "" };
+    format!("{:<8} {} {:>3}/{:<3}{}", name, bar, current, max, dead)
+}
+
+fn hp_bar(current: i32, max: i32) -> String {
+    const W: usize = 8;
+    if max <= 0 {
+        return format!("[{}]", "-".repeat(W));
+    }
+    let filled = ((current.max(0) as usize) * W / max as usize).min(W);
+    format!("[{}{}]", "#".repeat(filled), "-".repeat(W - filled))
+}
+
+fn entity_name(world: &World, entity: Entity) -> String {
+    if let Some(c) = world.get::<Character>(entity) {
+        return c.name.clone();
+    }
+    if let Some(e) = world.get::<Enemy>(entity) {
+        return e.name.clone();
+    }
+    format!("#{}", entity.index())
+}
+
+fn map_string(world: &mut World) -> String {
+    let mut q = world.query::<(Entity, &Position, &Side, &Health)>();
+    let mut cells: HashMap<(i32, i32), char> = HashMap::new();
+    let mut max_x = 9i32;
+    let mut max_y = 1i32;
+
+    for (_e, pos, side, health) in q.iter(world) {
+        max_x = max_x.max(pos.x);
+        max_y = max_y.max(pos.y);
+        let ch = if !health.is_alive() {
+            'x'
+        } else {
+            match side {
+                Side::Player => 'P',
+                Side::Enemy => 'E',
+            }
+        };
+        cells.insert((pos.x, pos.y), ch);
+    }
+
+    let mut rows = Vec::new();
+    for y in 0..=max_y {
+        let row: String = (0..=max_x)
+            .map(|x| cells.get(&(x, y)).copied().unwrap_or('.'))
+            .map(|c| format!("{} ", c))
+            .collect::<String>()
+            .trim_end()
+            .to_string();
+        rows.push(row);
+    }
+    rows.join("\r\n  ")
 }
