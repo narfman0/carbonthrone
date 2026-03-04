@@ -1,5 +1,4 @@
 use bevy::prelude::Component;
-use crate::combatant::Combatant;
 use crate::stats::Stats;
 
 #[derive(Debug, Clone, PartialEq, Component)]
@@ -37,17 +36,6 @@ impl Enemy {
     pub fn take_damage(&mut self, amount: i32) {
         self.current_hp = (self.current_hp - amount).max(0);
     }
-}
-
-impl Combatant for Enemy {
-    fn name(&self) -> &str         { &self.name }
-    fn current_hp(&self) -> i32    { self.current_hp }
-    fn max_hp(&self) -> i32        { self.stats.max_hp }
-    fn attack(&self) -> i32        { self.stats.attack }
-    fn defense(&self) -> i32       { self.stats.defense }
-    fn speed(&self) -> i32         { self.stats.speed }
-    fn take_damage(&mut self, amount: i32) { Enemy::take_damage(self, amount); }
-    fn is_alive(&self) -> bool     { Enemy::is_alive(self) }
 }
 
 /// Base stats at level 1.

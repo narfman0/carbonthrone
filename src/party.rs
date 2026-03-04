@@ -1,11 +1,13 @@
-use bevy::prelude::Resource;
-use crate::character::Character;
+use bevy::prelude::{Entity, Resource, World};
+use crate::health::Health;
 
 pub const MAX_PARTY_SIZE: usize = 5;
 
+/// Global resource holding the player's party as a list of entity IDs.
+/// Each entity is expected to carry Character, Health, Stats, ActionPoints, and Experience.
 #[derive(Debug, Resource)]
 pub struct Party {
-    members: Vec<Character>,
+    members: Vec<Entity>,
 }
 
 impl Party {
@@ -14,15 +16,15 @@ impl Party {
     }
 
     /// Returns `Err` if the party is already full.
-    pub fn add_member(&mut self, character: Character) -> Result<(), &'static str> {
+    pub fn add_member(&mut self, entity: Entity) -> Result<(), &'static str> {
         if self.members.len() >= MAX_PARTY_SIZE {
             return Err("Party is full (max 5 members)");
         }
-        self.members.push(character);
+        self.members.push(entity);
         Ok(())
     }
 
-    pub fn remove_member(&mut self, index: usize) -> Option<Character> {
+    pub fn remove_member(&mut self, index: usize) -> Option<Entity> {
         if index < self.members.len() {
             Some(self.members.remove(index))
         } else {
@@ -30,12 +32,8 @@ impl Party {
         }
     }
 
-    pub fn members(&self) -> &[Character] {
+    pub fn members(&self) -> &[Entity] {
         &self.members
-    }
-
-    pub fn members_mut(&mut self) -> &mut [Character] {
-        &mut self.members
     }
 
     pub fn size(&self) -> usize {
@@ -46,13 +44,11 @@ impl Party {
         self.members.len() >= MAX_PARTY_SIZE
     }
 
-    /// All members are dead.
-    pub fn is_wiped(&self) -> bool {
-        self.members.iter().all(|m| !m.is_alive())
-    }
-
-    pub fn living_members(&self) -> impl Iterator<Item = &Character> {
-        self.members.iter().filter(|m| m.is_alive())
+    /// Returns true if every member's Health is at zero (or the entity has no Health).
+    pub fn is_wiped(&self, world: &World) -> bool {
+        self.members.iter().all(|&e| {
+            world.get::<Health>(e).map_or(true, |h| !h.is_alive())
+        })
     }
 }
 

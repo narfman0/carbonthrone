@@ -1,4 +1,3 @@
-use carbonthrone::combatant::Combatant;
 use carbonthrone::enemy::{Enemy, EnemyKind};
 
 #[test]
@@ -44,10 +43,10 @@ fn dragon_has_more_hp_than_goblin_at_same_level() {
 }
 
 #[test]
-fn combatant_trait_delegates_correctly() {
+fn take_damage_and_check_name() {
     let mut e = Enemy::new(EnemyKind::Orc, 1);
-    let hp_before = e.current_hp();
+    let hp_before = e.current_hp;
     e.take_damage(5);
-    assert_eq!(e.current_hp(), hp_before - 5);
-    assert_eq!(e.name(), "Orc");
+    assert_eq!(e.current_hp, hp_before - 5);
+    assert_eq!(e.name, "Orc");
 }
