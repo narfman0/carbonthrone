@@ -4,3 +4,4 @@ pub mod combatant;
 pub mod enemy;
 pub mod party;
 pub mod stats;
+pub mod weapon;

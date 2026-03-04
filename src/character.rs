@@ -18,6 +18,8 @@ pub struct Character {
     pub stats: Stats,
     pub current_hp: i32,
     pub experience: u32,
+    pub ap: i32,
+    pub max_ap: i32,
 }
 
 impl Character {
@@ -31,6 +33,8 @@ impl Character {
             stats,
             current_hp,
             experience: 0,
+            ap: 4,
+            max_ap: 4,
         }
     }
 
@@ -56,6 +60,21 @@ impl Character {
 
     fn xp_to_next_level(&self) -> u32 {
         100 * self.level
+    }
+
+    /// Spends `cost` AP. Returns true on success, false if insufficient AP (no change on failure).
+    pub fn spend_ap(&mut self, cost: i32) -> bool {
+        if self.ap >= cost {
+            self.ap -= cost;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Restores AP to max (call at the start of each turn).
+    pub fn refresh_ap(&mut self) {
+        self.ap = self.max_ap;
     }
 
     fn level_up(&mut self) {
