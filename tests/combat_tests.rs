@@ -1,7 +1,7 @@
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use carbonthrone::combat::{calc_damage, calc_hit_chance, roll_hit, turn_order, BASE_HIT_CHANCE};
-use carbonthrone::terrain::Tile;
+use carbonthrone::terrain::CoverLevel;
 
 #[test]
 fn damage_reduced_by_defense() {
@@ -29,21 +29,21 @@ fn turn_order_single_combatant() {
 
 #[test]
 fn open_tile_has_base_hit_chance() {
-    assert!((calc_hit_chance(Tile::Open) - BASE_HIT_CHANCE).abs() < f32::EPSILON);
+    assert!((calc_hit_chance(CoverLevel::None) - BASE_HIT_CHANCE).abs() < f32::EPSILON);
 }
 
 #[test]
 fn partial_cover_reduces_hit_chance() {
-    let chance = calc_hit_chance(Tile::PartialCover);
+    let chance = calc_hit_chance(CoverLevel::Partial);
     assert!((chance - 0.65).abs() < f32::EPSILON);
     assert!(chance < BASE_HIT_CHANCE);
 }
 
 #[test]
 fn full_cover_reduces_hit_chance_significantly() {
-    let chance = calc_hit_chance(Tile::FullCover);
+    let chance = calc_hit_chance(CoverLevel::Full);
     assert!((chance - 0.35).abs() < f32::EPSILON);
-    assert!(chance < calc_hit_chance(Tile::PartialCover));
+    assert!(chance < calc_hit_chance(CoverLevel::Partial));
 }
 
 #[test]

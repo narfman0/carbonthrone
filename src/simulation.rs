@@ -4,9 +4,12 @@ use bevy::prelude::*;
 
 use crate::{
     action_points::ActionPoints,
+    combat::{calc_damage, calc_hit_chance},
     health::Health,
+    position::Position,
     side::Side,
     stats::Stats,
+    terrain::{CoverLevel, Direction, LevelMap},
     turn::{Action, apply_action, ATTACK_AP_COST},
 };
 
@@ -186,23 +189,150 @@ fn all_defeated(world: &mut World, side: Side) -> bool {
     combatants.is_empty() || combatants.iter().all(|alive| !alive)
 }
 
-/// Simple AI: attack the first living opponent, or pass if out of AP / no targets.
+// ── Smart AI ─────────────────────────────────────────────────────────────────
+
+/// AI entry point: seek cover first, then attack the best target.
 fn choose_action(world: &mut World, actor: Entity, actor_side: Side) -> Option<Action> {
     let ap = world.get::<ActionPoints>(actor)?.current;
-    if ap < ATTACK_AP_COST {
+    if ap == 0 {
         return Some(Action::Pass);
     }
+
+    // Phase 1: move to cover if not already well-covered from nearest enemy.
+    if let Some(mv) = seek_cover_action(world, actor, actor_side, ap) {
+        return Some(mv);
+    }
+
+    // Phase 2: attack the target most likely to take significant damage.
     let opponent_side = match actor_side {
         Side::Player => Side::Enemy,
         Side::Enemy => Side::Player,
     };
-    let mut query = world.query::<(Entity, &Side, &Health)>();
-    let target = query
+    if ap >= ATTACK_AP_COST
+        && let Some(target) = best_attack_target(world, actor, opponent_side)
+    {
+        return Some(Action::Attack { target });
+    }
+
+    Some(Action::Pass)
+}
+
+/// Returns a `Move` action toward the best available cover tile, or `None` if
+/// the actor is already in full cover or there's not enough AP to move and attack.
+fn seek_cover_action(
+    world: &mut World,
+    actor: Entity,
+    actor_side: Side,
+    ap: i32,
+) -> Option<Action> {
+    // Reserve enough AP to attack after moving.
+    let move_budget = ap - ATTACK_AP_COST;
+    if move_budget <= 0 {
+        return None;
+    }
+
+    let actor_pos = world.get::<Position>(actor).copied()?;
+    let opponent_side = match actor_side {
+        Side::Player => Side::Enemy,
+        Side::Enemy => Side::Player,
+    };
+
+    // Find the nearest living enemy position (collect then drop query borrow).
+    let mut q = world.query::<(Entity, &Side, &Health, &Position)>();
+    let enemy_positions: Vec<Position> = q
         .iter(world)
-        .find(|(_, s, h)| **s == opponent_side && h.is_alive())
-        .map(|(e, _, _)| e);
-    Some(match target {
-        Some(t) => Action::Attack { target: t },
-        None => Action::Pass,
-    })
+        .filter(|(_, s, h, _)| **s == opponent_side && h.is_alive())
+        .map(|(_, _, _, pos)| *pos)
+        .collect();
+
+    let nearest_enemy = enemy_positions
+        .iter()
+        .min_by_key(|p| (p.x - actor_pos.x).abs() + (p.y - actor_pos.y).abs())
+        .copied()?;
+
+    // Attack comes from the enemy's direction.
+    let attack_dir = Direction::from_attack(
+        (nearest_enemy.x, nearest_enemy.y),
+        (actor_pos.x, actor_pos.y),
+    );
+
+    // Check current cover level; don't move if already fully covered.
+    let current_cover = world
+        .get_resource::<LevelMap>()
+        .map(|m| m.get_cover(actor_pos.x, actor_pos.y, attack_dir))
+        .unwrap_or(CoverLevel::None);
+
+    if current_cover == CoverLevel::Full {
+        return None;
+    }
+
+    // Scan all passable tiles within move_budget for better cover.
+    let (cols, rows) = world
+        .get_resource::<LevelMap>()
+        .map(|m| (m.cols as i32, m.rows as i32))
+        .unwrap_or((0, 0));
+
+    let mut candidates: Vec<(i32, i32, i32, CoverLevel)> = Vec::new(); // (dist, x, y, cover)
+    if let Some(map) = world.get_resource::<LevelMap>() {
+        for dy in -move_budget..=move_budget {
+            for dx in -move_budget..=move_budget {
+                let dist = dx.abs() + dy.abs();
+                if dist == 0 || dist > move_budget {
+                    continue;
+                }
+                let tx = actor_pos.x + dx;
+                let ty = actor_pos.y + dy;
+                if tx < 0 || ty < 0 || tx >= cols || ty >= rows {
+                    continue;
+                }
+                if !map.is_passable(tx, ty) {
+                    continue;
+                }
+                let cover = map.get_cover(tx, ty, attack_dir);
+                if cover > current_cover {
+                    candidates.push((dist, tx, ty, cover));
+                }
+            }
+        }
+    }
+
+    // Prefer full cover, then closer.
+    candidates.sort_by(|a, b| b.3.cmp(&a.3).then(a.0.cmp(&b.0)));
+    candidates
+        .first()
+        .map(|&(_, tx, ty, _)| Action::Move { destination: Position::new(tx, ty, actor_pos.z) })
+}
+
+/// Returns the entity that gives the highest expected damage (hit_chance × damage),
+/// preferring closer targets on ties.
+fn best_attack_target(world: &mut World, actor: Entity, opponent_side: Side) -> Option<Entity> {
+    let actor_pos = world.get::<Position>(actor).copied()?;
+    let actor_attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
+
+    // Collect target data (drop query borrow before accessing resources).
+    let mut q = world.query::<(Entity, &Side, &Health, &Stats, &Position)>();
+    let targets: Vec<(Entity, i32, i32, i32)> = q
+        .iter(world)
+        .filter(|(_, s, h, _, _)| **s == opponent_side && h.is_alive())
+        .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
+        .collect();
+
+    targets
+        .iter()
+        .map(|&(e, defense, tx, ty)| {
+            let dir = Direction::from_attack((actor_pos.x, actor_pos.y), (tx, ty));
+            let cover = world
+                .get_resource::<LevelMap>()
+                .map(|m| m.get_cover(tx, ty, dir))
+                .unwrap_or(CoverLevel::None);
+            let expected = calc_hit_chance(cover) * calc_damage(actor_attack, defense) as f32;
+            let dist = (tx - actor_pos.x).abs() + (ty - actor_pos.y).abs();
+            (e, expected, dist)
+        })
+        .max_by(|a, b| {
+            a.1.partial_cmp(&b.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(b.2.cmp(&a.2)) // prefer closer on tie
+        })
+        .map(|(e, _, _)| e)
 }

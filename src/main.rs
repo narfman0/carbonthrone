@@ -20,7 +20,7 @@ use carbonthrone::position::Position;
 use carbonthrone::side::Side;
 use carbonthrone::simulation::{BattleOutcome, BattleStep, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;
-use carbonthrone::terrain::{BattleRng, Biome, generate_map};
+use carbonthrone::terrain::{BattleRng, Biome, CoverLevel, LevelMap, generate_map};
 
 fn main() {
     let mut world = World::new();
@@ -181,7 +181,7 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     out += "\r\n";
 
     // Biome and legend
-    if let Some(map) = world.get_resource::<carbonthrone::terrain::LevelMap>() {
+    if let Some(map) = world.get_resource::<LevelMap>() {
         out += &format!("  Biome: {}\r\n", map.biome.display_name());
     }
     out += "  . open  # obstacle  c partial-cover  C full-cover\r\n";
@@ -200,12 +200,17 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
                 }
                 for action in &event.actions {
                     match action {
-                        TurnAction::Attack { target, damage, hit } => {
+                        TurnAction::Attack { target, damage, hit, cover } => {
                             let tname = entity_name(world, *target);
+                            let cover_str = match cover {
+                                CoverLevel::None    => "",
+                                CoverLevel::Partial => " [partial cover]",
+                                CoverLevel::Full    => " [full cover]",
+                            };
                             if *hit {
-                                out += &format!("  > {} attacks {} for {} dmg\r\n", name, tname, damage);
+                                out += &format!("  > {} attacks {} for {} dmg{}\r\n", name, tname, damage, cover_str);
                             } else {
-                                out += &format!("  > {} attacks {} -- MISS\r\n", name, tname);
+                                out += &format!("  > {} attacks {} -- MISS{}\r\n", name, tname, cover_str);
                             }
                         }
                         TurnAction::Move { to } => {
@@ -284,11 +289,11 @@ fn entity_name(world: &World, entity: Entity) -> String {
 
 fn map_string(world: &mut World) -> String {
     // Collect terrain data first (immutable borrow, released before query).
-    let terrain = world.get_resource::<carbonthrone::terrain::LevelMap>().map(|map| {
+    let terrain = world.get_resource::<LevelMap>().map(|map| {
         let max_x = map.cols as i32 - 1;
         let max_y = map.rows as i32 - 1;
         let cells: HashMap<(i32, i32), char> = (0..=max_y)
-            .flat_map(|y| (0..=max_x).map(move |x| ((x, y), map.get(x, y).glyph())))
+            .flat_map(|y| (0..=max_x).map(move |x| ((x, y), map.display_glyph(x, y))))
             .collect();
         (max_x, max_y, cells)
     });

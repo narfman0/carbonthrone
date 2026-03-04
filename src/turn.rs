@@ -6,7 +6,7 @@ use crate::{
     health::Health,
     position::Position,
     stats::Stats,
-    terrain::{BattleRng, LevelMap, Tile},
+    terrain::{BattleRng, CoverLevel, Direction, LevelMap},
 };
 
 pub const ATTACK_AP_COST: i32 = 2;
@@ -26,8 +26,9 @@ pub enum Action {
 /// One action that occurred during a combatant's turn (for the event log).
 #[derive(Debug, Clone)]
 pub enum TurnAction {
-    /// An attack was attempted. `hit` indicates whether it connected.
-    Attack { target: Entity, damage: i32, hit: bool },
+    /// An attack was attempted. `hit` indicates whether it connected; `cover` is the
+    /// defender's cover level from this attack's direction.
+    Attack { target: Entity, damage: i32, hit: bool, cover: CoverLevel },
     Move { to: Position },
 }
 
@@ -45,19 +46,26 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
                 return None;
             }
 
-            // Determine hit chance from defender's cover tile.
-            // resource_scope temporarily removes BattleRng so we can access &mut World + rng.
-            let hit = if world.get_resource::<BattleRng>().is_some() {
+            // Determine cover from defender's directional tile cover.
+            // resource_scope temporarily removes BattleRng to avoid borrow conflict.
+            let (hit, cover) = if world.get_resource::<BattleRng>().is_some() {
                 world.resource_scope(|world, mut rng: Mut<BattleRng>| {
-                    let tile = world
-                        .get::<Position>(*target)
-                        .copied()
-                        .and_then(|p| world.get_resource::<LevelMap>().map(|m| m.get(p.x, p.y)))
-                        .unwrap_or(Tile::Open);
-                    roll_hit(calc_hit_chance(tile), &mut rng.0)
+                    let attacker_pos = world.get::<Position>(actor).copied();
+                    let defender_pos = world.get::<Position>(*target).copied();
+                    let cover = match (attacker_pos, defender_pos) {
+                        (Some(ap), Some(dp)) => {
+                            let dir = Direction::from_attack((ap.x, ap.y), (dp.x, dp.y));
+                            world.get_resource::<LevelMap>()
+                                .map(|m| m.get_cover(dp.x, dp.y, dir))
+                                .unwrap_or(CoverLevel::None)
+                        }
+                        _ => CoverLevel::None,
+                    };
+                    let hit = roll_hit(calc_hit_chance(cover), &mut rng.0);
+                    (hit, cover)
                 })
             } else {
-                true // no RNG resource → always hit (e.g. in simple unit tests)
+                (true, CoverLevel::None) // no RNG resource → always hit (simple unit tests)
             };
 
             let attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
@@ -69,7 +77,7 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
                 world.get_mut::<Health>(*target).unwrap().take_damage(damage);
             }
 
-            Some(TurnAction::Attack { target: *target, damage, hit })
+            Some(TurnAction::Attack { target: *target, damage, hit, cover })
         }
         Action::Move { destination } => {
             let current = match world.get::<Position>(actor) {
