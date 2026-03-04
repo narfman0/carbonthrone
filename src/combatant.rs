@@ -6,7 +6,6 @@ pub trait Combatant {
     fn attack(&self) -> i32;
     fn defense(&self) -> i32;
     fn speed(&self) -> i32;
-    fn magic(&self) -> i32;
     fn take_damage(&mut self, amount: i32);
     fn is_alive(&self) -> bool;
 }

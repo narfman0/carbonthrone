@@ -44,13 +44,6 @@ fn dragon_has_more_hp_than_goblin_at_same_level() {
 }
 
 #[test]
-fn dark_mage_has_high_magic() {
-    let mage   = Enemy::new(EnemyKind::DarkMage, 1);
-    let goblin = Enemy::new(EnemyKind::Goblin, 1);
-    assert!(mage.stats.magic > goblin.stats.magic);
-}
-
-#[test]
 fn combatant_trait_delegates_correctly() {
     let mut e = Enemy::new(EnemyKind::Orc, 1);
     let hp_before = e.current_hp();

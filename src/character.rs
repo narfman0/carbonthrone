@@ -5,7 +5,6 @@ use crate::stats::Stats;
 #[derive(Debug, Clone, PartialEq, Component)]
 pub enum CharacterClass {
     Warrior,
-    Mage,
     Rogue,
     Cleric,
     Ranger,
@@ -73,7 +72,6 @@ impl Combatant for Character {
     fn attack(&self) -> i32        { self.stats.attack }
     fn defense(&self) -> i32       { self.stats.defense }
     fn speed(&self) -> i32         { self.stats.speed }
-    fn magic(&self) -> i32         { self.stats.magic }
     fn take_damage(&mut self, amount: i32) { Character::take_damage(self, amount); }
     fn is_alive(&self) -> bool     { Character::is_alive(self) }
 }

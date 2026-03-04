@@ -4,15 +4,8 @@ use carbonthrone::stats::Stats;
 #[test]
 fn warrior_has_highest_hp() {
     let warrior = Stats::for_class(&CharacterClass::Warrior);
-    let mage = Stats::for_class(&CharacterClass::Mage);
-    assert!(warrior.max_hp > mage.max_hp);
-}
-
-#[test]
-fn mage_has_highest_magic() {
-    let mage = Stats::for_class(&CharacterClass::Mage);
-    let warrior = Stats::for_class(&CharacterClass::Warrior);
-    assert!(mage.magic > warrior.magic);
+    let rogue = Stats::for_class(&CharacterClass::Rogue);
+    assert!(warrior.max_hp > rogue.max_hp);
 }
 
 #[test]

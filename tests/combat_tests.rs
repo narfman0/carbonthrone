@@ -1,4 +1,4 @@
-use carbonthrone::combat::{calc_damage, calc_magic_damage, turn_order};
+use carbonthrone::combat::{calc_damage, turn_order};
 
 #[test]
 fn damage_reduced_by_defense() {
@@ -8,11 +8,6 @@ fn damage_reduced_by_defense() {
 #[test]
 fn damage_minimum_is_one() {
     assert_eq!(calc_damage(1, 100), 1);
-}
-
-#[test]
-fn magic_damage_ignores_defense() {
-    assert_eq!(calc_magic_damage(20), 20);
 }
 
 #[test]

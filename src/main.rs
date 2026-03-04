@@ -9,7 +9,7 @@ fn main() {
     // Party is a global Resource — one party exists for the whole game.
     let mut party = Party::new();
     party.add_member(Character::new("Aldric", CharacterClass::Warrior)).unwrap();
-    party.add_member(Character::new("Lyra", CharacterClass::Mage)).unwrap();
+    party.add_member(Character::new("Lyra", CharacterClass::Rogue)).unwrap();
     world.insert_resource(party);
 
     // Each enemy is an Entity carrying an Enemy component.
