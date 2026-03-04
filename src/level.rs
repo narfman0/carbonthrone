@@ -80,11 +80,19 @@ fn random_biome(rng: &mut impl Rng) -> Biome {
 }
 
 fn random_enemy_kind(rng: &mut impl Rng) -> EnemyKind {
-    match rng.gen_range(0..5u32) {
-        0 => EnemyKind::Goblin,
-        1 => EnemyKind::Skeleton,
-        2 => EnemyKind::Orc,
-        3 => EnemyKind::Troll,
-        _ => EnemyKind::Dragon,
+    match rng.gen_range(0..13u32) {
+        0  => EnemyKind::Scavenger,
+        1  => EnemyKind::VoidRaider,
+        2  => EnemyKind::DrifterBoss,
+        3  => EnemyKind::MaintenanceDrone,
+        4  => EnemyKind::SecurityUnit,
+        5  => EnemyKind::CombatFrame,
+        6  => EnemyKind::MoonCrawler,
+        7  => EnemyKind::VoidSpitter,
+        8  => EnemyKind::AbyssalBrute,
+        9  => EnemyKind::SalvageOperative,
+        10 => EnemyKind::GunForHire,
+        11 => EnemyKind::StationGuard,
+        _  => EnemyKind::ShockTrooper,
     }
 }

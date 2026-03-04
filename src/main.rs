@@ -104,8 +104,8 @@ fn setup_battle(world: &mut World) {
     }
 
     for (i, (kind, level)) in [
-        (EnemyKind::Goblin, 1u32),
-        (EnemyKind::Orc, 2u32),
+        (EnemyKind::Scavenger, 1u32),
+        (EnemyKind::DrifterBoss, 2u32),
     ]
     .into_iter()
     .enumerate()
