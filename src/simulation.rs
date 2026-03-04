@@ -217,17 +217,20 @@ fn choose_action(world: &mut World, actor: Entity, actor_side: Side) -> Option<A
     Some(Action::Pass)
 }
 
-/// Returns a `Move` action toward the best available cover tile, or `None` if
-/// the actor is already in full cover or there's not enough AP to move and attack.
+/// Returns a `Move` action toward the best available cover tile.
+///
+/// Phase 1 — reserve AP for attack: look for better cover within `ap - ATTACK_AP_COST` tiles.
+///   If found, move there so the actor can still attack this turn.
+/// Phase 2 — advance toward cover: if no in-range cover exists, spend ALL AP to advance toward
+///   the best reachable cover tile (skipping the attack this turn).
+/// Returns `None` only if already at Full cover or no better cover exists anywhere in range.
 fn seek_cover_action(
     world: &mut World,
     actor: Entity,
     actor_side: Side,
     ap: i32,
 ) -> Option<Action> {
-    // Reserve enough AP to attack after moving.
-    let move_budget = ap - ATTACK_AP_COST;
-    if move_budget <= 0 {
+    if ap == 0 {
         return None;
     }
 
@@ -266,7 +269,7 @@ fn seek_cover_action(
         return None;
     }
 
-    // Scan all passable tiles within move_budget for better cover.
+    // Scan all passable tiles within the full AP budget for better cover.
     let (cols, rows) = world
         .get_resource::<LevelMap>()
         .map(|m| (m.cols as i32, m.rows as i32))
@@ -274,10 +277,10 @@ fn seek_cover_action(
 
     let mut candidates: Vec<(i32, i32, i32, CoverLevel)> = Vec::new(); // (dist, x, y, cover)
     if let Some(map) = world.get_resource::<LevelMap>() {
-        for dy in -move_budget..=move_budget {
-            for dx in -move_budget..=move_budget {
+        for dy in -ap..=ap {
+            for dx in -ap..=ap {
                 let dist = dx.abs() + dy.abs();
-                if dist == 0 || dist > move_budget {
+                if dist == 0 || dist > ap {
                     continue;
                 }
                 let tx = actor_pos.x + dx;
@@ -296,8 +299,23 @@ fn seek_cover_action(
         }
     }
 
-    // Prefer full cover, then closer.
+    if candidates.is_empty() {
+        return None;
+    }
+
+    // Sort: best cover first, then closest.
     candidates.sort_by(|a, b| b.3.cmp(&a.3).then(a.0.cmp(&b.0)));
+
+    // Phase 1: prefer a tile reachable while keeping enough AP to attack after.
+    let attack_budget = ap - ATTACK_AP_COST;
+    if attack_budget > 0
+        && let Some(&(_, tx, ty, _)) =
+            candidates.iter().find(|&&(dist, _, _, _)| dist <= attack_budget)
+    {
+        return Some(Action::Move { destination: Position::new(tx, ty, actor_pos.z) });
+    }
+
+    // Phase 2: advance toward the best cover using all AP (no attack this turn).
     candidates
         .first()
         .map(|&(_, tx, ty, _)| Action::Move { destination: Position::new(tx, ty, actor_pos.z) })
