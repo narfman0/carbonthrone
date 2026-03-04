@@ -6,5 +6,6 @@ pub mod experience;
 pub mod health;
 pub mod level;
 pub mod party;
+pub mod position;
 pub mod stats;
 pub mod weapon;

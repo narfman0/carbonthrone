@@ -22,13 +22,38 @@ fn level_has_at_most_four_enemies() {
 fn enemy_level_matches_depth() {
     let depth = 5;
     let level = Level::generate(depth, &mut rng());
-    assert!(level.enemies.iter().all(|e| e.level == depth));
+    assert!(level.enemies.iter().all(|(e, _)| e.level == depth));
 }
 
 #[test]
 fn depth_zero_clamps_enemy_level_to_one() {
     let level = Level::generate(0, &mut rng());
-    assert!(level.enemies.iter().all(|e| e.level == 1));
+    assert!(level.enemies.iter().all(|(e, _)| e.level == 1));
+}
+
+#[test]
+fn enemy_positions_are_within_grid() {
+    let level = Level::generate(1, &mut rng());
+    for (_, pos) in &level.enemies {
+        assert!(pos.x >= 0 && pos.x < level.cols as i32);
+        assert!(pos.y >= 0 && pos.y < level.rows as i32);
+        assert_eq!(pos.z, 0);
+    }
+}
+
+#[test]
+fn enemy_positions_are_unique() {
+    let level = Level::generate(1, &mut rng());
+    let positions: Vec<_> = level.enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
+    let unique: std::collections::HashSet<_> = positions.iter().collect();
+    assert_eq!(positions.len(), unique.len());
+}
+
+#[test]
+fn level_grid_has_minimum_dimensions() {
+    let level = Level::generate(1, &mut rng());
+    assert!(level.cols >= 8);
+    assert!(level.rows >= 8);
 }
 
 #[test]
@@ -55,8 +80,7 @@ fn surprise_states_all_occur_across_many_levels() {
 fn different_seeds_produce_different_levels() {
     let a = Level::generate(3, &mut StdRng::seed_from_u64(1));
     let b = Level::generate(3, &mut StdRng::seed_from_u64(99));
-    // Enemy counts or kinds should differ
     let same = a.enemies.len() == b.enemies.len()
-        && a.enemies.iter().zip(b.enemies.iter()).all(|(x, y)| x.kind == y.kind);
+        && a.enemies.iter().zip(b.enemies.iter()).all(|((x, _), (y, _))| x.kind == y.kind);
     assert!(!same);
 }

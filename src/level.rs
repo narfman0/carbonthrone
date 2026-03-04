@@ -1,6 +1,8 @@
+use std::collections::HashSet;
 use bevy::prelude::Resource;
 use rand::Rng;
 use crate::enemy::{Enemy, EnemyKind};
+use crate::position::Position;
 
 /// Who, if anyone, has the initiative advantage at the start of an encounter.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,20 +20,36 @@ pub enum SurpriseState {
 pub struct Level {
     /// Depth in the dungeon; drives enemy levels and difficulty.
     pub depth: u32,
-    pub enemies: Vec<Enemy>,
+    /// Grid width (number of columns along the X axis).
+    pub cols: u32,
+    /// Grid height (number of rows along the Y axis).
+    pub rows: u32,
+    /// Each enemy paired with its starting grid position (z = 0).
+    pub enemies: Vec<(Enemy, Position)>,
     pub surprise: SurpriseState,
 }
 
 impl Level {
     /// Randomly generate a level at the given depth using the provided RNG.
-    /// Enemy count: 1–4. Enemy level equals `depth` (minimum 1).
+    /// Grid: 8–16 columns × 8–16 rows. Enemy count: 1–4 at unique positions.
+    /// Enemy level equals `depth` (minimum 1).
     /// Surprise: 25% party ambushed, 25% enemy ambushed, 50% normal.
     pub fn generate(depth: u32, rng: &mut impl Rng) -> Self {
-        let enemy_count: usize = rng.gen_range(1..=4);
+        let cols: u32 = rng.gen_range(8..=16);
+        let rows: u32 = rng.gen_range(8..=16);
         let enemy_level = depth.max(1);
-        let enemies = (0..enemy_count)
-            .map(|_| Enemy::new(random_enemy_kind(rng), enemy_level))
-            .collect();
+        let enemy_count: usize = rng.gen_range(1..=4);
+
+        let mut used: HashSet<(i32, i32)> = HashSet::new();
+        let mut enemies = Vec::with_capacity(enemy_count);
+        while enemies.len() < enemy_count {
+            let x = rng.gen_range(0..cols as i32);
+            let y = rng.gen_range(0..rows as i32);
+            if used.insert((x, y)) {
+                let kind = random_enemy_kind(rng);
+                enemies.push((Enemy::new(kind, enemy_level), Position::new(x, y, 0)));
+            }
+        }
 
         let surprise = match rng.gen_range(0..4u32) {
             0 => SurpriseState::PartyAmbushed,
@@ -39,7 +57,7 @@ impl Level {
             _ => SurpriseState::Normal,
         };
 
-        Self { depth, enemies, surprise }
+        Self { depth, cols, rows, enemies, surprise }
     }
 }
 
