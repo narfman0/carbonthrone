@@ -10,7 +10,7 @@ Carbonthrone is a Rust RPG strategy game. The player assembles a party of up to 
 
 ```bash
 cargo build          # compile
-cargo test           # run all tests
+cargo test --jobs 2  # run all tests
 cargo test <name>    # run a single test by name (substring match)
 cargo run            # run the game
 cargo clippy         # lint

@@ -8,7 +8,7 @@
       "Bash(cargo fmt -- *)",
       "Bash(cargo init:*)",
       "Bash(cargo run)",
-      "Bash(cargo test:*)"
+      "Bash(cargo test -- jobs 2)"
     ]
   }
 }
