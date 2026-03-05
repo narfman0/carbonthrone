@@ -19,7 +19,8 @@ use carbonthrone::health::Health;
 use carbonthrone::position::Position;
 use carbonthrone::simulation::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;
-use carbonthrone::terrain::{BattleRng, Biome, CoverLevel, LevelMap, generate_map};
+use carbonthrone::terrain::{BattleRng, CoverLevel, LevelMap, generate_map};
+use carbonthrone::zone::ZoneKind;
 
 // ── Game phase ────────────────────────────────────────────────────────────────
 
@@ -353,16 +354,16 @@ fn setup_battle(world: &mut World) {
     }
 
     let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-    let biomes = [
-        Biome::VoidStation,
-        Biome::NeonDistrict,
-        Biome::BioLab,
-        Biome::AsteroidColony,
+    let zone_kinds = [
+        ZoneKind::CommandDeck,
+        ZoneKind::DockingBay,
+        ZoneKind::ResearchWing,
+        ZoneKind::ExcavationSite,
     ];
-    let biome = biomes[rng.gen_range(0..4)];
+    let zone_kind = zone_kinds[rng.gen_range(0..4)];
     let mut reserved: Vec<(i32, i32)> = player_positions.to_vec();
     reserved.extend_from_slice(enemy_positions);
-    let map = generate_map(10, 10, biome, &reserved, &mut rng);
+    let map = generate_map(10, 10, zone_kind, &reserved, &mut rng);
     world.insert_resource(map);
     world.insert_resource(BattleRng(rng));
 }
@@ -505,7 +506,7 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     out += "\r\n";
 
     if let Some(map) = world.get_resource::<LevelMap>() {
-        out += &format!("  Biome: {}\r\n", map.biome.display_name());
+        out += &format!("  Zone: {}\r\n", map.zone_kind.display_name());
     }
     out += "  . open  # obstacle  c partial-cover  C full-cover\r\n";
     out += "\r\n";

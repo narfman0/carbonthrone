@@ -1,7 +1,8 @@
 use crate::character::Character;
 use crate::character::CharacterKind;
 use crate::position::Position;
-use crate::terrain::{Biome, LevelMap, generate_map};
+use crate::terrain::{LevelMap, generate_map};
+use crate::zone::ZoneKind;
 use bevy::prelude::Resource;
 use rand::Rng;
 use std::collections::HashSet;
@@ -26,8 +27,8 @@ pub struct Level {
     pub cols: u32,
     /// Grid height (number of rows along the Y axis).
     pub rows: u32,
-    /// The scifi biome theme for this level.
-    pub biome: Biome,
+    /// The zone this level was generated for.
+    pub zone_kind: ZoneKind,
     /// Each NPC paired with its starting grid position (z = 0).
     pub enemies: Vec<(Character, Position)>,
     /// The terrain map for this level.
@@ -41,24 +42,23 @@ impl Level {
     /// Enemy level equals `depth` (minimum 1).
     /// Surprise: 25% party ambushed, 25% enemy ambushed, 50% normal.
     pub fn generate(depth: u32, rng: &mut impl Rng) -> Self {
-        let biome = random_biome(rng);
-        Self::generate_inner(depth, biome, None, rng)
+        let zone_kind = random_zone_kind(rng);
+        Self::generate_inner(depth, zone_kind, None, rng)
     }
 
-    /// Generate a level with a specific biome and optional enemy pool (for zone-scoped encounters).
-    /// When `enemy_pool` is `None`, all enemy kinds are eligible.
+    /// Generate a level for a specific zone with its enemy pool.
     pub fn generate_for_zone(
         depth: u32,
-        biome: Biome,
+        zone_kind: ZoneKind,
         enemy_pool: &[CharacterKind],
         rng: &mut impl Rng,
     ) -> Self {
-        Self::generate_inner(depth, biome, Some(enemy_pool), rng)
+        Self::generate_inner(depth, zone_kind, Some(enemy_pool), rng)
     }
 
     fn generate_inner(
         depth: u32,
-        biome: Biome,
+        zone_kind: ZoneKind,
         enemy_pool: Option<&[CharacterKind]>,
         rng: &mut impl Rng,
     ) -> Self {
@@ -85,7 +85,7 @@ impl Level {
         }
 
         let reserved: Vec<(i32, i32)> = enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
-        let map = generate_map(cols, rows, biome, &reserved, rng);
+        let map = generate_map(cols, rows, zone_kind, &reserved, rng);
 
         let surprise = match rng.gen_range(0..4u32) {
             0 => SurpriseState::PartyAmbushed,
@@ -97,7 +97,7 @@ impl Level {
             depth,
             cols,
             rows,
-            biome,
+            zone_kind,
             enemies,
             map,
             surprise,
@@ -105,12 +105,17 @@ impl Level {
     }
 }
 
-fn random_biome(rng: &mut impl Rng) -> Biome {
-    match rng.gen_range(0..4u32) {
-        0 => Biome::VoidStation,
-        1 => Biome::NeonDistrict,
-        2 => Biome::BioLab,
-        _ => Biome::AsteroidColony,
+fn random_zone_kind(rng: &mut impl Rng) -> ZoneKind {
+    match rng.gen_range(0..9u32) {
+        0 => ZoneKind::ResearchWing,
+        1 => ZoneKind::CommandDeck,
+        2 => ZoneKind::MilitaryAnnex,
+        3 => ZoneKind::SystemsCore,
+        4 => ZoneKind::MedicalBay,
+        5 => ZoneKind::DockingBay,
+        6 => ZoneKind::StationExterior,
+        7 => ZoneKind::RelayArray,
+        _ => ZoneKind::ExcavationSite,
     }
 }
 

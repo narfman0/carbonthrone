@@ -89,13 +89,13 @@ fn different_seeds_produce_different_levels() {
     assert!(!same);
 }
 
-// ── Biome and terrain tests ───────────────────────────────────────────────
+// ── Zone and terrain tests ────────────────────────────────────────────────
 
 #[test]
-fn level_has_a_biome() {
+fn level_has_a_zone_kind() {
     let level = Level::generate(1, &mut rng());
-    // Just verify the biome field exists and is valid (all variants are valid)
-    let _ = level.biome;
+    // Just verify the zone_kind field exists and is valid (all variants are valid)
+    let _ = level.zone_kind;
 }
 
 #[test]
@@ -120,25 +120,25 @@ fn enemy_spawn_tiles_are_open() {
 }
 
 #[test]
-fn all_biome_variants_can_be_generated() {
+fn all_zone_kind_variants_can_be_generated() {
+    use carbonthrone::zone::ZoneKind;
     let mut rng = rng();
-    let mut saw_void_station = false;
-    let mut saw_neon_district = false;
-    let mut saw_bio_lab = false;
-    let mut saw_asteroid_colony = false;
+    let mut saw = [false; 9];
 
-    use carbonthrone::terrain::Biome;
-    for _ in 0..200 {
-        match Level::generate(1, &mut rng).biome {
-            Biome::VoidStation => saw_void_station = true,
-            Biome::NeonDistrict => saw_neon_district = true,
-            Biome::BioLab => saw_bio_lab = true,
-            Biome::AsteroidColony => saw_asteroid_colony = true,
-        }
+    for _ in 0..500 {
+        let idx = match Level::generate(1, &mut rng).zone_kind {
+            ZoneKind::ResearchWing => 0,
+            ZoneKind::CommandDeck => 1,
+            ZoneKind::MilitaryAnnex => 2,
+            ZoneKind::SystemsCore => 3,
+            ZoneKind::MedicalBay => 4,
+            ZoneKind::DockingBay => 5,
+            ZoneKind::StationExterior => 6,
+            ZoneKind::RelayArray => 7,
+            ZoneKind::ExcavationSite => 8,
+        };
+        saw[idx] = true;
     }
 
-    assert!(saw_void_station);
-    assert!(saw_neon_district);
-    assert!(saw_bio_lab);
-    assert!(saw_asteroid_colony);
+    assert!(saw.iter().all(|&s| s), "all zone kinds should appear");
 }

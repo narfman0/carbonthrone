@@ -4,29 +4,7 @@ use bevy::prelude::Resource;
 use rand::Rng;
 use rand::rngs::StdRng;
 
-/// The visual and mechanical theme of a generated level.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Biome {
-    /// Derelict space station: corridors, wall panels, consoles.
-    VoidStation,
-    /// Neon-lit cyberpunk streets: hologram pillars, vendor barriers.
-    NeonDistrict,
-    /// Abandoned research facility: containment tanks, lab benches.
-    BioLab,
-    /// Off-world mining colony: rock formations, ore deposits, machinery.
-    AsteroidColony,
-}
-
-impl Biome {
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            Biome::VoidStation => "Void Station",
-            Biome::NeonDistrict => "Neon District",
-            Biome::BioLab => "Bio Lab",
-            Biome::AsteroidColony => "Asteroid Colony",
-        }
-    }
-}
+use crate::zone::ZoneKind;
 
 /// The terrain type of a single map cell. Tiles are either passable or not;
 /// cover is derived from adjacency to obstacles, not stored on the tile itself.
@@ -105,17 +83,17 @@ impl DirectionalCover {
 pub struct LevelMap {
     pub cols: u32,
     pub rows: u32,
-    pub biome: Biome,
+    pub zone_kind: ZoneKind,
     tiles: HashMap<(i32, i32), Tile>,
     cover: HashMap<(i32, i32), DirectionalCover>,
 }
 
 impl LevelMap {
-    pub fn new(cols: u32, rows: u32, biome: Biome) -> Self {
+    pub fn new(cols: u32, rows: u32, zone_kind: ZoneKind) -> Self {
         Self {
             cols,
             rows,
-            biome,
+            zone_kind,
             tiles: HashMap::new(),
             cover: HashMap::new(),
         }
@@ -190,24 +168,25 @@ impl LevelMap {
 #[derive(Resource)]
 pub struct BattleRng(pub StdRng);
 
-// ── Biome densities ──────────────────────────────────────────────────────────
+// ── Zone densities ────────────────────────────────────────────────────────────
 
-struct BiomeDensity {
-    obstacle: f32,
-}
-
-fn biome_density(biome: Biome) -> BiomeDensity {
-    match biome {
-        Biome::VoidStation => BiomeDensity { obstacle: 0.15 },
-        Biome::NeonDistrict => BiomeDensity { obstacle: 0.10 },
-        Biome::BioLab => BiomeDensity { obstacle: 0.08 },
-        Biome::AsteroidColony => BiomeDensity { obstacle: 0.22 },
+fn zone_density(zone_kind: ZoneKind) -> f32 {
+    match zone_kind {
+        ZoneKind::ResearchWing => 0.08,
+        ZoneKind::CommandDeck => 0.15,
+        ZoneKind::MilitaryAnnex => 0.15,
+        ZoneKind::SystemsCore => 0.15,
+        ZoneKind::MedicalBay => 0.08,
+        ZoneKind::DockingBay => 0.10,
+        ZoneKind::StationExterior => 0.22,
+        ZoneKind::RelayArray => 0.22,
+        ZoneKind::ExcavationSite => 0.22,
     }
 }
 
 // ── Map generation ───────────────────────────────────────────────────────────
 
-/// Procedurally generate a terrain map for the given biome.
+/// Procedurally generate a terrain map for the given zone.
 ///
 /// Obstacles are placed randomly; directional cover is then computed for every
 /// passable tile based on its obstacle neighbors.
@@ -215,12 +194,12 @@ fn biome_density(biome: Biome) -> BiomeDensity {
 pub fn generate_map(
     cols: u32,
     rows: u32,
-    biome: Biome,
+    zone_kind: ZoneKind,
     reserved_open: &[(i32, i32)],
     rng: &mut impl Rng,
 ) -> LevelMap {
-    let mut map = LevelMap::new(cols, rows, biome);
-    let density = biome_density(biome);
+    let mut map = LevelMap::new(cols, rows, zone_kind);
+    let density = zone_density(zone_kind);
     let reserved: HashSet<(i32, i32)> = reserved_open.iter().copied().collect();
 
     // Place obstacles.
@@ -229,7 +208,7 @@ pub fn generate_map(
             if reserved.contains(&(x, y)) {
                 continue;
             }
-            if rng.r#gen::<f32>() < density.obstacle {
+            if rng.r#gen::<f32>() < density {
                 map.tiles.insert((x, y), Tile::Obstacle);
             }
         }

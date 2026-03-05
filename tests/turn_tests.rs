@@ -4,8 +4,9 @@ use carbonthrone::{
     health::Health,
     position::Position,
     stats::Stats,
-    terrain::{BattleRng, Biome, LevelMap, Tile},
+    terrain::{BattleRng, LevelMap, Tile},
     turn::{ATTACK_AP_COST, Action, MOVE_AP_COST, TurnAction, apply_action},
+    zone::ZoneKind,
 };
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -136,7 +137,7 @@ fn move_to_obstacle_is_blocked() {
         .spawn((ActionPoints::new(4), Position::new(0, 0, 0)))
         .id();
 
-    let mut map = LevelMap::new(10, 10, Biome::VoidStation);
+    let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
     map.set(2, 0, Tile::Obstacle);
     world.insert_resource(map);
 
@@ -167,7 +168,7 @@ fn seeded_world_with_full_cover(seed: u64) -> (World, Entity, Entity) {
         .spawn((stats(0, 0), Health::new(100), Position::new(5, 5, 0)))
         .id();
 
-    let mut map = LevelMap::new(10, 10, Biome::VoidStation);
+    let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
     map.set(5, 4, Tile::Obstacle); // directly north of target
     map.recompute_cover();
     world.insert_resource(map);

@@ -8,7 +8,8 @@ use carbonthrone::{
     position::Position,
     simulation::{BattleOutcome, BattleStep},
     stats::Stats,
-    terrain::{Biome, CoverLevel, LevelMap, Tile},
+    terrain::{CoverLevel, LevelMap, Tile},
+    zone::ZoneKind,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -102,7 +103,7 @@ fn attack_choice_reflects_partial_cover() {
     let actor = spawn_player(&mut world, (0, 5), 10, 5); // attacker approaches from West
     spawn_enemy(&mut world, (5, 5), 4);
 
-    let mut map = LevelMap::new(10, 10, Biome::VoidStation);
+    let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
     // Obstacle at (4,4) — diagonal neighbor of (5,5) from the west direction.
     map.set(4, 4, Tile::Obstacle);
     map.recompute_cover();
@@ -134,7 +135,7 @@ fn attack_choice_reflects_full_cover() {
     let actor = spawn_player(&mut world, (5, 0), 10, 5); // approaches from North
     spawn_enemy(&mut world, (5, 5), 4);
 
-    let mut map = LevelMap::new(10, 10, Biome::VoidStation);
+    let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
     map.set(5, 4, Tile::Obstacle);
     map.recompute_cover();
     world.insert_resource(map);
@@ -216,7 +217,7 @@ fn move_to_cover_option_listed_when_cover_available() {
     let actor = spawn_player(&mut world, (0, 5), 10, 5);
     spawn_enemy(&mut world, (9, 5), 4);
 
-    let mut map = LevelMap::new(10, 10, Biome::VoidStation);
+    let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
     map.set(3, 4, Tile::Obstacle); // full cover at (3,5) from East
     map.recompute_cover();
     world.insert_resource(map);
@@ -239,7 +240,7 @@ fn no_move_to_cover_when_already_at_full_cover() {
     let actor = spawn_player(&mut world, (2, 5), 10, 5);
     spawn_enemy(&mut world, (9, 5), 4); // enemy to the East
 
-    let mut map = LevelMap::new(10, 10, Biome::VoidStation);
+    let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
     map.set(3, 5, Tile::Obstacle); // directly East of actor → full cover from East
     map.recompute_cover();
     world.insert_resource(map);
@@ -259,7 +260,7 @@ fn move_to_cover_ap_cost_is_correct() {
     let actor = spawn_player(&mut world, (0, 5), 10, 5);
     spawn_enemy(&mut world, (9, 5), 4);
 
-    let mut map = LevelMap::new(10, 10, Biome::VoidStation);
+    let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
     map.set(3, 4, Tile::Obstacle); // cover for (3,5)
     map.recompute_cover();
     world.insert_resource(map);

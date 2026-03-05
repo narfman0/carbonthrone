@@ -1,6 +1,5 @@
 use crate::character::CharacterKind;
 use crate::level::Level;
-use crate::terrain::Biome;
 use rand::Rng;
 
 /// One of the nine named zones in the Meridian station, as described in docs/world.md.
@@ -99,14 +98,13 @@ impl Zone {
     /// Enter a zone, rolling for a random combat encounter first.
     ///
     /// There is an [`ENCOUNTER_CHANCE`] probability that enemies are generated
-    /// using zone-appropriate biome and enemy types. NPCs only phase-shift in
+    /// using zone-appropriate terrain and enemy types. NPCs only phase-shift in
     /// after the encounter is resolved (or immediately when there is none).
     pub fn enter(kind: ZoneKind, depth: u32, rng: &mut impl Rng) -> Self {
         let connections = zone_connections(kind);
         let encounter = if rng.r#gen::<f64>() < ENCOUNTER_CHANCE {
-            let biome = kind.default_biome();
             let enemy_pool = kind.enemy_pool();
-            Some(Level::generate_for_zone(depth, biome, enemy_pool, rng))
+            Some(Level::generate_for_zone(depth, kind, enemy_pool, rng))
         } else {
             None
         };
@@ -147,21 +145,6 @@ impl ZoneKind {
             ZoneKind::StationExterior => "Station Exterior",
             ZoneKind::RelayArray => "Relay Array",
             ZoneKind::ExcavationSite => "Excavation Site",
-        }
-    }
-
-    /// The default terrain biome for encounters in this zone.
-    pub fn default_biome(self) -> Biome {
-        match self {
-            ZoneKind::ResearchWing => Biome::BioLab,
-            ZoneKind::CommandDeck => Biome::VoidStation,
-            ZoneKind::MilitaryAnnex => Biome::VoidStation,
-            ZoneKind::SystemsCore => Biome::VoidStation,
-            ZoneKind::MedicalBay => Biome::BioLab,
-            ZoneKind::DockingBay => Biome::NeonDistrict,
-            ZoneKind::StationExterior => Biome::AsteroidColony,
-            ZoneKind::RelayArray => Biome::AsteroidColony,
-            ZoneKind::ExcavationSite => Biome::AsteroidColony,
         }
     }
 

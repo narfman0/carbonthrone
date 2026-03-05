@@ -1,4 +1,5 @@
-use carbonthrone::terrain::{Biome, CoverLevel, Direction, Tile, generate_map};
+use carbonthrone::terrain::{CoverLevel, Direction, Tile, generate_map};
+use carbonthrone::zone::ZoneKind;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -23,7 +24,7 @@ fn open_tile_is_passable() {
 #[test]
 fn spawn_positions_are_always_open() {
     let reserved = vec![(0i32, 0i32), (3i32, 3i32), (9i32, 9i32)];
-    let map = generate_map(10, 10, Biome::AsteroidColony, &reserved, &mut rng());
+    let map = generate_map(10, 10, ZoneKind::ExcavationSite, &reserved, &mut rng());
     for (x, y) in &reserved {
         assert_eq!(
             map.get(*x, *y),
@@ -37,43 +38,43 @@ fn spawn_positions_are_always_open() {
 
 #[test]
 fn map_default_tile_is_open() {
-    let map = generate_map(10, 10, Biome::VoidStation, &[], &mut rng());
+    let map = generate_map(10, 10, ZoneKind::CommandDeck, &[], &mut rng());
     assert_eq!(map.get(100, 100), Tile::Open);
     assert_eq!(map.get(-1, -1), Tile::Open);
 }
 
 #[test]
 fn map_dimensions_are_recorded() {
-    let map = generate_map(12, 8, Biome::NeonDistrict, &[], &mut rng());
+    let map = generate_map(12, 8, ZoneKind::DockingBay, &[], &mut rng());
     assert_eq!(map.cols, 12);
     assert_eq!(map.rows, 8);
 }
 
 #[test]
-fn biome_is_recorded_on_map() {
-    let map = generate_map(10, 10, Biome::BioLab, &[], &mut rng());
-    assert_eq!(map.biome, Biome::BioLab);
+fn zone_kind_is_recorded_on_map() {
+    let map = generate_map(10, 10, ZoneKind::ResearchWing, &[], &mut rng());
+    assert_eq!(map.zone_kind, ZoneKind::ResearchWing);
 }
 
 #[test]
-fn map_contains_some_obstacles_for_asteroid_colony() {
-    let map = generate_map(20, 20, Biome::AsteroidColony, &[], &mut rng());
+fn map_contains_some_obstacles_for_excavation_site() {
+    let map = generate_map(20, 20, ZoneKind::ExcavationSite, &[], &mut rng());
     let obstacle_count = (0..20i32)
         .flat_map(|y| (0..20i32).map(move |x| (x, y)))
         .filter(|(x, y)| map.get(*x, *y) == Tile::Obstacle)
         .count();
     assert!(
         obstacle_count > 0,
-        "expected obstacles in AsteroidColony map"
+        "expected obstacles in ExcavationSite map"
     );
 }
 
 #[test]
-fn different_biomes_produce_different_obstacle_densities() {
+fn different_zones_produce_different_obstacle_densities() {
     let mut rng1 = StdRng::seed_from_u64(99);
     let mut rng2 = StdRng::seed_from_u64(99);
-    let asteroid = generate_map(20, 20, Biome::AsteroidColony, &[], &mut rng1);
-    let biolab = generate_map(20, 20, Biome::BioLab, &[], &mut rng2);
+    let excavation = generate_map(20, 20, ZoneKind::ExcavationSite, &[], &mut rng1);
+    let research = generate_map(20, 20, ZoneKind::ResearchWing, &[], &mut rng2);
 
     let count = |map: &carbonthrone::terrain::LevelMap| {
         (0..20i32)
@@ -81,10 +82,10 @@ fn different_biomes_produce_different_obstacle_densities() {
             .filter(|(x, y)| map.get(*x, *y) == Tile::Obstacle)
             .count()
     };
-    // AsteroidColony (22%) should have more obstacles than BioLab (8%)
+    // ExcavationSite (22%) should have more obstacles than ResearchWing (8%)
     assert!(
-        count(&asteroid) > count(&biolab),
-        "AsteroidColony should have more obstacles than BioLab"
+        count(&excavation) > count(&research),
+        "ExcavationSite should have more obstacles than ResearchWing"
     );
 }
 
@@ -94,7 +95,7 @@ fn different_biomes_produce_different_obstacle_densities() {
 fn tile_adjacent_to_obstacle_gets_full_cover_from_that_direction() {
     // On a generated map, wherever a tile is directly east of an obstacle,
     // it should have Full cover from the West direction (attack coming from west).
-    let map = generate_map(20, 20, Biome::AsteroidColony, &[], &mut rng());
+    let map = generate_map(20, 20, ZoneKind::ExcavationSite, &[], &mut rng());
     let mut found = false;
     'outer: for y in 0..20i32 {
         for x in 1..20i32 {
@@ -113,7 +114,7 @@ fn tile_adjacent_to_obstacle_gets_full_cover_from_that_direction() {
     }
     assert!(
         found,
-        "expected obstacle-adjacent tile in AsteroidColony map"
+        "expected obstacle-adjacent tile in ExcavationSite map"
     );
 }
 
@@ -121,7 +122,7 @@ fn tile_adjacent_to_obstacle_gets_full_cover_from_that_direction() {
 fn cover_is_directional_not_omnidirectional() {
     // A tile with an obstacle to its north should have Full cover from North
     // but NOT Full cover from South (no obstacle to south).
-    let map = generate_map(20, 20, Biome::AsteroidColony, &[], &mut rng());
+    let map = generate_map(20, 20, ZoneKind::ExcavationSite, &[], &mut rng());
     let mut found = false;
     'outer: for y in 1..19i32 {
         for x in 0..20i32 {
@@ -148,7 +149,7 @@ fn cover_is_directional_not_omnidirectional() {
 #[test]
 fn tile_diagonal_to_obstacle_may_get_partial_cover() {
     // Find a tile where the only adjacent obstacle is diagonal and check partial cover.
-    let map = generate_map(20, 20, Biome::AsteroidColony, &[], &mut rng());
+    let map = generate_map(20, 20, ZoneKind::ExcavationSite, &[], &mut rng());
     let mut found_partial = false;
     'outer: for y in 1..19i32 {
         for x in 1..19i32 {
@@ -178,7 +179,7 @@ fn tile_diagonal_to_obstacle_may_get_partial_cover() {
 #[test]
 fn isolated_tile_has_no_cover() {
     // Find a tile where all 8 neighbors are open and verify no cover.
-    let map = generate_map(20, 20, Biome::NeonDistrict, &[], &mut rng());
+    let map = generate_map(20, 20, ZoneKind::DockingBay, &[], &mut rng());
     let dirs = [
         Direction::North,
         Direction::South,
@@ -219,7 +220,7 @@ fn isolated_tile_has_no_cover() {
 
 #[test]
 fn display_glyph_reflects_cover_levels() {
-    let map = generate_map(20, 20, Biome::AsteroidColony, &[], &mut rng());
+    let map = generate_map(20, 20, ZoneKind::ExcavationSite, &[], &mut rng());
     let dirs = [
         Direction::North,
         Direction::South,
