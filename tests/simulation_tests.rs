@@ -3,7 +3,6 @@ use carbonthrone::{
     action_points::ActionPoints,
     health::Health,
     position::Position,
-    side::Side,
     simulation::{BattleOutcome, simulate_battle},
     stats::Stats,
 };
@@ -11,7 +10,6 @@ use carbonthrone::{
 fn player(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> Entity {
     world
         .spawn((
-            Side::Player,
             Health::new(hp),
             Stats {
                 max_hp: hp,
@@ -28,7 +26,6 @@ fn player(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> 
 fn enemy(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> Entity {
     world
         .spawn((
-            Side::Enemy,
             Health::new(hp),
             Stats {
                 max_hp: hp,

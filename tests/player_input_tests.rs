@@ -5,7 +5,6 @@ use carbonthrone::{
     health::Health,
     player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
-    side::Side,
     simulation::{BattleOutcome, BattleStep},
     stats::Stats,
     terrain::{Biome, CoverLevel, LevelMap, Tile},
@@ -16,7 +15,6 @@ use carbonthrone::{
 fn spawn_player(world: &mut World, pos: (i32, i32), attack: i32, defense: i32) -> Entity {
     world
         .spawn((
-            Side::Player,
             Health::new(100),
             Stats {
                 max_hp: 100,
@@ -33,7 +31,6 @@ fn spawn_player(world: &mut World, pos: (i32, i32), attack: i32, defense: i32) -
 fn spawn_enemy(world: &mut World, pos: (i32, i32), defense: i32) -> Entity {
     world
         .spawn((
-            Side::Enemy,
             Health::new(50),
             Stats {
                 max_hp: 50,
@@ -186,7 +183,6 @@ fn no_attack_choices_when_ap_too_low() {
     // Actor with only 1 AP — ATTACK_AP_COST is 2, so no attacks should appear.
     let actor = world
         .spawn((
-            Side::Player,
             Health::new(100),
             Stats {
                 max_hp: 100,
@@ -298,7 +294,6 @@ fn display_strings_are_non_empty() {
 fn player_choices_returns_options_on_player_turn() {
     let mut world = World::new();
     world.spawn((
-        Side::Player,
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -310,7 +305,6 @@ fn player_choices_returns_options_on_player_turn() {
         Position::new(0, 0, 0),
     ));
     world.spawn((
-        Side::Enemy,
         Health::new(50),
         Stats {
             max_hp: 50,
@@ -338,49 +332,10 @@ fn player_choices_returns_options_on_player_turn() {
 }
 
 #[test]
-fn player_choices_empty_on_enemy_turn() {
-    let mut world = World::new();
-    world.spawn((
-        Side::Player,
-        Health::new(100),
-        Stats {
-            max_hp: 100,
-            attack: 10,
-            defense: 5,
-            speed: 10,
-        },
-        ActionPoints::new(4),
-        Position::new(0, 0, 0),
-    ));
-    world.spawn((
-        Side::Enemy,
-        Health::new(50),
-        Stats {
-            max_hp: 50,
-            attack: 5,
-            defense: 4,
-            speed: 5,
-        },
-        ActionPoints::new(4),
-        Position::new(5, 0, 0),
-    ));
-
-    let mut bs = BattleStep::new(&mut world);
-    // Manually advance to enemy side.
-    bs.step(&mut world); // processes the player turn via AI
-    // Now it should be the enemy side.
-    if bs.side == carbonthrone::side::Side::Enemy {
-        let choices = bs.player_choices(&mut world);
-        assert!(choices.is_empty());
-    }
-}
-
-#[test]
 fn step_player_action_pass_ends_turn() {
     let mut world = World::new();
     let player = world
         .spawn((
-            Side::Player,
             Health::new(100),
             Stats {
                 max_hp: 100,
@@ -393,7 +348,6 @@ fn step_player_action_pass_ends_turn() {
         ))
         .id();
     world.spawn((
-        Side::Enemy,
         Health::new(50),
         Stats {
             max_hp: 50,
@@ -418,7 +372,6 @@ fn step_player_action_pass_ends_turn() {
 fn step_player_action_attack_deals_damage() {
     let mut world = World::new();
     world.spawn((
-        Side::Player,
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -431,7 +384,6 @@ fn step_player_action_attack_deals_damage() {
     ));
     let enemy = world
         .spawn((
-            Side::Enemy,
             Health::new(50),
             Stats {
                 max_hp: 50,
@@ -464,7 +416,6 @@ fn step_player_action_attack_deals_damage() {
 fn step_player_action_outcome_set_on_victory() {
     let mut world = World::new();
     world.spawn((
-        Side::Player,
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -476,7 +427,6 @@ fn step_player_action_outcome_set_on_victory() {
         Position::new(0, 0, 0),
     ));
     world.spawn((
-        Side::Enemy,
         Health::new(1),
         Stats {
             max_hp: 1,
