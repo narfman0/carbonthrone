@@ -555,6 +555,28 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
                         TurnAction::Move { to } => {
                             out += &format!("  > {} moves to ({}, {})\r\n", name, to.x, to.y);
                         }
+                        TurnAction::UseAbility {
+                            ability_name,
+                            target,
+                            value,
+                            hit,
+                        } => {
+                            let target_str = match target {
+                                Some(t) => format!(" on {}", entity_name(world, *t)),
+                                None => String::new(),
+                            };
+                            if *hit {
+                                out += &format!(
+                                    "  > {} uses {}{} for {}\r\n",
+                                    name, ability_name, target_str, value
+                                );
+                            } else {
+                                out += &format!(
+                                    "  > {} uses {}{} -- MISS\r\n",
+                                    name, ability_name, target_str
+                                );
+                            }
+                        }
                     }
                 }
             }

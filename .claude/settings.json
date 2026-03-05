@@ -1,11 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cargo clippy --jobs 1)",
-      "Bash(cargo init:*)",
-      "Bash(cargo test:*)",
       "Bash(cargo build)",
-      "Bash(cargo build --jobs 1)"
+      "Bash(cargo build --jobs 1)",
+      "Bash(cargo clippy --jobs 1)",
+      "Bash(cargo fmt)",
+      "Bash(cargo init:*)",
+      "Bash(cargo run)",
+      "Bash(cargo test:*)"
     ]
   }
 }
