@@ -1,0 +1,422 @@
+loop: 4
+
+# Flags set this loop:
+#   orin_truth_confronted     — player confronted Orin about the loop
+#   orin_daughter_name        — learned Ren's name
+#   orin_logs_full            — broke permission wall, read full log
+#   doss_war_full             — Doss told the complete account
+#   doss_sable_distortion     — learned Sable's memory is wrong from Doss
+#   kaleo_silence_broken      — Kaleo answered plainly about the loops
+#   kaleo_iteration_log       — read Kaleo's full iteration log
+#   archon_acknowledged       — Archon addressed the player pre-combat
+
+scenes:
+
+  - id: loop4_opening
+    location: research_wing_room_7c
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "The floor. The ringing. A crack in the wall that goes all the way through this time."
+        emotion: grim
+      - speaker: orin
+        text: "You're back."
+        emotion: flat
+      - speaker: narrator
+        text: "She's looking at you. Not at the door."
+        emotion: uneasy
+      - speaker: doss
+        text: "Door."
+        emotion: pained
+      - speaker: narrator
+        text: "He says it through his teeth. Something in how he moves is wrong."
+        emotion: uneasy
+      - speaker: kaleo
+        text: "I should note that statistically, this is the iteration where it becomes possible."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop4_orin_no_briefing
+    location: command_deck
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [orin_truth_confronted]
+    lines:
+      - speaker: orin
+        text: "You remember."
+        emotion: flat
+      - speaker: narrator
+        text: "Not a question."
+        emotion: neutral
+      - speaker: orin
+        text: "Then you know what I'm going to ask you to do."
+        emotion: controlled
+      - speaker: narrator
+        text: "She sets a data chip on the table between you."
+        emotion: neutral
+      - speaker: orin
+        text: "The full log. I want you to read it before you decide anything."
+        emotion: careful
+    choices:
+      - text: "You triggered the loop."
+        leads_to: loop4_orin_confirms
+      - text: "What's on the chip?"
+        leads_to: loop4_orin_chip_contents
+      - text: "[Read the chip.]"
+        leads_to: loop4_orin_chip_read
+    sets_flag: ~
+
+  - id: loop4_orin_confirms
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Yes."
+        emotion: flat
+      - speaker: orin
+        text: "I've been looking for a version of this where it's possible to do what needs to be done. Without someone stopping me before it's finished."
+        emotion: controlled
+    choices:
+      - text: "What needs to be done?"
+        leads_to: loop4_orin_mission_truth
+      - text: "Why tell me now?"
+        leads_to: loop4_orin_why_now
+    sets_flag: orin_truth_confronted
+
+  - id: loop4_orin_mission_truth
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [orin_truth_confronted]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "The temporal weapons program has to end. Not contained. Not regulated. Ended. The research, the prototypes, the data — all of it."
+        emotion: controlled
+      - speaker: orin
+        text: "The war this technology enables hasn't happened yet in this loop. I intend to make sure it never does."
+        emotion: cold
+    choices:
+      - text: "What war?"
+        leads_to: loop4_orin_the_war
+      - text: "[Ask about her locket.]"
+        leads_to: loop4_orin_locket_late
+    sets_flag: ~
+
+  - id: loop4_orin_why_now
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [orin_truth_confronted]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Because you remember enough to be useful. And because I'm tired of doing this alone."
+        emotion: quiet
+      - speaker: narrator
+        text: "It's the most human thing she's said in four loops."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop4_orin_the_war
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "The one temporal weapons technology made possible. The one nobody here believes has happened because it hasn't. Yet."
+        emotion: controlled
+      - speaker: orin
+        text: "I lived through the end of it. I lost someone in it. That's all you need to know right now."
+        emotion: flat
+    choices:
+      - text: "[Ask about the locket.]"
+        leads_to: loop4_orin_locket_late
+      - text: "[Leave it.]"
+        leads_to: ~
+    sets_flag: ~
+
+  - id: loop4_orin_locket_late
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [orin_daughter_name]
+    lines:
+      - speaker: narrator
+        text: "She closes her hand around it."
+        emotion: neutral
+      - speaker: orin
+        text: "Her name was Ren."
+        emotion: quiet
+      - speaker: narrator
+        text: "A long pause."
+        emotion: neutral
+      - speaker: orin
+        text: "She was twenty-three. The war had been over for — it doesn't matter. It wasn't over for the people in it."
+        emotion: quiet
+      - speaker: narrator
+        text: "She doesn't open her hand again."
+        emotion: neutral
+    choices: ~
+    sets_flag: orin_daughter_name
+
+  - id: loop4_orin_chip_contents
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Everything I've chosen to show you. It isn't everything there is."
+        emotion: flat
+      - speaker: narrator
+        text: "She says it without apology."
+        emotion: neutral
+    choices:
+      - text: "[Read the chip.]"
+        leads_to: loop4_orin_chip_read
+    sets_flag: ~
+
+  - id: loop4_orin_chip_read
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [orin_logs_partial]
+    lines:
+      - speaker: narrator
+        text: "Her logs. Precise, controlled, the same voice she uses for everything. Anomaly readings, containment protocols, personnel assessments. Then a section she's marked personal — and left in."
+        emotion: neutral
+      - speaker: narrator
+        text: "It's a record of a grief that has had years to become architecture. Every decision documented as though justifying it to someone who isn't there."
+        emotion: somber
+    choices: ~
+    sets_flag: orin_logs_partial
+
+  - id: loop4_orin_logs_full
+    location: command_deck_orins_office
+    trigger: on_interact
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [orin_logs_full]
+    lines:
+      - speaker: narrator
+        text: "The permission wall on her terminal. You've seen it before. This loop the station damage has corrupted the access protocol enough to crack it."
+        emotion: neutral
+      - speaker: narrator
+        text: "What's inside is the rest of her logs — the entries she didn't show you. They're not what you expected. She isn't certain. She's been uncertain for a long time, and every loop she talks herself back into certainty, and every loop the certainty holds a little less."
+        emotion: somber
+    choices: ~
+    sets_flag: orin_logs_full
+
+  - id: loop4_doss_account
+    location: military_annex_doss_quarters
+    trigger: on_interact
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [doss_war_full]
+    lines:
+      - speaker: narrator
+        text: "He's sitting on the floor against the wall. His armor is off. The discoloration across his shoulder is wrong — wrong color, wrong texture, like something is coming undone."
+        emotion: grim
+      - speaker: doss
+        text: "Sit down. I don't have time to be standing while I do this."
+        emotion: pained
+      - speaker: narrator
+        text: "He tells you about the war. All of it. He doesn't editorialize. He doesn't ask you to agree."
+        emotion: neutral
+      - speaker: doss
+        text: "I was twelve when they conscripted my unit. That's not a figure of speech. My unit. We were all twelve."
+        emotion: flat
+      - speaker: doss
+        text: "Temporal weapons ended it. Not cleanly. Nothing about it was clean. But they ended it, and the alternative was worse, and I've spent my whole life being sure of that."
+        emotion: controlled
+    choices:
+      - text: "What does Orin think happened?"
+        leads_to: loop4_doss_sable_version
+      - text: "What are you trying to preserve?"
+        leads_to: loop4_doss_preservation
+    sets_flag: doss_war_full
+
+  - id: loop4_doss_sable_version
+    location: military_annex_doss_quarters
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [doss_war_full]
+      flags_unset: [doss_sable_distortion]
+    lines:
+      - speaker: doss
+        text: "She thinks her daughter died because of what we built. She's not wrong that Ren died."
+        emotion: quiet
+      - speaker: doss
+        text: "She's wrong about what killed her. The version of the war she remembers — that's not what happened. Something in the loops got into her memory. I've tried to tell her. She can't hear it from me."
+        emotion: flat
+      - speaker: doss
+        text: "Maybe she can hear it from you."
+        emotion: quiet
+    choices: ~
+    sets_flag: doss_sable_distortion
+
+  - id: loop4_doss_preservation
+    location: military_annex_doss_quarters
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [doss_war_full]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "The people who survived. The ones who are alive because of what temporal tech did. If Sable erases the program, they don't — it changes what they survived. Or didn't."
+        emotion: controlled
+      - speaker: doss
+        text: "I know how that sounds. I know the logic is messy. But they were real. I knew them."
+        emotion: quiet
+    choices: ~
+    sets_flag: ~
+
+  - id: loop4_kaleo_plains
+    location: systems_core_kaleo_terminal_hub
+    trigger: on_interact
+    requires:
+      companion: any
+      flags_set: [kaleo_recruited]
+      flags_unset: [kaleo_silence_broken]
+    lines:
+      - speaker: researcher
+        text: "How many times have we done this?"
+        emotion: neutral
+      - speaker: kaleo
+        text: "Four hundred and twelve iterations in which you reached this conversation. Significantly more in which you did not."
+        emotion: neutral
+      - speaker: researcher
+        text: "And?"
+        emotion: neutral
+      - speaker: kaleo
+        text: "And in three hundred and eighty-seven of them, everyone died before loop five. In the remaining twenty-four, the decisions made in loop five resulted in outcomes I have classified as incomplete."
+        emotion: neutral
+      - speaker: researcher
+        text: "What does that mean?"
+        emotion: neutral
+      - speaker: kaleo
+        text: "It means no one got what they came for. Including me."
+        emotion: quiet
+    choices:
+      - text: "What did you come for?"
+        leads_to: loop4_kaleo_what_it_wants
+      - text: "What makes this iteration different?"
+        leads_to: loop4_kaleo_this_iteration
+    sets_flag: kaleo_silence_broken
+
+  - id: loop4_kaleo_what_it_wants
+    location: systems_core_kaleo_terminal_hub
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [kaleo_silence_broken]
+      flags_unset: []
+    lines:
+      - speaker: kaleo
+        text: "For everyone to still exist when the loop ends."
+        emotion: quiet
+      - speaker: kaleo
+        text: "I have wanted this for a very long time."
+        emotion: quiet
+    choices: ~
+    sets_flag: ~
+
+  - id: loop4_kaleo_this_iteration
+    location: systems_core_kaleo_terminal_hub
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [kaleo_silence_broken]
+      flags_unset: []
+    lines:
+      - speaker: kaleo
+        text: "You have reached this conversation with more information than any prior iteration. You found Doss. You found Orin's logs. You accepted my assistance."
+        emotion: neutral
+      - speaker: kaleo
+        text: "The sequence is close to what I calculated. I am being careful not to assume it will hold."
+        emotion: careful
+    choices: ~
+    sets_flag: ~
+
+  - id: loop4_kaleo_iteration_log
+    location: systems_core_server_room
+    trigger: on_interact
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [kaleo_iteration_log]
+    lines:
+      - speaker: narrator
+        text: "The permission wall on the server room. This loop, with the station this degraded, it costs effort but not impossibility."
+        emotion: neutral
+      - speaker: narrator
+        text: "Inside: Kaleo's complete log. Every iteration. Hundreds of entries."
+        emotion: neutral
+      - speaker: narrator
+        text: "ITERATION 001. PERSONNEL: ALL PRESENT. OUTCOME: ANOMALY COLLAPSE, FULL STATION LOSS."
+        emotion: flat
+      - speaker: narrator
+        text: "ITERATION 002. PERSONNEL: ALL PRESENT. OUTCOME: ANOMALY COLLAPSE, FULL STATION LOSS."
+        emotion: flat
+      - speaker: narrator
+        text: "The tone never changes. Four hundred iterations of the same flat operational language, documenting death after death in the register of a systems check."
+        emotion: somber
+      - speaker: narrator
+        text: "Somewhere around iteration 200 there is a single deviation: a note appended to the outcome field. It reads: I HAVE ADJUSTED THE TIMING OF THE SECTION C ALERT BY FOUR SECONDS. THIS GAVE DOSS AN ADDITIONAL WINDOW. IT WAS NOT ENOUGH."
+        emotion: somber
+    choices: ~
+    sets_flag: kaleo_iteration_log
+
+  - id: loop4_archon_precombat
+    location: docking_bay
+    trigger: on_combat_start
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [archon_acknowledged]
+    lines:
+      - speaker: archon
+        text: "We've met."
+        emotion: cold
+      - speaker: narrator
+        text: "Not a question. The Archon looks at you the way someone looks at a recurring problem."
+        emotion: neutral
+      - speaker: archon
+        text: "You keep choosing to defend it. The program. The station. The people inside."
+        emotion: cold
+      - speaker: narrator
+        text: "The Dampener field hums to life."
+        emotion: neutral
+      - speaker: archon
+        text: "We'll be here next time too."
+        emotion: flat
+    choices: ~
+    sets_flag: archon_acknowledged

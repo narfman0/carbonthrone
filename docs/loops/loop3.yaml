@@ -1,0 +1,325 @@
+loop: 3
+
+# Flags set this loop:
+#   orin_logs_partial         — accessed partial logs via Orin companion route
+#   doss_war_referenced       — Doss mentioned the war obliquely
+#   doss_bunk_found           — player found and read the war maps
+#   kaleo_recruited           — player accepted Kaleo into the party
+#   kaleo_knows_more          — player noticed Kaleo's first evasive answer
+#   constancy_zealot_heard    — heard the dying Zealot speak
+
+scenes:
+
+  - id: loop3_opening
+    location: research_wing_room_7c
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "The floor again. The ringing. The light is worse this time — something in the wall cracked between then and now, and nobody caused it in this loop."
+        emotion: uneasy
+      - speaker: orin
+        text: "On your feet."
+        emotion: rehearsed
+      - speaker: doss
+        text: "Door."
+        emotion: terse
+      - speaker: narrator
+        text: "He was already watching it."
+        emotion: neutral
+      - speaker: kaleo
+        text: "I should note that I have run this calculation before —"
+        emotion: neutral
+      - speaker: narrator
+        text: "[Drops. The suppression field is up.]"
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop3_post_split_orin
+    location: command_deck
+    trigger: on_enter
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "The anomaly is worse than it should be at the start of a loop. You'll see that in the readings."
+        emotion: controlled
+      - speaker: narrator
+        text: "She said 'start of a loop' without pausing."
+        emotion: uneasy
+    choices:
+      - text: "You said 'start of a loop.'"
+        leads_to: loop3_orin_slip_caught
+      - text: "[Let it pass.]"
+        leads_to: ~
+    sets_flag: ~
+
+  - id: loop3_orin_slip_caught
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "I meant start of a — the start of this situation. The crisis."
+        emotion: measured
+      - speaker: narrator
+        text: "The correction is smooth. It should feel reassuring. It doesn't."
+        emotion: uneasy
+    choices: ~
+    sets_flag: ~
+
+  - id: loop3_orin_logs_access
+    location: command_deck_orins_office
+    trigger: on_interact
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: [orin_logs_partial]
+    lines:
+      - speaker: orin
+        text: "Some of it isn't — I'm not ready to show you all of it yet."
+        emotion: careful
+      - speaker: narrator
+        text: "She says 'yet' like she means it. You don't know if she does."
+        emotion: neutral
+      - speaker: narrator
+        text: "She opens a partial log. Entries from before the loop began — her voice, clipped and precise, documenting anomaly readings. Then a gap. Then entries that begin mid-sentence, as though she started recording and thought better of it."
+        emotion: neutral
+    choices:
+      - text: "What's in the gap?"
+        leads_to: loop3_orin_logs_gap
+      - text: "[Read what she's shown you.]"
+        leads_to: ~
+    sets_flag: orin_logs_partial
+
+  - id: loop3_orin_logs_gap
+    location: command_deck_orins_office
+    trigger: on_choice
+    requires:
+      companion: orin
+      flags_set: [companion_orin, orin_logs_partial]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Personal notes. Not relevant to the mission."
+        emotion: flat
+      - speaker: narrator
+        text: "She closes the terminal."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop3_doss_bunk
+    location: military_annex_doss_quarters
+    trigger: on_interact
+    requires:
+      companion: doss
+      flags_set: [companion_doss]
+      flags_unset: [doss_bunk_found]
+    lines:
+      - speaker: narrator
+        text: "Maps on the bunk. Tactical maps — grid references, force positions, supply lines. You pull up the location index and find nothing. These places don't exist in any database you can reach."
+        emotion: uneasy
+      - speaker: doss
+        text: "Old habit."
+        emotion: flat
+      - speaker: narrator
+        text: "He's in the doorway. He doesn't ask how you found them."
+        emotion: neutral
+      - speaker: doss
+        text: "Sit down."
+        emotion: quiet
+      - speaker: narrator
+        text: "He sits on the edge of the bunk. Doesn't look at you."
+        emotion: neutral
+      - speaker: doss
+        text: "You ever been in something you couldn't walk away from? Not because they stopped you. Because walking away meant it happened for nothing."
+        emotion: quiet
+    choices:
+      - text: "What happened?"
+        leads_to: loop3_doss_war_not_yet
+      - text: "What are those maps of?"
+        leads_to: loop3_doss_maps_question
+      - text: "[Say nothing.]"
+        leads_to: loop3_doss_bunk_silence
+    sets_flag: doss_bunk_found
+
+  - id: loop3_doss_war_not_yet
+    location: military_annex_doss_quarters
+    trigger: on_choice
+    requires:
+      companion: doss
+      flags_set: [companion_doss, doss_bunk_found]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Not yet."
+        emotion: flat
+    choices: ~
+    sets_flag: ~
+
+  - id: loop3_doss_maps_question
+    location: military_annex_doss_quarters
+    trigger: on_choice
+    requires:
+      companion: doss
+      flags_set: [companion_doss, doss_bunk_found]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "A place I was. A long time ago."
+        emotion: quiet
+      - speaker: doss
+        text: "Doesn't matter where. Matters what happened there."
+        emotion: flat
+    choices: ~
+    sets_flag: doss_war_referenced
+
+  - id: loop3_doss_bunk_silence
+    location: military_annex_doss_quarters
+    trigger: on_choice
+    requires:
+      companion: doss
+      flags_set: [companion_doss, doss_bunk_found]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Good answer."
+        emotion: dry
+    choices: ~
+    sets_flag: ~
+
+  - id: loop3_doss_war_oblique_no_companion
+    location: military_annex_doss_quarters
+    trigger: on_interact
+    requires:
+      companion: orin
+      flags_set: [doss_bunk_found]
+      flags_unset: [doss_war_referenced]
+    lines:
+      - speaker: doss
+        text: "You're Orin's, aren't you."
+        emotion: flat
+      - speaker: narrator
+        text: "Not a question."
+        emotion: neutral
+      - speaker: doss
+        text: "There was a war. She thinks she knows what it means. She doesn't."
+        emotion: cold
+      - speaker: narrator
+        text: "He doesn't elaborate. He goes back to cleaning his rifle."
+        emotion: neutral
+    choices: ~
+    sets_flag: doss_war_referenced
+
+  - id: loop3_kaleo_recruitment
+    location: systems_core_maintenance_corridor
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [kaleo_recruited]
+    lines:
+      - speaker: narrator
+        text: "The terminal displays a single line: UNIT KALEO — I WOULD BE MORE USEFUL IN THE FIELD."
+        emotion: neutral
+      - speaker: narrator
+        text: "It appeared once. It is waiting."
+        emotion: neutral
+    choices:
+      - text: "[Accept.]"
+        leads_to: loop3_kaleo_joins
+        sets_flag: kaleo_recruited
+      - text: "[Ignore it and move on.]"
+        leads_to: ~
+    sets_flag: ~
+
+  - id: loop3_kaleo_joins
+    location: systems_core_maintenance_corridor
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [kaleo_recruited]
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "The terminal goes dark. A moment later, Kaleo's voice comes from the corridor speaker — closer than a station-wide broadcast should sound."
+        emotion: neutral
+      - speaker: kaleo
+        text: "Thank you. I will try not to be an inconvenience."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop3_kaleo_first_warning
+    location: military_annex_guard_post
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: [kaleo_recruited]
+      flags_unset: []
+    lines:
+      - speaker: kaleo
+        text: "There are two Security Units in the next room. They have been aggressive since loop — since their last maintenance cycle."
+        emotion: neutral
+      - speaker: narrator
+        text: "You hadn't asked."
+        emotion: uneasy
+    choices:
+      - text: "How did you know that?"
+        leads_to: loop3_kaleo_first_evasion
+      - text: "[Proceed with the warning in mind.]"
+        leads_to: ~
+    sets_flag: ~
+
+  - id: loop3_kaleo_first_evasion
+    location: military_annex_guard_post
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [kaleo_recruited]
+      flags_unset: []
+    lines:
+      - speaker: kaleo
+        text: "I have access to the station's sensor grid."
+        emotion: neutral
+      - speaker: narrator
+        text: "A beat."
+        emotion: neutral
+      - speaker: kaleo
+        text: "That is the accurate answer."
+        emotion: neutral
+    choices: ~
+    sets_flag: kaleo_knows_more
+
+  - id: loop3_constancy_zealot_dying
+    location: research_wing_lab_a
+    trigger: on_combat_end
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [constancy_zealot_heard]
+    lines:
+      - speaker: narrator
+        text: "One Zealot is down but not dead. If you leave them, they speak before the end."
+        emotion: neutral
+      - speaker: zealot
+        text: "You think we're wrong."
+        emotion: quiet
+      - speaker: narrator
+        text: "Not an accusation. A statement."
+        emotion: neutral
+      - speaker: zealot
+        text: "You'll understand why we came. Before the end."
+        emotion: quiet
+    choices: ~
+    sets_flag: constancy_zealot_heard

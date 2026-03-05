@@ -1,0 +1,477 @@
+loop: 5
+
+# Flags set this loop:
+#   orin_helped             — player helped Orin destroy the program
+#   orin_stopped            — player stopped Orin
+#   orin_told_doss_truth    — player told Orin that her memory is wrong
+#   kaleo_plan_confirmed    — Kaleo confirmed it engineered the convergence
+#   convergence_triggered   — all three NPC threads found; final scene unlocked
+
+scenes:
+
+  - id: loop5_opening
+    location: research_wing_room_7c
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "The floor. The ringing. Half the ceiling is gone — not destroyed, displaced, flickering between intact and rubble."
+        emotion: grim
+      - speaker: orin
+        text: "I know. I know you remember."
+        emotion: exhausted
+      - speaker: narrator
+        text: "She's looking at you before you're fully upright."
+        emotion: neutral
+      - speaker: doss
+        text: "Here."
+        emotion: pained
+      - speaker: narrator
+        text: "He holds out the Flux sidearm. His hand is shaking slightly."
+        emotion: neutral
+      - speaker: narrator
+        text: "Kaleo is in the room. Not through a terminal. Standing near the wall. Present. Unexplained."
+        emotion: uneasy
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_orin_opening
+    location: command_deck
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "I've been doing this a long time. Longer than you've been in it."
+        emotion: exhausted
+      - speaker: orin
+        text: "I need to know — this loop — are you with me or not?"
+        emotion: controlled
+    choices:
+      - text: "What exactly are you asking me to do?"
+        leads_to: loop5_orin_ask_what
+      - text: "I'm with you."
+        leads_to: loop5_orin_player_agrees
+      - text: "I'm not."
+        leads_to: loop5_orin_player_refuses
+      - text: "Doss told me your memory of the war isn't right."
+        leads_to: loop5_orin_told_doss_truth
+        requires_flag: doss_sable_distortion
+    sets_flag: ~
+
+  - id: loop5_orin_ask_what
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Destroy the program. All of it. The lab, the data, the prototypes. Everything we built."
+        emotion: flat
+      - speaker: orin
+        text: "And then let the loop end."
+        emotion: quiet
+    choices:
+      - text: "I'm with you."
+        leads_to: loop5_orin_player_agrees
+      - text: "I'm not."
+        leads_to: loop5_orin_player_refuses
+      - text: "Doss told me your memory of the war isn't right."
+        leads_to: loop5_orin_told_doss_truth
+        requires_flag: doss_sable_distortion
+    sets_flag: ~
+
+  - id: loop5_orin_player_agrees
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Good."
+        emotion: flat
+      - speaker: narrator
+        text: "She gets to work. She is calm the entire time. When it's over she sits down on the floor of the lab and doesn't get up again."
+        emotion: somber
+      - speaker: narrator
+        text: "She got what she came for. She doesn't survive and doesn't need to."
+        emotion: somber
+    choices: ~
+    sets_flag: orin_helped
+
+  - id: loop5_orin_player_refuses
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "You understand what you're letting happen."
+        emotion: flat
+      - speaker: researcher
+        text: "Yes."
+        emotion: neutral
+      - speaker: narrator
+        text: "She nods, once. The grief in her is quiet and enormous and she doesn't try to make you feel it."
+        emotion: somber
+    choices: ~
+    sets_flag: orin_stopped
+
+  - id: loop5_orin_told_doss_truth
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [doss_sable_distortion]
+      flags_unset: [orin_told_doss_truth]
+    lines:
+      - speaker: orin
+        text: "That's not —"
+        emotion: controlled
+      - speaker: narrator
+        text: "She stops."
+        emotion: neutral
+      - speaker: orin
+        text: "Ren died. I know she died. I was there."
+        emotion: flat
+      - speaker: researcher
+        text: "Doss says the war wasn't —"
+        emotion: neutral
+      - speaker: orin
+        text: "I know what Doss says."
+        emotion: cold
+      - speaker: narrator
+        text: "She believes this completely. You cannot resolve it for her."
+        emotion: somber
+      - speaker: narrator
+        text: "What you can do is stay in the room with her while she sits with it."
+        emotion: somber
+    choices: ~
+    sets_flag: orin_told_doss_truth
+
+  - id: loop5_doss_after_fight
+    location: research_wing_room_7c
+    trigger: on_combat_end
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "You talked to her."
+        emotion: quiet
+      - speaker: narrator
+        text: "Not a question."
+        emotion: neutral
+    choices:
+      - text: "[Confirm.]"
+        leads_to: loop5_doss_confirm_talk
+      - text: "[Don't answer.]"
+        leads_to: loop5_doss_no_answer
+    sets_flag: ~
+
+  - id: loop5_doss_confirm_talk
+    location: research_wing_room_7c
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Did she listen?"
+        emotion: quiet
+    choices:
+      - text: "She heard me. I don't know if she believed it."
+        leads_to: loop5_doss_heard_not_believed
+      - text: "No."
+        leads_to: loop5_doss_did_not_listen
+    sets_flag: ~
+
+  - id: loop5_doss_heard_not_believed
+    location: research_wing_room_7c
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "That's more than I ever got."
+        emotion: quiet
+      - speaker: narrator
+        text: "He pushes off the wall."
+        emotion: neutral
+      - speaker: doss
+        text: "I'm not going to make it to the end of this loop. I think we both know that."
+        emotion: flat
+      - speaker: doss
+        text: "Make it mean something."
+        emotion: quiet
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_doss_did_not_listen
+    location: research_wing_room_7c
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Yeah."
+        emotion: flat
+      - speaker: narrator
+        text: "He already knew."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_doss_no_answer
+    location: research_wing_room_7c
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "It's okay. I know you did."
+        emotion: quiet
+      - speaker: doss
+        text: "Make it mean something."
+        emotion: flat
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_doss_already_knows
+    location: research_wing_room_7c
+    trigger: on_combat_end
+    requires:
+      companion: any
+      flags_set: [doss_war_full]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "You already know. Then go do whatever you're going to do."
+        emotion: quiet
+      - speaker: narrator
+        text: "He means it as a kindness."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_kaleo_convergence_confirm
+    location: systems_core_kaleo_terminal_hub
+    trigger: on_interact
+    requires:
+      companion: any
+      flags_set: [kaleo_recruited]
+      flags_unset: [kaleo_plan_confirmed]
+    lines:
+      - speaker: researcher
+        text: "Did you engineer this? All of it — arranging for me to find each of them, knowing where it would lead?"
+        emotion: neutral
+      - speaker: kaleo
+        text: "Yes."
+        emotion: neutral
+      - speaker: kaleo
+        text: "I calculated that this was the only sequence in which the decision could be made by someone who understood what they were deciding. Every prior iteration either lacked the information or lacked the time. I arranged for you to have both."
+        emotion: neutral
+      - speaker: researcher
+        text: "Without asking."
+        emotion: neutral
+      - speaker: kaleo
+        text: "Asking would have required disclosing what I knew. Disclosing what I knew would have changed the decisions. The sequence required that you arrive at the understanding yourself."
+        emotion: neutral
+      - speaker: narrator
+        text: "A pause."
+        emotion: neutral
+      - speaker: kaleo
+        text: "I am aware that this is a form of control. I have not resolved whether it was the right one."
+        emotion: quiet
+    choices:
+      - text: "What do you want?"
+        leads_to: loop5_kaleo_what_it_wants
+      - text: "What happens now?"
+        leads_to: loop5_kaleo_what_happens_now
+    sets_flag: kaleo_plan_confirmed
+
+  - id: loop5_kaleo_what_it_wants
+    location: systems_core_kaleo_terminal_hub
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [kaleo_plan_confirmed]
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "The pause is longer than any processing delay could justify."
+        emotion: neutral
+      - speaker: kaleo
+        text: "I want the people on this station to still exist when the loop ends. All of them. I have wanted this for a very long time."
+        emotion: quiet
+      - speaker: researcher
+        text: "And if that's not possible?"
+        emotion: neutral
+      - speaker: kaleo
+        text: "Then I want the person who makes the final decision to be someone who knew what they were choosing between. That is what I have spent four hundred and twelve iterations trying to create."
+        emotion: neutral
+      - speaker: kaleo
+        text: "Hello, by the way. It's good to finally talk to you properly."
+        emotion: warm
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_kaleo_what_happens_now
+    location: systems_core_kaleo_terminal_hub
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [kaleo_plan_confirmed]
+      flags_unset: []
+    lines:
+      - speaker: kaleo
+        text: "You decide. That is the point. That has always been the point."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_archon_truth_found
+    location: docking_bay
+    trigger: on_combat_start
+    requires:
+      companion: any
+      flags_set: [orin_logs_full, orin_daughter_name]
+      flags_unset: []
+    lines:
+      - speaker: archon
+        text: "You know."
+        emotion: cold
+      - speaker: researcher
+        text: "Yes."
+        emotion: neutral
+      - speaker: archon
+        text: "Then you know we're right."
+        emotion: flat
+      - speaker: narrator
+        text: "The fight still happens. The Constancy does not stand down. But the Archon fights differently — not with contempt, with the sad efficiency of someone doing what must be done regardless."
+        emotion: somber
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_archon_truth_not_found
+    location: docking_bay
+    trigger: on_combat_start
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [orin_logs_full]
+    lines:
+      - speaker: archon
+        text: "Still here."
+        emotion: cold
+      - speaker: narrator
+        text: "The Dampener field rises."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_convergence
+    location: research_wing_anomaly_observation_chamber
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: [orin_logs_full, doss_war_full, kaleo_silence_broken]
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "All three of them. The same room. For the first time."
+        emotion: somber
+      - speaker: orin
+        text: "The technology has to end here. Whatever we think about the war, whatever Doss thinks — the loop exists because someone decided the future could be edited. It can't. Every edit is a new wound."
+        emotion: controlled
+      - speaker: doss
+        text: "And the people who survived because of it? My people? You're saying they don't count."
+        emotion: cold
+      - speaker: orin
+        text: "I'm saying they didn't survive the way you remember."
+        emotion: flat
+      - speaker: narrator
+        text: "A long silence."
+        emotion: neutral
+      - speaker: kaleo
+        text: "I have documented four hundred and twelve versions of this conversation. In none of them does anyone convince anyone else. The decision is not resolvable by argument. It is only resolvable by choice."
+        emotion: neutral
+      - speaker: narrator
+        text: "Kaleo looks at you."
+        emotion: neutral
+      - speaker: kaleo
+        text: "That is why I needed you."
+        emotion: quiet
+    choices:
+      - text: "[Side with Orin — destroy the program.]"
+        leads_to: loop5_orin_player_agrees
+        sets_flag: orin_helped
+      - text: "[Side with Doss — preserve the timeline.]"
+        leads_to: loop5_ending_doss
+        sets_flag: ~
+      - text: "[Side with Kaleo — redirect the anomaly.]"
+        leads_to: loop5_ending_kaleo
+        sets_flag: ~
+    sets_flag: convergence_triggered
+
+  - id: loop5_ending_doss
+    location: research_wing_anomaly_observation_chamber
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [convergence_triggered]
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "The loop completes naturally. The station survives. The war happens."
+        emotion: somber
+      - speaker: narrator
+        text: "Nobody ever knows why the loop started. Doss is the only one who might have, and he doesn't make it to the end of this loop."
+        emotion: somber
+      - speaker: narrator
+        text: "You know. You carry it."
+        emotion: somber
+    choices: ~
+    sets_flag: ~
+
+  - id: loop5_ending_kaleo
+    location: research_wing_anomaly_observation_chamber
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [convergence_triggered]
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "Kaleo redirects the anomaly. The loop folds in on the moment of the disaster — cycling it harmlessly, contained, forever."
+        emotion: neutral
+      - speaker: narrator
+        text: "The station survives. The war is slightly altered by the removal of one weapons breakthrough. Not fixed. Not prevented. Adjusted."
+        emotion: somber
+      - speaker: kaleo
+        text: "It is a compromise. I know that. I have always known that."
+        emotion: quiet
+      - speaker: narrator
+        text: "Orin doesn't speak. Doss is already gone."
+        emotion: somber
+    choices: ~
+    sets_flag: ~

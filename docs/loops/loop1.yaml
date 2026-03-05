@@ -1,0 +1,212 @@
+loop: 1
+
+# Flags set this loop:
+#   companion_orin      — player walked toward Orin's door
+#   companion_doss      — player walked toward Doss's door
+
+scenes:
+
+  - id: loop1_opening
+    location: research_wing_room_7c
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "You come to on the floor. Ears ringing. Emergency lighting."
+        emotion: neutral
+      - speaker: narrator
+        text: "The bulkhead door is being cut through from the outside — Constancy Zealots and Purifiers, their suppression fields already active, Flux readings dropping as they breach."
+        emotion: neutral
+      - speaker: orin
+        text: "On your feet. They're almost through."
+        emotion: commanding
+      - speaker: doss
+        text: "Cover left. Don't let them flank."
+        emotion: terse
+      - speaker: kaleo
+        text: "I am calculating optimal engagement zones."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop1_tutorial_end
+    location: research_wing_room_7c
+    trigger: on_combat_end
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "The last Purifier goes down. The suppression field collapses. Flux readings climb back to normal."
+        emotion: neutral
+      - speaker: orin
+        text: "Containment is failing. The anomaly readings are spiking."
+        emotion: controlled
+      - speaker: kaleo
+        text: "Emergency bulkhead protocols are activating. Sections will seal in approximately thirty seconds."
+        emotion: neutral
+      - speaker: doss
+        text: "Then we move."
+        emotion: terse
+      - speaker: narrator
+        text: "The corridor splits three ways. The bulkheads are closing. Someone presses a Flux sidearm into your hand."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop1_split
+    location: research_wing_corridor
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Stay with me. I know what has to be done."
+        emotion: quiet
+      - speaker: doss
+        text: "You want to survive this? Stick with me. I've been in worse."
+        emotion: direct
+      - speaker: kaleo
+        text: "I should note that statistically, your survival odds are highest if —"
+        emotion: neutral
+      - speaker: narrator
+        text: "[Kaleo's terminal cuts out as its section seals.]"
+        emotion: neutral
+      - speaker: narrator
+        text: "The others don't protest. They just go. Efficient. Like they expected it."
+        emotion: neutral
+    choices:
+      - text: "[Follow Orin.]"
+        leads_to: loop1_post_split_orin
+        sets_flag: companion_orin
+      - text: "[Follow Doss.]"
+        leads_to: loop1_post_split_doss
+        sets_flag: companion_doss
+    sets_flag: ~
+
+  - id: loop1_post_split_orin
+    location: command_deck
+    trigger: on_enter
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Good. Stay close and follow my lead. The mission hasn't changed — we contain the anomaly."
+        emotion: controlled
+      - speaker: orin
+        text: "I'll brief you fully at the command terminal. Right now we move."
+        emotion: commanding
+    choices: ~
+    sets_flag: ~
+
+  - id: loop1_post_split_doss
+    location: military_annex
+    trigger: on_enter
+    requires:
+      companion: doss
+      flags_set: [companion_doss]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Armory first. You're not going anywhere with just a sidearm."
+        emotion: flat
+      - speaker: doss
+        text: "Orin will run her mission. We'll run ours."
+        emotion: flat
+    choices: ~
+    sets_flag: ~
+
+  - id: loop1_orin_briefing
+    location: command_deck
+    trigger: on_interact
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "The anomaly is a self-sustaining spacetime loop. Our job is to collapse it before it expands beyond the lab. Everything else is secondary."
+        emotion: neutral
+      - speaker: orin
+        text: "The Constancy attacked us because they want to destroy the program before we can weaponize the anomaly. That is not going to happen."
+        emotion: controlled
+    choices:
+      - text: "Who are the Constancy?"
+        leads_to: loop1_orin_constancy
+      - text: "Understood. What do we do first?"
+        leads_to: loop1_orin_mission_start
+    sets_flag: ~
+
+  - id: loop1_orin_constancy
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Extremists. They believe temporal research is inherently dangerous. They're not entirely wrong, which makes them more difficult to dismiss than they should be."
+        emotion: controlled
+      - speaker: orin
+        text: "But dangerous ideas managed carefully are still manageable. That's what we're here to do."
+        emotion: flat
+    choices: ~
+    sets_flag: ~
+
+  - id: loop1_orin_mission_start
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "The anomaly chamber. We need to run a containment sequence before the readings get any worse."
+        emotion: commanding
+    choices: ~
+    sets_flag: ~
+
+  - id: loop1_doss_armory
+    location: military_annex_armory
+    trigger: on_enter
+    requires:
+      companion: doss
+      flags_set: [companion_doss]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Take what you need. Leave the heavy kinetics — those are mine."
+        emotion: flat
+    choices:
+      - text: "What do you know about the Constancy?"
+        leads_to: loop1_doss_constancy
+      - text: "[Take equipment and move on.]"
+        leads_to: ~
+    sets_flag: ~
+
+  - id: loop1_doss_constancy
+    location: military_annex_armory
+    trigger: on_choice
+    requires:
+      companion: doss
+      flags_set: [companion_doss]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Enough to know they're serious. They don't hit a station like this without a reason and a plan."
+        emotion: flat
+      - speaker: doss
+        text: "They think temporal tech is wrong. Fine. They're entitled to their opinion. They don't get to act on it."
+        emotion: cold
+    choices: ~
+    sets_flag: ~

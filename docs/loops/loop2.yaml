@@ -1,0 +1,249 @@
+loop: 2
+
+# Flags set this loop:
+#   constancy_literature_found  — read Constancy pamphlets from the breach corridor
+#   doss_armor_noticed          — player inspected Doss's non-standard armor
+#   orin_locket_noticed         — player noticed the locket has changed
+
+scenes:
+
+  - id: loop2_opening
+    location: research_wing_room_7c
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "You come to on the floor. Ears ringing. Emergency lighting. Again."
+        emotion: uneasy
+      - speaker: narrator
+        text: "The bulkhead door is being cut through. The same door. The same sound."
+        emotion: uneasy
+      - speaker: orin
+        text: "On your feet."
+        emotion: cold
+      - speaker: doss
+        text: "Cover left."
+        emotion: terse
+      - speaker: kaleo
+        text: "Optimal engagement zones remain unchanged from — "
+        emotion: neutral
+      - speaker: kaleo
+        text: "I am calculating optimal engagement zones."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop2_split
+    location: research_wing_corridor
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Stay with me. I know what has to be done."
+        emotion: controlled
+      - speaker: doss
+        text: "You want to survive this? Stick with me. I've been in worse."
+        emotion: direct
+      - speaker: kaleo
+        text: "I should note that statistically, your survival odds are highest if —"
+        emotion: neutral
+      - speaker: narrator
+        text: "[Kaleo's terminal cuts out.]"
+        emotion: neutral
+    choices:
+      - text: "[Follow Orin.]"
+        leads_to: loop2_post_split_orin
+        sets_flag: companion_orin
+      - text: "[Follow Doss.]"
+        leads_to: loop2_post_split_doss
+        sets_flag: companion_doss
+    sets_flag: ~
+
+  - id: loop2_post_split_orin
+    location: command_deck
+    trigger: on_enter
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "The mission is the same. Contain the anomaly. Everything else is secondary."
+        emotion: controlled
+    choices:
+      - text: "Have we done this before?"
+        leads_to: loop2_orin_deflect_loop
+      - text: "[Follow her lead.]"
+        leads_to: ~
+    sets_flag: ~
+
+  - id: loop2_orin_deflect_loop
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "That's not a useful question right now."
+        emotion: flat
+      - speaker: narrator
+        text: "She doesn't look at you when she says it."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop2_orin_locket
+    location: command_deck
+    trigger: on_interact
+    requires:
+      companion: orin
+      flags_set: [companion_orin]
+      flags_unset: [orin_locket_noticed]
+    lines:
+      - speaker: narrator
+        text: "The locket she's wearing — you've seen it before. But it's different. The clasp. The worn edge on the left side instead of the right."
+        emotion: uneasy
+    choices:
+      - text: "Your locket — it's different from before."
+        leads_to: loop2_orin_locket_press
+      - text: "[Say nothing.]"
+        leads_to: ~
+    sets_flag: orin_locket_noticed
+
+  - id: loop2_orin_locket_press
+    location: command_deck
+    trigger: on_choice
+    requires:
+      companion: orin
+      flags_set: [companion_orin, orin_locket_noticed]
+      flags_unset: []
+    lines:
+      - speaker: orin
+        text: "Before from when?"
+        emotion: measured
+      - speaker: narrator
+        text: "A beat too long. A careful answer to an impossible question."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop2_post_split_doss
+    location: military_annex
+    trigger: on_enter
+    requires:
+      companion: doss
+      flags_set: [companion_doss]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Same as before. Armory, then the anomaly chamber."
+        emotion: flat
+      - speaker: narrator
+        text: "Same as before. He said it like it meant nothing."
+        emotion: uneasy
+    choices:
+      - text: "Same as before?"
+        leads_to: loop2_doss_slip_caught
+      - text: "[Follow him.]"
+        leads_to: ~
+    sets_flag: ~
+
+  - id: loop2_doss_slip_caught
+    location: military_annex
+    trigger: on_choice
+    requires:
+      companion: doss
+      flags_set: [companion_doss]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Standard protocol. Same as any breach situation."
+        emotion: flat
+      - speaker: narrator
+        text: "He doesn't break stride."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop2_doss_armor
+    location: military_annex_armory
+    trigger: on_interact
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [doss_armor_noticed]
+    lines:
+      - speaker: narrator
+        text: "Doss's armor, on close inspection, isn't station-issue. The seams are wrong. The make is different — older, heavier, with repair patches on the shoulder that don't match any fabricator on the manifest."
+        emotion: neutral
+      - speaker: narrator
+        text: "It's battlefield salvage. From somewhere."
+        emotion: uneasy
+    choices:
+      - text: "Where did you get that armor?"
+        leads_to: loop2_doss_armor_question
+      - text: "[Note it and move on.]"
+        leads_to: ~
+    sets_flag: doss_armor_noticed
+
+  - id: loop2_doss_armor_question
+    location: military_annex_armory
+    trigger: on_choice
+    requires:
+      companion: any
+      flags_set: [doss_armor_noticed]
+      flags_unset: []
+    lines:
+      - speaker: doss
+        text: "Old kit. I'm used to it."
+        emotion: flat
+      - speaker: narrator
+        text: "He doesn't ask why you're asking."
+        emotion: neutral
+    choices: ~
+    sets_flag: ~
+
+  - id: loop2_constancy_literature
+    location: research_wing_corridor
+    trigger: on_interact
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: [constancy_literature_found]
+    lines:
+      - speaker: narrator
+        text: "A pamphlet, dropped during the breach. Dense text, no faction markings. The title: 'ON THE GIVEN SHAPE OF THINGS.'"
+        emotion: neutral
+      - speaker: narrator
+        text: "The argument inside is not what you expected. It is not religious in the way you assumed. It is worked-out. Careful. Angry in a way that has had time to become precise."
+        emotion: neutral
+      - speaker: narrator
+        text: "The core claim: every act of temporal manipulation creates a wound in causality that cannot be healed, only accumulated. The loop you are living in is, according to this document, exactly what they predicted."
+        emotion: uneasy
+    choices: ~
+    sets_flag: constancy_literature_found
+
+  - id: loop2_kaleo_terminal
+    location: systems_core
+    trigger: on_enter
+    requires:
+      companion: any
+      flags_set: []
+      flags_unset: []
+    lines:
+      - speaker: narrator
+        text: "A terminal near the corridor displays a status readout that wasn't there before. UNIT KALEO — OPERATIONAL. MONITORING."
+        emotion: uneasy
+      - speaker: narrator
+        text: "It isn't a system error. The display is deliberate. Something is watching your progress through the station."
+        emotion: uneasy
+    choices: ~
+    sets_flag: ~
