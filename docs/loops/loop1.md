@@ -8,7 +8,7 @@ Pristine. Systems nominal. The mission is clear.
 
 ## Opening — Room 7-C
 
-You come to on the floor. Ears ringing. Emergency lighting. The bulkhead door is being cut through from the outside — temporal-displaced hostiles, their forms flickering, half-present.
+You come to on the floor. Ears ringing. Emergency lighting. The bulkhead door is being cut through from the outside — Constancy Zealots and Purifiers, their suppression fields already active, Flux readings in the room dropping as they breach.
 
 Orin is already up, shield projector running, calling positions in clipped commands. Doss has his back to a pillar, kinetic rifle up, swearing under his breath. Kaleo's voice comes through the room terminal — "I am calculating optimal engagement zones" — calm as always.
 

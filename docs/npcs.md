@@ -1,12 +1,33 @@
 ## NPC & Enemy Design
 
-Enemies are grouped into four factions. Within each faction, multiple variants cover a range of combat roles, giving each loop several encounters that feel distinct while sharing thematic identity.
+Enemies are grouped into five factions. Within each faction, multiple variants cover a range of combat roles, giving each loop several encounters that feel distinct while sharing thematic identity.
 
 Aggression states:
 - **Aggressive** — attacks the party on sight
 - **Neutral** — ignores the party unless provoked or bribed
 - **Friendly** — will not initiate combat; may trade or give information
 - **Lethargic** — passive and slow; a degraded form of Aggressive that occurs in late loops when temporal instability affects simpler organisms
+
+---
+
+## The Constancy
+
+A fervent order that believes temporal manipulation is a fundamental violation — of nature, of causality, of something they call "the given shape of things." They are not primitive or irrational. Many are scientists, engineers, and soldiers who understand exactly what temporal technology does and have concluded it must be destroyed. Their doctrine holds that no cause justifies rewriting time, because the act of rewriting it is itself the catastrophe.
+
+They are the ones cutting through the bulkhead in Room 7-C. They initiated the attack that opens the game.
+
+In early loops they read as fanatics. By loop 3, the player starts finding their literature and understanding their reasoning. By loop 4, a captured Constancy member can be spoken to. By loop 5, the player may realize that The Constancy and Sable Orin want the same thing — and that The Constancy has been trying to do what Sable is doing, from outside, for longer than the current loop.
+
+**Mechanical identity:** The Constancy carry **Temporal Dampeners** — devices that reduce Flux generation from allied abilities. Fighting them suppresses the player's temporal toolkit. They are specifically designed as a counter to the Researcher's class strengths.
+
+| Variant | Role | Default Aggression | Notes |
+|---|---|---|---|
+| **Zealot** | Fast melee; rushes in; glass cannon | Aggressive | The true believers; first enemies encountered in the game |
+| **Preacher** | Support; buffs nearby Constancy; aura suppresses Flux generation | Aggressive | Priority target; removing them restores temporal ability effectiveness |
+| **Purifier** | Ranged; anti-temporal rounds that deal bonus damage to high-Flux units | Aggressive | Punishes heavy temporal ability use; incentivizes Flux discipline |
+| **Archon** | Boss; heavily armored leader; carries a Dampener powerful enough to suppress zone-wide Flux | Aggressive | One per major encounter; has dialogue in loops 3+; recognizes the player in loop 5 |
+
+Loop behavior: The Constancy are the only faction whose aggression does not change — they are always Aggressive. What changes is the player's understanding of them. In loop 3, a wounded Zealot can be left alive and will speak before dying. In loop 4, the Archon will pause before the fight to address the player directly — briefly, coldly — acknowledging that they've met before. In loop 5, if the player has found Sable's full truth, a new dialog option appears with the Archon: *"Then you know we're right."*
 
 ---
 
@@ -70,10 +91,10 @@ Loop behavior: Personnel aggression follows the narrative arc. Recruiter Doss ac
 ## Design Notes
 
 **Encounter composition per loop (suggested):**
-- Loop 1: Scavengers, Maintenance Drones, Station Guards (Friendly), Moon Crawlers
-- Loop 2: Adds Void Raiders, Security Units (corrupted), Void Spitters
-- Loop 3: Adds Drifter Bosses, Gun-for-Hire (Neutral), Station Guards going hostile
-- Loop 4: Adds Shock Troopers, Abyssal Brutes; Moon Crawlers turn Lethargic
-- Loop 5: Combat Frames active; Abyssal Fauna Lethargic; Station Personnel fully hostile; Salvage Operatives desperate
+- Loop 1: **Constancy Zealots + Purifiers (opening breach)**, Scavengers, Maintenance Drones, Station Guards (Friendly), Moon Crawlers
+- Loop 2: Adds Void Raiders, Security Units (corrupted), Void Spitters, Constancy Preachers
+- Loop 3: Adds Drifter Bosses, Gun-for-Hire (Neutral), Station Guards going hostile; wounded Zealot has dialog
+- Loop 4: Adds Shock Troopers, Abyssal Brutes; Moon Crawlers turn Lethargic; Archon addresses the player
+- Loop 5: Combat Frames active; Abyssal Fauna Lethargic; Station Personnel fully hostile; Archon has full dialog branch
 
 **Aggression as a resource:** Friendly and Neutral NPCs are not just avoided fights — they're intel sources, traders, and narrative hooks. Turning them hostile early (by attacking first) closes off those options. This creates a reason to manage aggression carefully rather than fighting everything.
