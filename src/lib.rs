@@ -13,3 +13,4 @@ pub mod stats;
 pub mod terrain;
 pub mod turn;
 pub mod weapon;
+pub mod zone;
