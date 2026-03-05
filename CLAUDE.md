@@ -38,3 +38,5 @@ Game design vision lives in `docs/`. Consult these when implementing or designin
 - **`docs/weapons_and_abilities.md`** — Temporal weapon abilities (Displacement, Rewind, Stasis, Acceleration, Entropic Rounds, Echo Strike) and the Temporal Flux resource system
 - **`docs/characters.md`** — Player character and companion profiles: classes, hidden arcs, companion dialog effects (Researcher, Dr. Orin, Doss, Kaleo)
 - **`docs/loops/`** — One file per loop (`loop1.md`–`loop5.md`); station state, opening scene, NPC behavioral tells, discovery opportunities. `index.md` has the overview and party composition table.
+- **`docs/world.md`** — Zone map and layout: 9 zones (6 interior, 3 exterior), room counts, tile sizes, cardinal connections, encounters, and NPCs per zone.
+- **`docs/npcs.md`** — Enemy factions (Drifters, Automata, Abyssal Fauna, Station Personnel), variants, aggression states, and loop behavior.
