@@ -33,6 +33,8 @@ Tests live in `tests/` as integration tests (one file per module). `src/lib.rs` 
 
 Game design vision lives in `docs/`. Consult these when implementing or designing new systems:
 
-- **`docs/narrative.md`** — Story concept: sci-fi time-loop aboard The Meridian, three NPCs with hidden arcs (Dr. Sable Orin, Unit Kaleo, Recruiter Doss), 5-loop structure, branching endings
+- **`docs/narrative.md`** — Story concept, central conceit, and branching endings; references characters.md and loops.md for details
 - **`docs/armor_and_shields.md`** — Layered armor system (ablative/reactive/thermal lining), directional shields, frequency tuning, shared squad shield bubbles, bleed/overcharge mechanics
 - **`docs/weapons_and_abilities.md`** — Temporal weapon abilities (Displacement, Rewind, Stasis, Acceleration, Entropic Rounds, Echo Strike) and the Temporal Flux resource system
+- **`docs/characters.md`** — Player character and companion profiles: classes, hidden arcs, companion dialog effects (Researcher, Dr. Orin, Doss, Kaleo)
+- **`docs/loops.md`** — Loop-by-loop station state, opening scene, NPC behavioral tells, discovery opportunities, and party composition
