@@ -7,3 +7,5 @@ edition = "2024"
 bevy = "0.18.1"
 crossterm = "0.27"
 rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"

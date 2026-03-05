@@ -1,4 +1,5 @@
 pub mod action_points;
+pub mod dialog;
 pub mod character;
 pub mod combat;
 pub mod enemy;
