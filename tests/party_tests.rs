@@ -1,7 +1,6 @@
 use bevy::prelude::World;
-use carbonthrone::character::Character;
+use carbonthrone::character::{Character, CharacterKind};
 use carbonthrone::health::Health;
-use carbonthrone::npc::CharacterKind;
 use carbonthrone::party::{MAX_PARTY_SIZE, Party};
 
 fn spawn_member(world: &mut World, name: &str) -> bevy::prelude::Entity {

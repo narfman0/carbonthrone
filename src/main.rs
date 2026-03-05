@@ -12,11 +12,10 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 use carbonthrone::action_points::ActionPoints;
-use carbonthrone::character::{Aggression, Character};
+use carbonthrone::character::{Aggression, Character, CharacterKind};
 use carbonthrone::dialog::{DialogEngine, Trigger};
 use carbonthrone::experience::Experience;
 use carbonthrone::health::Health;
-use carbonthrone::npc::CharacterKind;
 use carbonthrone::position::Position;
 use carbonthrone::simulation::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;

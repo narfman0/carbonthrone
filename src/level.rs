@@ -1,5 +1,5 @@
 use crate::character::Character;
-use crate::npc::CharacterKind;
+use crate::character::CharacterKind;
 use crate::position::Position;
 use crate::terrain::{Biome, LevelMap, generate_map};
 use bevy::prelude::Resource;

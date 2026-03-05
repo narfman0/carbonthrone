@@ -1,10 +1,9 @@
 use bevy::prelude::*;
 use carbonthrone::{
     action_points::ActionPoints,
-    character::Character,
+    character::{Character, CharacterKind},
     combat::BASE_HIT_CHANCE,
     health::Health,
-    npc::CharacterKind,
     player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
     simulation::{BattleOutcome, BattleStep},

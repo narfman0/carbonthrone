@@ -1,5 +1,5 @@
+use crate::character::CharacterKind;
 use crate::level::Level;
-use crate::npc::CharacterKind;
 use crate::terrain::Biome;
 use rand::Rng;
 

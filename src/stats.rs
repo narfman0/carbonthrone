@@ -1,4 +1,4 @@
-use crate::npc::CharacterKind;
+use crate::character::CharacterKind;
 use bevy::prelude::Component;
 
 #[derive(Debug, Clone, Component)]

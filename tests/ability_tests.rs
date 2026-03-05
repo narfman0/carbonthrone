@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use carbonthrone::{
     ability::{AbilityEffect, CharacterAbilities, available_abilities, character_abilities},
     action_points::ActionPoints,
+    character::CharacterKind,
     health::Health,
-    npc::CharacterKind,
     stats::Stats,
     turn::{Action, TurnAction, apply_action},
 };

@@ -1,4 +1,4 @@
-use carbonthrone::npc::CharacterKind;
+use carbonthrone::character::CharacterKind;
 use carbonthrone::stats::Stats;
 
 #[test]

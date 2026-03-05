@@ -1,6 +1,6 @@
 use bevy::prelude::Component;
 
-use crate::npc::CharacterKind;
+use crate::character::CharacterKind;
 
 /// The mechanical effect of using an ability in combat.
 #[derive(Debug, Clone, PartialEq)]

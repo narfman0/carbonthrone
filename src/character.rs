@@ -1,6 +1,293 @@
-use crate::npc::CharacterKind;
 use crate::stats::Stats;
 use bevy::prelude::Component;
+
+#[derive(Debug, Clone, PartialEq, Component)]
+pub enum CharacterKind {
+    // Player characters
+    /// The player character — Temporal Mage; high magic, fragile, fast.
+    Researcher,
+    /// Dr. Sable Orin — Cleric; support healer, high defense, low offense.
+    Orin,
+    /// Recruiter Doss — Warrior; heavy armor, high HP, strong melee.
+    Doss,
+    /// Unit Kaleo — Ranger; precision attacks, system hacking, very fast.
+    Kaleo,
+
+    // The Constancy — anti-temporal zealots
+    Zealot,   // fast melee; glass cannon; first enemies encountered
+    Preacher, // support; aura suppresses Flux generation
+    Purifier, // ranged; anti-temporal rounds; bonus damage to high-Flux units
+    Archon,   // boss; heavily armored; zone-wide Flux suppression
+
+    // Drifters — scavengers and bandits
+    Scavenger,   // fast light melee; glass cannon
+    VoidRaider,  // ranged gunslinger; balanced
+    DrifterBoss, // heavy bruiser; high attack, pack leader
+
+    // Automata — corrupted station robotics
+    MaintenanceDrone, // confused melee; erratic; medium defense
+    SecurityUnit,     // ranged patrol; medium-high stats
+    CombatFrame,      // military-grade mech; boss tier
+
+    // Abyssal Fauna — native moon creatures
+    MoonCrawler,  // fastest enemy; pack melee; dies easily
+    VoidSpitter,  // ranged bio attack; magic-adjacent
+    AbyssalBrute, // slow tanky apex predator
+
+    // Station Personnel — crew and contractors
+    SalvageOperative, // lightly armed mercenary; friendly by default
+    GunForHire,       // armed contractor; neutral by default
+    StationGuard,     // station security; friendly early, hostile late
+    ShockTrooper,     // military enforcer; always aggressive
+}
+
+impl CharacterKind {
+    pub fn is_player(&self) -> bool {
+        matches!(
+            self,
+            CharacterKind::Researcher
+                | CharacterKind::Orin
+                | CharacterKind::Doss
+                | CharacterKind::Kaleo
+        )
+    }
+}
+
+/// Base stats at level 1. Only valid for NPC kinds.
+pub(crate) fn base_stats(kind: &CharacterKind) -> Stats {
+    match kind {
+        // The Constancy
+        CharacterKind::Zealot => Stats {
+            max_hp: 45,
+            attack: 13,
+            defense: 4,
+            speed: 14,
+        },
+        CharacterKind::Preacher => Stats {
+            max_hp: 50,
+            attack: 8,
+            defense: 6,
+            speed: 9,
+        },
+        CharacterKind::Purifier => Stats {
+            max_hp: 55,
+            attack: 14,
+            defense: 5,
+            speed: 10,
+        },
+        CharacterKind::Archon => Stats {
+            max_hp: 220,
+            attack: 20,
+            defense: 18,
+            speed: 8,
+        },
+        // Drifters
+        CharacterKind::Scavenger => Stats {
+            max_hp: 40,
+            attack: 9,
+            defense: 3,
+            speed: 15,
+        },
+        CharacterKind::VoidRaider => Stats {
+            max_hp: 55,
+            attack: 12,
+            defense: 5,
+            speed: 11,
+        },
+        CharacterKind::DrifterBoss => Stats {
+            max_hp: 95,
+            attack: 17,
+            defense: 8,
+            speed: 7,
+        },
+        // Automata
+        CharacterKind::MaintenanceDrone => Stats {
+            max_hp: 65,
+            attack: 8,
+            defense: 10,
+            speed: 7,
+        },
+        CharacterKind::SecurityUnit => Stats {
+            max_hp: 80,
+            attack: 13,
+            defense: 11,
+            speed: 9,
+        },
+        CharacterKind::CombatFrame => Stats {
+            max_hp: 280,
+            attack: 24,
+            defense: 20,
+            speed: 10,
+        },
+        // Abyssal Fauna
+        CharacterKind::MoonCrawler => Stats {
+            max_hp: 35,
+            attack: 11,
+            defense: 2,
+            speed: 18,
+        },
+        CharacterKind::VoidSpitter => Stats {
+            max_hp: 55,
+            attack: 14,
+            defense: 4,
+            speed: 10,
+        },
+        CharacterKind::AbyssalBrute => Stats {
+            max_hp: 160,
+            attack: 13,
+            defense: 15,
+            speed: 4,
+        },
+        // Station Personnel
+        CharacterKind::SalvageOperative => Stats {
+            max_hp: 55,
+            attack: 9,
+            defense: 6,
+            speed: 10,
+        },
+        CharacterKind::GunForHire => Stats {
+            max_hp: 75,
+            attack: 15,
+            defense: 9,
+            speed: 10,
+        },
+        CharacterKind::StationGuard => Stats {
+            max_hp: 65,
+            attack: 12,
+            defense: 10,
+            speed: 10,
+        },
+        CharacterKind::ShockTrooper => Stats {
+            max_hp: 100,
+            attack: 19,
+            defense: 13,
+            speed: 8,
+        },
+        _ => panic!("base_stats called on player character kind {:?}", kind),
+    }
+}
+
+/// Per-level stat growth: (hp, atk, def, spd). Only valid for NPC kinds.
+pub(crate) fn growth(kind: &CharacterKind) -> (i32, i32, i32, i32) {
+    match kind {
+        // The Constancy
+        CharacterKind::Zealot => (5, 2, 0, 1),
+        CharacterKind::Preacher => (6, 1, 1, 0),
+        CharacterKind::Purifier => (7, 2, 1, 0),
+        CharacterKind::Archon => (30, 4, 4, 0),
+        // Drifters
+        CharacterKind::Scavenger => (5, 1, 0, 1),
+        CharacterKind::VoidRaider => (7, 2, 1, 0),
+        CharacterKind::DrifterBoss => (12, 3, 1, 0),
+        // Automata
+        CharacterKind::MaintenanceDrone => (9, 1, 2, 0),
+        CharacterKind::SecurityUnit => (10, 2, 2, 0),
+        CharacterKind::CombatFrame => (38, 5, 4, 1),
+        // Abyssal Fauna
+        CharacterKind::MoonCrawler => (4, 2, 0, 1),
+        CharacterKind::VoidSpitter => (7, 2, 0, 0),
+        CharacterKind::AbyssalBrute => (22, 2, 2, 0),
+        // Station Personnel
+        CharacterKind::SalvageOperative => (6, 1, 1, 0),
+        CharacterKind::GunForHire => (10, 2, 1, 0),
+        CharacterKind::StationGuard => (8, 2, 1, 0),
+        CharacterKind::ShockTrooper => (13, 3, 2, 0),
+        _ => panic!("growth called on player character kind {:?}", kind),
+    }
+}
+
+pub(crate) fn scaled_stats(kind: &CharacterKind, level: u32) -> Stats {
+    let mut s = base_stats(kind);
+    let (hp, atk, def, spd) = growth(kind);
+    let extra = (level - 1) as i32;
+    s.max_hp += hp * extra;
+    s.attack += atk * extra;
+    s.defense += def * extra;
+    s.speed += spd * extra;
+    s
+}
+
+pub(crate) fn base_xp(kind: &CharacterKind) -> u32 {
+    match kind {
+        // The Constancy
+        CharacterKind::Zealot => 22,
+        CharacterKind::Preacher => 35,
+        CharacterKind::Purifier => 30,
+        CharacterKind::Archon => 200,
+        // Drifters
+        CharacterKind::Scavenger => 20,
+        CharacterKind::VoidRaider => 28,
+        CharacterKind::DrifterBoss => 45,
+        // Automata
+        CharacterKind::MaintenanceDrone => 35,
+        CharacterKind::SecurityUnit => 40,
+        CharacterKind::CombatFrame => 240,
+        // Abyssal Fauna
+        CharacterKind::MoonCrawler => 18,
+        CharacterKind::VoidSpitter => 30,
+        CharacterKind::AbyssalBrute => 70,
+        // Station Personnel
+        CharacterKind::SalvageOperative => 20,
+        CharacterKind::GunForHire => 50,
+        CharacterKind::StationGuard => 30,
+        CharacterKind::ShockTrooper => 60,
+        _ => panic!("base_xp called on player character kind {:?}", kind),
+    }
+}
+
+pub(crate) fn default_name(kind: &CharacterKind) -> &'static str {
+    match kind {
+        CharacterKind::Zealot => "Zealot",
+        CharacterKind::Preacher => "Preacher",
+        CharacterKind::Purifier => "Purifier",
+        CharacterKind::Archon => "Archon",
+        CharacterKind::Scavenger => "Scavenger",
+        CharacterKind::VoidRaider => "Void Raider",
+        CharacterKind::DrifterBoss => "Drifter Boss",
+        CharacterKind::MaintenanceDrone => "Maintenance Drone",
+        CharacterKind::SecurityUnit => "Security Unit",
+        CharacterKind::CombatFrame => "Combat Frame",
+        CharacterKind::MoonCrawler => "Moon Crawler",
+        CharacterKind::VoidSpitter => "Void Spitter",
+        CharacterKind::AbyssalBrute => "Abyssal Brute",
+        CharacterKind::SalvageOperative => "Salvage Operative",
+        CharacterKind::GunForHire => "Gun-for-Hire",
+        CharacterKind::StationGuard => "Station Guard",
+        CharacterKind::ShockTrooper => "Shock Trooper",
+        _ => panic!("default_name called on player character kind {:?}", kind),
+    }
+}
+
+pub(crate) fn default_aggression(kind: &CharacterKind) -> Aggression {
+    match kind {
+        // The Constancy — always aggressive, no exceptions
+        CharacterKind::Zealot => Aggression::Aggressive,
+        CharacterKind::Preacher => Aggression::Aggressive,
+        CharacterKind::Purifier => Aggression::Aggressive,
+        CharacterKind::Archon => Aggression::Aggressive,
+        // Drifters — always hostile
+        CharacterKind::Scavenger => Aggression::Aggressive,
+        CharacterKind::VoidRaider => Aggression::Aggressive,
+        CharacterKind::DrifterBoss => Aggression::Aggressive,
+        // Automata — Security hostile; Maintenance drones wander until provoked
+        CharacterKind::MaintenanceDrone => Aggression::Neutral,
+        CharacterKind::SecurityUnit => Aggression::Aggressive,
+        CharacterKind::CombatFrame => Aggression::Aggressive,
+        // Abyssal Fauna — aggressive by nature
+        CharacterKind::MoonCrawler => Aggression::Aggressive,
+        CharacterKind::VoidSpitter => Aggression::Aggressive,
+        CharacterKind::AbyssalBrute => Aggression::Aggressive,
+        // Station Personnel — personnel start friendly or neutral; hostile later
+        CharacterKind::SalvageOperative => Aggression::Friendly,
+        CharacterKind::GunForHire => Aggression::Neutral,
+        CharacterKind::StationGuard => Aggression::Friendly,
+        CharacterKind::ShockTrooper => Aggression::Aggressive,
+        _ => panic!(
+            "default_aggression called on player character kind {:?}",
+            kind
+        ),
+    }
+}
 
 /// Current disposition of this character toward the player party.
 #[derive(Debug, Clone, PartialEq, Component)]
@@ -47,7 +334,6 @@ impl Character {
 
     /// Create an NPC (enemy or neutral) at the given level with scaled stats.
     pub fn new_npc(kind: CharacterKind, level: u32) -> Self {
-        use crate::npc::{base_xp, default_aggression, default_name, scaled_stats};
         let stats = scaled_stats(&kind, level);
         let current_hp = stats.max_hp;
         let xp_reward = base_xp(&kind) * level;

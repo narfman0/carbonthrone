@@ -1,5 +1,4 @@
-use carbonthrone::character::{Aggression, Character};
-use carbonthrone::npc::CharacterKind;
+use carbonthrone::character::{Aggression, Character, CharacterKind};
 
 #[test]
 fn enemy_starts_at_full_hp() {
