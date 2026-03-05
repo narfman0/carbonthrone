@@ -3,6 +3,12 @@ use bevy::prelude::Component;
 
 #[derive(Debug, Clone, PartialEq, Component)]
 pub enum EnemyKind {
+    // The Constancy — anti-temporal zealots
+    Zealot,   // fast melee; glass cannon; first enemies encountered
+    Preacher, // support; aura suppresses Flux generation
+    Purifier, // ranged; anti-temporal rounds; bonus damage to high-Flux units
+    Archon,   // boss; heavily armored; zone-wide Flux suppression
+
     // Drifters — scavengers and bandits
     Scavenger,   // fast light melee; glass cannon
     VoidRaider,  // ranged gunslinger; balanced
@@ -79,6 +85,31 @@ impl Enemy {
 /// Base stats at level 1.
 fn base_stats(kind: &EnemyKind) -> Stats {
     match kind {
+        // The Constancy
+        EnemyKind::Zealot => Stats {
+            max_hp: 45,
+            attack: 13,
+            defense: 4,
+            speed: 14,
+        },
+        EnemyKind::Preacher => Stats {
+            max_hp: 50,
+            attack: 8,
+            defense: 6,
+            speed: 9,
+        },
+        EnemyKind::Purifier => Stats {
+            max_hp: 55,
+            attack: 14,
+            defense: 5,
+            speed: 10,
+        },
+        EnemyKind::Archon => Stats {
+            max_hp: 220,
+            attack: 20,
+            defense: 18,
+            speed: 8,
+        },
         // Drifters
         EnemyKind::Scavenger => Stats {
             max_hp: 40,
@@ -167,6 +198,11 @@ fn base_stats(kind: &EnemyKind) -> Stats {
 /// Per-level stat growth: (hp, atk, def, spd).
 fn growth(kind: &EnemyKind) -> (i32, i32, i32, i32) {
     match kind {
+        // The Constancy
+        EnemyKind::Zealot => (5, 2, 0, 1),
+        EnemyKind::Preacher => (6, 1, 1, 0),
+        EnemyKind::Purifier => (7, 2, 1, 0),
+        EnemyKind::Archon => (30, 4, 4, 0),
         // Drifters
         EnemyKind::Scavenger => (5, 1, 0, 1),
         EnemyKind::VoidRaider => (7, 2, 1, 0),
@@ -200,6 +236,11 @@ fn scaled_stats(kind: &EnemyKind, level: u32) -> Stats {
 
 fn base_xp(kind: &EnemyKind) -> u32 {
     match kind {
+        // The Constancy
+        EnemyKind::Zealot => 22,
+        EnemyKind::Preacher => 35,
+        EnemyKind::Purifier => 30,
+        EnemyKind::Archon => 200,
         // Drifters
         EnemyKind::Scavenger => 20,
         EnemyKind::VoidRaider => 28,
@@ -222,6 +263,10 @@ fn base_xp(kind: &EnemyKind) -> u32 {
 
 fn default_name(kind: &EnemyKind) -> &'static str {
     match kind {
+        EnemyKind::Zealot => "Zealot",
+        EnemyKind::Preacher => "Preacher",
+        EnemyKind::Purifier => "Purifier",
+        EnemyKind::Archon => "Archon",
         EnemyKind::Scavenger => "Scavenger",
         EnemyKind::VoidRaider => "Void Raider",
         EnemyKind::DrifterBoss => "Drifter Boss",
@@ -240,6 +285,11 @@ fn default_name(kind: &EnemyKind) -> &'static str {
 
 fn default_aggression(kind: &EnemyKind) -> Aggression {
     match kind {
+        // The Constancy — always aggressive, no exceptions
+        EnemyKind::Zealot => Aggression::Aggressive,
+        EnemyKind::Preacher => Aggression::Aggressive,
+        EnemyKind::Purifier => Aggression::Aggressive,
+        EnemyKind::Archon => Aggression::Aggressive,
         // Drifters — always hostile
         EnemyKind::Scavenger => Aggression::Aggressive,
         EnemyKind::VoidRaider => Aggression::Aggressive,

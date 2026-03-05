@@ -5,6 +5,7 @@
       "Bash(cargo build --jobs 1)",
       "Bash(cargo clippy --jobs 1)",
       "Bash(cargo fmt)",
+      "Bash(cargo fmt -- *)",
       "Bash(cargo init:*)",
       "Bash(cargo run)",
       "Bash(cargo test:*)"
