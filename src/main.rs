@@ -13,11 +13,11 @@ use rand::{Rng, SeedableRng};
 
 use carbonthrone::action_points::ActionPoints;
 use carbonthrone::character::{Aggression, Character, CharacterKind};
+use carbonthrone::combat::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::dialog::{DialogEngine, Trigger};
 use carbonthrone::experience::Experience;
 use carbonthrone::health::Health;
 use carbonthrone::position::Position;
-use carbonthrone::simulation::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;
 use carbonthrone::terrain::{BattleRng, CoverLevel, LevelMap, generate_map};
 use carbonthrone::zone::ZoneKind;

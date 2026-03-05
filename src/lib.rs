@@ -9,7 +9,6 @@ pub mod level;
 pub mod party;
 pub mod player_input;
 pub mod position;
-pub mod simulation;
 pub mod stats;
 pub mod terrain;
 pub mod turn;

@@ -2,9 +2,9 @@ use bevy::prelude::*;
 use carbonthrone::{
     action_points::ActionPoints,
     character::{Character, CharacterKind},
+    combat::{BattleOutcome, simulate_battle},
     health::Health,
     position::Position,
-    simulation::{BattleOutcome, simulate_battle},
     stats::Stats,
 };
 
