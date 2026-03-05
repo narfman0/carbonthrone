@@ -116,25 +116,50 @@ fn exterior_zones_have_correct_type() {
 // ── Zone encounter generation ─────────────────────────────────────────────────
 
 #[test]
-fn zone_enter_generates_encounter_with_enemies() {
+fn zone_enter_can_produce_encounter() {
     use carbonthrone::zone::Zone;
-    let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut rng());
-    assert!(!zone.level.enemies.is_empty());
+    let mut r = rng();
+    let found = (0..50).any(|_| Zone::enter(ZoneKind::DockingBay, 1, &mut r).encounter.is_some());
+    assert!(found, "expected at least one encounter in 50 attempts");
+}
+
+#[test]
+fn zone_enter_can_skip_encounter() {
+    use carbonthrone::zone::Zone;
+    let mut r = rng();
+    let found = (0..50).any(|_| Zone::enter(ZoneKind::DockingBay, 1, &mut r).encounter.is_none());
+    assert!(found, "expected at least one zone without encounter in 50 attempts");
+}
+
+#[test]
+fn zone_enter_encounter_has_enemies() {
+    use carbonthrone::zone::Zone;
+    let mut r = rng();
+    for _ in 0..50 {
+        let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
+        if let Some(level) = &zone.encounter {
+            assert!(!level.enemies.is_empty(), "encounter had no enemies");
+            return;
+        }
+    }
+    panic!("could not find zone with encounter in 50 attempts");
 }
 
 #[test]
 fn zone_enter_enemies_come_from_zone_pool() {
     use carbonthrone::zone::Zone;
     let mut r = rng();
-    for _ in 0..20 {
+    let pool = ZoneKind::ResearchWing.enemy_pool();
+    for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::ResearchWing, 1, &mut r);
-        let pool = ZoneKind::ResearchWing.enemy_pool();
-        for (enemy, _) in &zone.level.enemies {
-            assert!(
-                pool.contains(&enemy.kind),
-                "ResearchWing spawned unexpected enemy kind: {:?}",
-                enemy.kind
-            );
+        if let Some(level) = &zone.encounter {
+            for (enemy, _) in &level.enemies {
+                assert!(
+                    pool.contains(&enemy.kind),
+                    "ResearchWing spawned unexpected enemy kind: {:?}",
+                    enemy.kind
+                );
+            }
         }
     }
 }
@@ -157,8 +182,15 @@ fn zone_connections_stored_on_zone() {
 fn enemy_level_matches_depth_in_zone() {
     use carbonthrone::zone::Zone;
     let depth = 4;
-    let zone = Zone::enter(ZoneKind::MilitaryAnnex, depth, &mut rng());
-    assert!(zone.level.enemies.iter().all(|(e, _)| e.level == depth));
+    let mut r = rng();
+    for _ in 0..50 {
+        let zone = Zone::enter(ZoneKind::MilitaryAnnex, depth, &mut r);
+        if let Some(level) = &zone.encounter {
+            assert!(level.enemies.iter().all(|(e, _)| e.level == depth));
+            return;
+        }
+    }
+    panic!("could not find zone with encounter in 50 attempts");
 }
 
 #[test]
@@ -178,6 +210,50 @@ fn all_zones_can_be_entered() {
     let mut r = rng();
     for kind in all_zones {
         let zone = Zone::enter(kind, 1, &mut r);
-        assert!(!zone.level.enemies.is_empty(), "{:?} produced no enemies", kind);
+        assert_eq!(zone.kind, kind, "{:?} zone was not created correctly", kind);
     }
+}
+
+// ── NPC phase-shift logic ─────────────────────────────────────────────────────
+
+#[test]
+fn npcs_available_when_no_encounter() {
+    use carbonthrone::zone::Zone;
+    let mut r = rng();
+    for _ in 0..50 {
+        let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
+        if zone.encounter.is_none() {
+            assert!(zone.npcs_available(false), "NPCs should be available with no encounter");
+            return;
+        }
+    }
+    panic!("could not find zone without encounter in 50 attempts");
+}
+
+#[test]
+fn npcs_not_available_during_active_encounter() {
+    use carbonthrone::zone::Zone;
+    let mut r = rng();
+    for _ in 0..50 {
+        let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
+        if zone.encounter.is_some() {
+            assert!(!zone.npcs_available(false), "NPCs should be hidden during an active encounter");
+            return;
+        }
+    }
+    panic!("could not find zone with encounter in 50 attempts");
+}
+
+#[test]
+fn npcs_available_after_encounter_cleared() {
+    use carbonthrone::zone::Zone;
+    let mut r = rng();
+    for _ in 0..50 {
+        let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
+        if zone.encounter.is_some() {
+            assert!(zone.npcs_available(true), "NPCs should phase-shift in after encounter is cleared");
+            return;
+        }
+    }
+    panic!("could not find zone with encounter in 50 attempts");
 }
