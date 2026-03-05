@@ -18,8 +18,7 @@ use carbonthrone::enemy::{Enemy, EnemyKind};
 use carbonthrone::experience::Experience;
 use carbonthrone::health::Health;
 use carbonthrone::position::Position;
-use carbonthrone::side::Side;
-use carbonthrone::simulation::{BattleOutcome, BattleStep, TurnAction, TurnEvent};
+use carbonthrone::simulation::{BattleOutcome, BattleStep, TurnAction, TurnEvent, Turn};
 use carbonthrone::stats::Stats;
 use carbonthrone::terrain::{BattleRng, Biome, CoverLevel, LevelMap, generate_map};
 
@@ -332,7 +331,6 @@ fn setup_battle(world: &mut World) {
             Health::new(hp),
             ActionPoints::new(4),
             Experience::new(),
-            Side::Player,
             Position::new(px, py, 0),
         ));
     }
@@ -350,7 +348,6 @@ fn setup_battle(world: &mut World) {
             stats,
             Health::new(hp),
             ActionPoints::new(4),
-            Side::Enemy,
             Position::new(ex, ey, 0),
         ));
     }
@@ -470,9 +467,9 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     out += &format!("{}\r\n", bar);
     out += "\r\n";
 
-    let side_label = match battle.side {
-        Side::Player => "Player Side",
-        Side::Enemy => "Enemy Side",
+    let side_label = match battle.turn {
+        Turn::Player => "Player Side",
+        Turn::Enemy => "Enemy Side",
     };
     if let Some(next) = battle.next_actor() {
         let name = entity_name(world, next);
@@ -485,8 +482,8 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     }
     out += "\r\n";
 
-    let players = side_entities(world, Side::Player);
-    let enemies = side_entities(world, Side::Enemy);
+    let players = player_entities(world);
+    let enemies = enemy_entities(world);
     let rows = players.len().max(enemies.len());
 
     out += &format!("  {:<27}  {}\r\n", "PLAYERS", "ENEMIES");
@@ -518,9 +515,9 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
         match event.actor {
             Some(actor) => {
                 let name = entity_name(world, actor);
-                let side_str = match event.side {
-                    Side::Player => "Player",
-                    Side::Enemy => "Enemy",
+                let side_str = match event.turn {
+                    Turn::Player => "Player",
+                    Turn::Enemy => "Enemy",
                 };
                 out += &format!("  -- {}'s turn ({}) --\r\n", name, side_str);
                 if event.actions.is_empty() {
@@ -608,11 +605,24 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     out
 }
 
-fn side_entities(world: &mut World, side: Side) -> Vec<(Entity, i32, i32)> {
-    let mut q = world.query::<(Entity, &Side, &Health, &Stats)>();
+fn player_entities(world: &mut World) -> Vec<(Entity, i32, i32)> {
+    let mut q = world.query::<(Entity, &Character, &Health, &Stats)>();
     let mut v: Vec<(Entity, i32, i32, i32)> = q
         .iter(world)
-        .filter(|(_, s, _, _)| **s == side)
+        .map(|(e, _, h, stats)| (e, h.current, h.max, stats.speed))
+        .collect();
+    v.sort_by(|a, b| b.3.cmp(&a.3));
+    v.into_iter()
+        .map(|(e, cur, max, _)| (e, cur, max))
+        .collect()
+}
+
+fn enemy_entities(world: &mut World) -> Vec<(Entity, i32, i32)> {
+    use carbonthrone::enemy::Aggression;
+    let mut q = world.query::<(Entity, &Enemy, &Health, &Stats)>();
+    let mut v: Vec<(Entity, i32, i32, i32)> = q
+        .iter(world)
+        .filter(|(_, e, _, _)| e.aggression != Aggression::Friendly)
         .map(|(e, _, h, stats)| (e, h.current, h.max, stats.speed))
         .collect();
     v.sort_by(|a, b| b.3.cmp(&a.3));
@@ -659,19 +669,26 @@ fn map_string(world: &mut World) -> String {
 
     let (mut max_x, mut max_y, mut cells) = terrain.unwrap_or_else(|| (9, 1, HashMap::new()));
 
-    let mut q = world.query::<(Entity, &Position, &Side, &Health)>();
-    for (_e, pos, side, health) in q.iter(world) {
-        max_x = max_x.max(pos.x);
-        max_y = max_y.max(pos.y);
-        let ch = if !health.is_alive() {
-            'x'
-        } else {
-            match side {
-                Side::Player => 'P',
-                Side::Enemy => 'E',
-            }
-        };
-        cells.insert((pos.x, pos.y), ch);
+    let mut qp = world.query::<(&Position, &Character, &Health)>();
+    let player_glyphs: Vec<(i32, i32, char)> = qp
+        .iter(world)
+        .map(|(pos, _, h)| (pos.x, pos.y, if h.is_alive() { 'P' } else { 'x' }))
+        .collect();
+    for (x, y, ch) in player_glyphs {
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+        cells.insert((x, y), ch);
+    }
+
+    let mut qe = world.query::<(&Position, &Enemy, &Health)>();
+    let enemy_glyphs: Vec<(i32, i32, char)> = qe
+        .iter(world)
+        .map(|(pos, _, h)| (pos.x, pos.y, if h.is_alive() { 'E' } else { 'x' }))
+        .collect();
+    for (x, y, ch) in enemy_glyphs {
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+        cells.insert((x, y), ch);
     }
 
     let mut rows = Vec::new();

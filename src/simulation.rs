@@ -4,11 +4,12 @@ use bevy::prelude::*;
 
 use crate::{
     action_points::ActionPoints,
+    character::Character,
     combat::{calc_damage, calc_hit_chance},
+    enemy::{Aggression, Enemy},
     health::Health,
     player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
-    side::Side,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
     turn::{ATTACK_AP_COST, Action, apply_action},
@@ -19,6 +20,13 @@ pub use crate::turn::TurnAction;
 
 /// Hard cap on rounds to prevent infinite loops.
 pub const MAX_ROUNDS: u32 = 1000;
+
+/// Whose turn it is in the current combat round.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Turn {
+    Player,
+    Enemy,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BattleOutcome {
@@ -35,7 +43,7 @@ pub enum BattleOutcome {
 pub struct TurnEvent {
     /// The entity that just acted (`None` if the step only changed sides/round).
     pub actor: Option<Entity>,
-    pub side: Side,
+    pub turn: Turn,
     pub actions: Vec<TurnAction>,
     /// Set when the battle has ended after this step.
     pub outcome: Option<BattleOutcome>,
@@ -57,10 +65,11 @@ pub struct PlayerTurnStep {
 }
 
 /// Incremental battle driver: call `step()` once per key-press.
-/// All combatants must carry `Side`, `Health`, `Stats`, and `ActionPoints`.
+/// All combatants must carry `Health`, `Stats`, and `ActionPoints`.
+/// Player characters carry `Character`; enemies carry `Enemy`.
 pub struct BattleStep {
     pub round: u32,
-    pub side: Side,
+    pub turn: Turn,
     actor_queue: VecDeque<Entity>,
     /// Whether the current player actor's AP has been refreshed this turn.
     player_actor_ready: bool,
@@ -68,10 +77,10 @@ pub struct BattleStep {
 
 impl BattleStep {
     pub fn new(world: &mut World) -> Self {
-        let queue = VecDeque::from(living_side(world, Side::Player));
+        let queue = VecDeque::from(living_players(world));
         Self {
             round: 1,
-            side: Side::Player,
+            turn: Turn::Player,
             actor_queue: queue,
             player_actor_ready: false,
         }
@@ -81,11 +90,11 @@ impl BattleStep {
     ///
     /// Refreshes the actor's AP automatically the first time this is called for
     /// a given actor. Returns an empty vec when:
-    /// * it is not the player's turn (`self.side == Side::Enemy`),
+    /// * it is not the player's turn (`self.turn == Turn::Enemy`),
     /// * all player actors have already acted (queue empty), or
     /// * the battle is already over.
     pub fn player_choices(&mut self, world: &mut World) -> Vec<PlayerActionChoice> {
-        if self.side != Side::Player || check_outcome(world).is_some() {
+        if self.turn != Turn::Player || check_outcome(world).is_some() {
             return vec![];
         }
         let actor = match self.actor_queue.front().copied() {
@@ -103,8 +112,8 @@ impl BattleStep {
     ///
     /// When `result.turn_ended` is `true`, the actor has been removed from the
     /// queue. Call `player_choices` again to get options for the next player
-    /// actor. Once the player queue is exhausted, `self.side` switches to
-    /// `Side::Enemy` automatically; call `step()` for each enemy actor then.
+    /// actor. Once the player queue is exhausted, `self.turn` switches to
+    /// `Turn::Enemy` automatically; call `step()` for each enemy actor then.
     pub fn step_player_action(
         &mut self,
         world: &mut World,
@@ -141,10 +150,10 @@ impl BattleStep {
             self.actor_queue.pop_front();
             self.player_actor_ready = false;
 
-            // When all players have acted, switch to the enemy side.
+            // When all players have acted, switch to the enemy turn.
             if self.actor_queue.is_empty() {
-                self.side = Side::Enemy;
-                self.actor_queue = VecDeque::from(living_side(world, Side::Enemy));
+                self.turn = Turn::Enemy;
+                self.actor_queue = VecDeque::from(living_enemies(world));
             }
         }
 
@@ -156,7 +165,7 @@ impl BattleStep {
         }
     }
 
-    /// The next entity waiting to act this side, if any.
+    /// The next entity waiting to act this turn, if any.
     pub fn next_actor(&self) -> Option<Entity> {
         self.actor_queue.front().copied()
     }
@@ -166,7 +175,7 @@ impl BattleStep {
         if let Some(outcome) = check_outcome(world) {
             return TurnEvent {
                 actor: None,
-                side: self.side,
+                turn: self.turn,
                 actions: vec![],
                 outcome: Some(outcome),
             };
@@ -174,30 +183,30 @@ impl BattleStep {
 
         // Refill queue when the current side is exhausted.
         if self.actor_queue.is_empty() {
-            match self.side {
-                Side::Player => {
-                    self.side = Side::Enemy;
-                    self.actor_queue = VecDeque::from(living_side(world, Side::Enemy));
+            match self.turn {
+                Turn::Player => {
+                    self.turn = Turn::Enemy;
+                    self.actor_queue = VecDeque::from(living_enemies(world));
                 }
-                Side::Enemy => {
+                Turn::Enemy => {
                     self.round += 1;
                     if self.round > MAX_ROUNDS {
                         return TurnEvent {
                             actor: None,
-                            side: self.side,
+                            turn: self.turn,
                             actions: vec![],
                             outcome: Some(BattleOutcome::Draw),
                         };
                     }
-                    self.side = Side::Player;
-                    self.actor_queue = VecDeque::from(living_side(world, Side::Player));
+                    self.turn = Turn::Player;
+                    self.actor_queue = VecDeque::from(living_players(world));
                 }
             }
             // Re-check after switching (e.g. all enemies already dead).
             if let Some(outcome) = check_outcome(world) {
                 return TurnEvent {
                     actor: None,
-                    side: self.side,
+                    turn: self.turn,
                     actions: vec![],
                     outcome: Some(outcome),
                 };
@@ -207,7 +216,7 @@ impl BattleStep {
         let Some(actor) = self.actor_queue.pop_front() else {
             return TurnEvent {
                 actor: None,
-                side: self.side,
+                turn: self.turn,
                 actions: vec![],
                 outcome: Some(BattleOutcome::Draw),
             };
@@ -216,8 +225,8 @@ impl BattleStep {
         refresh_actor(world, actor);
         let mut actions = Vec::new();
         loop {
-            let actor_side = self.side;
-            match choose_action(world, actor, actor_side) {
+            let actor_turn = self.turn;
+            match choose_action(world, actor, actor_turn) {
                 Some(Action::Pass) | None => break,
                 Some(action) => {
                     if let Some(ev) = apply_action(world, actor, &action) {
@@ -229,7 +238,7 @@ impl BattleStep {
 
         TurnEvent {
             actor: Some(actor),
-            side: self.side,
+            turn: self.turn,
             actions,
             outcome: check_outcome(world),
         }
@@ -242,12 +251,12 @@ impl BattleStep {
 /// enemy side. Within a side, combatants act in descending speed order.
 pub fn simulate_battle(world: &mut World) -> BattleOutcome {
     for _ in 0..MAX_ROUNDS {
-        run_side(world, Side::Player);
+        run_side(world, Turn::Player);
         if let Some(o) = check_outcome(world) {
             return o;
         }
 
-        run_side(world, Side::Enemy);
+        run_side(world, Turn::Enemy);
         if let Some(o) = check_outcome(world) {
             return o;
         }
@@ -257,11 +266,15 @@ pub fn simulate_battle(world: &mut World) -> BattleOutcome {
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
-fn run_side(world: &mut World, side: Side) {
-    for actor in living_side(world, side) {
+fn run_side(world: &mut World, turn: Turn) {
+    let actors = match turn {
+        Turn::Player => living_players(world),
+        Turn::Enemy => living_enemies(world),
+    };
+    for actor in actors {
         refresh_actor(world, actor);
         loop {
-            match choose_action(world, actor, side) {
+            match choose_action(world, actor, turn) {
                 Some(Action::Pass) | None => break,
                 Some(action) => {
                     apply_action(world, actor, &action);
@@ -272,10 +285,10 @@ fn run_side(world: &mut World, side: Side) {
 }
 
 fn check_outcome(world: &mut World) -> Option<BattleOutcome> {
-    if all_defeated(world, Side::Enemy) {
+    if all_enemies_defeated(world) {
         return Some(BattleOutcome::PlayerVictory);
     }
-    if all_defeated(world, Side::Player) {
+    if all_players_defeated(world) {
         return Some(BattleOutcome::PlayerDefeated);
     }
     None
@@ -287,24 +300,43 @@ fn refresh_actor(world: &mut World, actor: Entity) {
     }
 }
 
-/// Returns living entities on `side`, sorted by descending speed.
-fn living_side(world: &mut World, side: Side) -> Vec<Entity> {
-    let mut query = world.query::<(Entity, &Side, &Health, &Stats)>();
+/// Returns living player characters, sorted by descending speed.
+fn living_players(world: &mut World) -> Vec<Entity> {
+    let mut query = world.query::<(Entity, &Character, &Health, &Stats)>();
     let mut entities: Vec<(Entity, i32)> = query
         .iter(world)
-        .filter(|(_, s, h, _)| **s == side && h.is_alive())
+        .filter(|(_, _, h, _)| h.is_alive())
         .map(|(e, _, _, stats)| (e, stats.speed))
         .collect();
     entities.sort_by(|a, b| b.1.cmp(&a.1));
     entities.into_iter().map(|(e, _)| e).collect()
 }
 
-/// `true` if every entity on `side` is dead, or no such entities exist.
-fn all_defeated(world: &mut World, side: Side) -> bool {
-    let mut query = world.query::<(&Side, &Health)>();
+/// Returns living non-friendly enemies, sorted by descending speed.
+fn living_enemies(world: &mut World) -> Vec<Entity> {
+    let mut query = world.query::<(Entity, &Enemy, &Health, &Stats)>();
+    let mut entities: Vec<(Entity, i32)> = query
+        .iter(world)
+        .filter(|(_, e, h, _)| e.aggression != Aggression::Friendly && h.is_alive())
+        .map(|(e, _, _, stats)| (e, stats.speed))
+        .collect();
+    entities.sort_by(|a, b| b.1.cmp(&a.1));
+    entities.into_iter().map(|(e, _)| e).collect()
+}
+
+/// `true` if every player character is dead, or none exist.
+fn all_players_defeated(world: &mut World) -> bool {
+    let mut query = world.query::<(&Character, &Health)>();
+    let combatants: Vec<bool> = query.iter(world).map(|(_, h)| h.is_alive()).collect();
+    combatants.is_empty() || combatants.iter().all(|alive| !alive)
+}
+
+/// `true` if every non-friendly enemy is dead, or none exist.
+fn all_enemies_defeated(world: &mut World) -> bool {
+    let mut query = world.query::<(&Enemy, &Health)>();
     let combatants: Vec<bool> = query
         .iter(world)
-        .filter(|(s, _)| **s == side)
+        .filter(|(e, _)| e.aggression != Aggression::Friendly)
         .map(|(_, h)| h.is_alive())
         .collect();
     combatants.is_empty() || combatants.iter().all(|alive| !alive)
@@ -313,25 +345,19 @@ fn all_defeated(world: &mut World, side: Side) -> bool {
 // ── Smart AI ─────────────────────────────────────────────────────────────────
 
 /// AI entry point: seek cover first, then attack the best target.
-fn choose_action(world: &mut World, actor: Entity, actor_side: Side) -> Option<Action> {
+fn choose_action(world: &mut World, actor: Entity, turn: Turn) -> Option<Action> {
     let ap = world.get::<ActionPoints>(actor)?.current;
     if ap == 0 {
         return Some(Action::Pass);
     }
 
     // Phase 1: move to cover if not already well-covered from nearest enemy.
-    if let Some(mv) = seek_cover_action(world, actor, actor_side, ap) {
+    if let Some(mv) = seek_cover_action(world, actor, turn, ap) {
         return Some(mv);
     }
 
     // Phase 2: attack the target most likely to take significant damage.
-    let opponent_side = match actor_side {
-        Side::Player => Side::Enemy,
-        Side::Enemy => Side::Player,
-    };
-    if ap >= ATTACK_AP_COST
-        && let Some(target) = best_attack_target(world, actor, opponent_side)
-    {
+    if ap >= ATTACK_AP_COST && let Some(target) = best_attack_target(world, actor, turn) {
         return Some(Action::Attack { target });
     }
 
@@ -345,38 +371,39 @@ fn choose_action(world: &mut World, actor: Entity, actor_side: Side) -> Option<A
 /// Phase 2 — advance toward cover: if no in-range cover exists, spend ALL AP to advance toward
 ///   the best reachable cover tile (skipping the attack this turn).
 /// Returns `None` only if already at Full cover or no better cover exists anywhere in range.
-fn seek_cover_action(
-    world: &mut World,
-    actor: Entity,
-    actor_side: Side,
-    ap: i32,
-) -> Option<Action> {
+fn seek_cover_action(world: &mut World, actor: Entity, turn: Turn, ap: i32) -> Option<Action> {
     if ap == 0 {
         return None;
     }
 
     let actor_pos = world.get::<Position>(actor).copied()?;
-    let opponent_side = match actor_side {
-        Side::Player => Side::Enemy,
-        Side::Enemy => Side::Player,
+
+    // Find the nearest living opponent position (collect then drop query borrow).
+    let opponent_positions: Vec<Position> = match turn {
+        Turn::Player => {
+            let mut q = world.query::<(&Enemy, &Health, &Position)>();
+            q.iter(world)
+                .filter(|(e, h, _)| e.aggression != Aggression::Friendly && h.is_alive())
+                .map(|(_, _, pos)| *pos)
+                .collect()
+        }
+        Turn::Enemy => {
+            let mut q = world.query::<(&Character, &Health, &Position)>();
+            q.iter(world)
+                .filter(|(_, h, _)| h.is_alive())
+                .map(|(_, _, pos)| *pos)
+                .collect()
+        }
     };
 
-    // Find the nearest living enemy position (collect then drop query borrow).
-    let mut q = world.query::<(Entity, &Side, &Health, &Position)>();
-    let enemy_positions: Vec<Position> = q
-        .iter(world)
-        .filter(|(_, s, h, _)| **s == opponent_side && h.is_alive())
-        .map(|(_, _, _, pos)| *pos)
-        .collect();
-
-    let nearest_enemy = enemy_positions
+    let nearest_opponent = opponent_positions
         .iter()
         .min_by_key(|p| (p.x - actor_pos.x).abs() + (p.y - actor_pos.y).abs())
         .copied()?;
 
-    // Attack comes from the enemy's direction.
+    // Attack comes from the opponent's direction.
     let attack_dir = Direction::from_attack(
-        (nearest_enemy.x, nearest_enemy.y),
+        (nearest_opponent.x, nearest_opponent.y),
         (actor_pos.x, actor_pos.y),
     );
 
@@ -447,17 +474,27 @@ fn seek_cover_action(
 
 /// Returns the entity that gives the highest expected damage (hit_chance × damage),
 /// preferring closer targets on ties.
-fn best_attack_target(world: &mut World, actor: Entity, opponent_side: Side) -> Option<Entity> {
+fn best_attack_target(world: &mut World, actor: Entity, turn: Turn) -> Option<Entity> {
     let actor_pos = world.get::<Position>(actor).copied()?;
     let actor_attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
 
     // Collect target data (drop query borrow before accessing resources).
-    let mut q = world.query::<(Entity, &Side, &Health, &Stats, &Position)>();
-    let targets: Vec<(Entity, i32, i32, i32)> = q
-        .iter(world)
-        .filter(|(_, s, h, _, _)| **s == opponent_side && h.is_alive())
-        .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
-        .collect();
+    let targets: Vec<(Entity, i32, i32, i32)> = match turn {
+        Turn::Player => {
+            let mut q = world.query::<(Entity, &Enemy, &Health, &Stats, &Position)>();
+            q.iter(world)
+                .filter(|(_, e, h, _, _)| e.aggression != Aggression::Friendly && h.is_alive())
+                .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
+                .collect()
+        }
+        Turn::Enemy => {
+            let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
+            q.iter(world)
+                .filter(|(_, _, h, _, _)| h.is_alive())
+                .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
+                .collect()
+        }
+    };
 
     targets
         .iter()

@@ -5,9 +5,9 @@ use bevy::prelude::*;
 use crate::{
     action_points::ActionPoints,
     combat::{calc_damage, calc_hit_chance},
+    enemy::{Aggression, Enemy},
     health::Health,
     position::Position,
-    side::Side,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
     turn::{ATTACK_AP_COST, Action, MOVE_AP_COST},
@@ -107,10 +107,10 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
     // ── Attack options ─────────────────────────────────────────────────────────
     if ap >= ATTACK_AP_COST {
         // Collect target data before borrowing resources.
-        let mut q = world.query::<(Entity, &Side, &Health, &Stats, &Position)>();
+        let mut q = world.query::<(Entity, &Enemy, &Health, &Stats, &Position)>();
         let targets: Vec<(Entity, i32, i32, i32)> = q
             .iter(world)
-            .filter(|(_, s, h, _, _)| **s == Side::Enemy && h.is_alive())
+            .filter(|(_, e, h, _, _)| e.aggression != Aggression::Friendly && h.is_alive())
             .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
             .collect();
 
@@ -138,10 +138,10 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
         .unwrap_or((0, 0));
 
     if cols > 0 && rows > 0 {
-        let mut q2 = world.query::<(&Side, &Health, &Position)>();
+        let mut q2 = world.query::<(&Enemy, &Health, &Position)>();
         let enemy_positions: Vec<(i32, i32)> = q2
             .iter(world)
-            .filter(|(s, h, _)| **s == Side::Enemy && h.is_alive())
+            .filter(|(e, h, _)| e.aggression != Aggression::Friendly && h.is_alive())
             .map(|(_, _, pos)| (pos.x, pos.y))
             .collect();
 
