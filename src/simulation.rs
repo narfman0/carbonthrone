@@ -6,6 +6,7 @@ use crate::{
     action_points::ActionPoints,
     combat::{calc_damage, calc_hit_chance},
     health::Health,
+    player_input::{available_player_actions, PlayerActionChoice},
     position::Position,
     side::Side,
     stats::Stats,
@@ -40,18 +41,106 @@ pub struct TurnEvent {
     pub outcome: Option<BattleOutcome>,
 }
 
+/// Result of executing one player action via [`BattleStep::step_player_action`].
+#[derive(Debug)]
+pub struct PlayerTurnStep {
+    /// The entity that acted.
+    pub actor: Entity,
+    /// The logged action (None if the choice was Pass or otherwise invalid).
+    pub action: Option<TurnAction>,
+    /// Whether the actor's turn has now ended (AP exhausted or Pass chosen).
+    /// When `true`, the next call to `player_choices` returns choices for the
+    /// following player actor, or an empty vec if all players have acted.
+    pub turn_ended: bool,
+    /// Set when the battle ends as a result of this action.
+    pub outcome: Option<BattleOutcome>,
+}
+
 /// Incremental battle driver: call `step()` once per key-press.
 /// All combatants must carry `Side`, `Health`, `Stats`, and `ActionPoints`.
 pub struct BattleStep {
     pub round: u32,
     pub side: Side,
     actor_queue: VecDeque<Entity>,
+    /// Whether the current player actor's AP has been refreshed this turn.
+    player_actor_ready: bool,
 }
 
 impl BattleStep {
     pub fn new(world: &mut World) -> Self {
         let queue = VecDeque::from(living_side(world, Side::Player));
-        Self { round: 1, side: Side::Player, actor_queue: queue }
+        Self { round: 1, side: Side::Player, actor_queue: queue, player_actor_ready: false }
+    }
+
+    /// Returns available actions for the next queued player actor.
+    ///
+    /// Refreshes the actor's AP automatically the first time this is called for
+    /// a given actor. Returns an empty vec when:
+    /// * it is not the player's turn (`self.side == Side::Enemy`),
+    /// * all player actors have already acted (queue empty), or
+    /// * the battle is already over.
+    pub fn player_choices(&mut self, world: &mut World) -> Vec<PlayerActionChoice> {
+        if self.side != Side::Player || check_outcome(world).is_some() {
+            return vec![];
+        }
+        let actor = match self.actor_queue.front().copied() {
+            Some(e) => e,
+            None => return vec![],
+        };
+        if !self.player_actor_ready {
+            refresh_actor(world, actor);
+            self.player_actor_ready = true;
+        }
+        available_player_actions(world, actor)
+    }
+
+    /// Execute one player-chosen action for the current queued player actor.
+    ///
+    /// When `result.turn_ended` is `true`, the actor has been removed from the
+    /// queue. Call `player_choices` again to get options for the next player
+    /// actor. Once the player queue is exhausted, `self.side` switches to
+    /// `Side::Enemy` automatically; call `step()` for each enemy actor then.
+    pub fn step_player_action(
+        &mut self,
+        world: &mut World,
+        choice: &PlayerActionChoice,
+    ) -> PlayerTurnStep {
+        let actor = match self.actor_queue.front().copied() {
+            Some(e) => e,
+            None => {
+                return PlayerTurnStep {
+                    actor: Entity::PLACEHOLDER,
+                    action: None,
+                    turn_ended: true,
+                    outcome: check_outcome(world),
+                };
+            }
+        };
+
+        if !self.player_actor_ready {
+            refresh_actor(world, actor);
+            self.player_actor_ready = true;
+        }
+
+        let action = choice.to_action();
+        let logged = apply_action(world, actor, &action);
+
+        let is_pass = matches!(choice, PlayerActionChoice::Pass);
+        let ap_remaining = world.get::<ActionPoints>(actor).map(|ap| ap.current).unwrap_or(0);
+        let turn_ended = is_pass || ap_remaining == 0;
+
+        if turn_ended {
+            self.actor_queue.pop_front();
+            self.player_actor_ready = false;
+
+            // When all players have acted, switch to the enemy side.
+            if self.actor_queue.is_empty() {
+                self.side = Side::Enemy;
+                self.actor_queue = VecDeque::from(living_side(world, Side::Enemy));
+            }
+        }
+
+        PlayerTurnStep { actor, action: logged, turn_ended, outcome: check_outcome(world) }
     }
 
     /// The next entity waiting to act this side, if any.
