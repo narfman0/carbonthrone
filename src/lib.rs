@@ -1,3 +1,4 @@
+pub mod ability;
 pub mod action_points;
 pub mod dialog;
 pub mod character;
