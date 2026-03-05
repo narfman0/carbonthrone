@@ -77,25 +77,48 @@ impl CardinalDir {
     }
 }
 
+/// Probability that a combat encounter is generated when entering a zone.
+/// At 0.75, three out of four zone entries trigger a fight.
+pub const ENCOUNTER_CHANCE: f64 = 0.75;
+
 /// A zone in the Meridian station with a freshly generated encounter layout.
 ///
 /// Call [`Zone::enter`] each time the player enters a zone to get a new random layout.
+/// Combat happens before exploration: if `encounter` is `Some`, the party must resolve
+/// that fight before NPCs phase-shift in. Use [`Zone::npcs_available`] to check
+/// whether NPCs should appear.
 #[derive(Debug)]
 pub struct Zone {
     pub kind: ZoneKind,
     pub connections: ZoneConnections,
-    pub level: Level,
+    /// `Some` when a combat encounter was rolled on entry; `None` for a clear zone.
+    pub encounter: Option<Level>,
 }
 
 impl Zone {
-    /// Enter a zone, procedurally generating a fresh encounter layout using
-    /// zone-appropriate biome and enemy types.
+    /// Enter a zone, rolling for a random combat encounter first.
+    ///
+    /// There is an [`ENCOUNTER_CHANCE`] probability that enemies are generated
+    /// using zone-appropriate biome and enemy types. NPCs only phase-shift in
+    /// after the encounter is resolved (or immediately when there is none).
     pub fn enter(kind: ZoneKind, depth: u32, rng: &mut impl Rng) -> Self {
         let connections = zone_connections(kind);
-        let biome = kind.default_biome();
-        let enemy_pool = kind.enemy_pool();
-        let level = Level::generate_for_zone(depth, biome, enemy_pool, rng);
-        Self { kind, connections, level }
+        let encounter = if rng.gen::<f64>() < ENCOUNTER_CHANCE {
+            let biome = kind.default_biome();
+            let enemy_pool = kind.enemy_pool();
+            Some(Level::generate_for_zone(depth, biome, enemy_pool, rng))
+        } else {
+            None
+        };
+        Self { kind, connections, encounter }
+    }
+
+    /// Returns `true` when NPCs may phase-shift into the zone.
+    ///
+    /// NPCs are held back during an active combat encounter and become
+    /// available only once the encounter is cleared (or when there was none).
+    pub fn npcs_available(&self, encounter_cleared: bool) -> bool {
+        self.encounter.is_none() || encounter_cleared
     }
 }
 
