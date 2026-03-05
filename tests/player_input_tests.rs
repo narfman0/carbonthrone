@@ -14,7 +14,7 @@ use carbonthrone::{
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 fn spawn_player(world: &mut World, pos: (i32, i32), attack: i32, defense: i32) -> Entity {
-    let ch = Character::new_player("Player", CharacterKind::Doss);
+    let ch = Character::new_npc(CharacterKind::Doss, 1);
     world
         .spawn((
             ch,
@@ -299,7 +299,7 @@ fn display_strings_are_non_empty() {
 fn player_choices_returns_options_on_player_turn() {
     let mut world = World::new();
     world.spawn((
-        Character::new_player("Player", CharacterKind::Doss),
+        Character::new_npc(CharacterKind::Doss, 1),
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -343,7 +343,7 @@ fn step_player_action_pass_ends_turn() {
     let mut world = World::new();
     let player = world
         .spawn((
-            Character::new_player("Player", CharacterKind::Doss),
+            Character::new_npc(CharacterKind::Doss, 1),
             Health::new(100),
             Stats {
                 max_hp: 100,
@@ -381,7 +381,7 @@ fn step_player_action_pass_ends_turn() {
 fn step_player_action_attack_deals_damage() {
     let mut world = World::new();
     world.spawn((
-        Character::new_player("Player", CharacterKind::Doss),
+        Character::new_npc(CharacterKind::Doss, 1),
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -427,7 +427,7 @@ fn step_player_action_attack_deals_damage() {
 fn step_player_action_outcome_set_on_victory() {
     let mut world = World::new();
     world.spawn((
-        Character::new_player("Player", CharacterKind::Doss),
+        Character::new_npc(CharacterKind::Doss, 1),
         Health::new(100),
         Stats {
             max_hp: 100,

@@ -354,22 +354,7 @@ pub struct Character {
 }
 
 impl Character {
-    /// Create a player character at level 1 with class-based base stats.
-    pub fn new_player(name: impl Into<String>, kind: CharacterKind) -> Self {
-        let stats = scaled_stats(&kind, 1);
-        let current_hp = stats.max_hp;
-        Self {
-            name: name.into(),
-            kind,
-            level: 1,
-            stats,
-            current_hp,
-            xp_reward: 0,
-            aggression: Aggression::Friendly,
-        }
-    }
-
-    /// Create an NPC (enemy or neutral) at the given level with scaled stats.
+    /// Create a character at the given level with scaled stats, default name, and default aggression.
     pub fn new_npc(kind: CharacterKind, level: u32) -> Self {
         let stats = scaled_stats(&kind, level);
         let current_hp = stats.max_hp;

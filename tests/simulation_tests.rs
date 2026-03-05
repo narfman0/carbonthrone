@@ -11,7 +11,7 @@ use carbonthrone::{
 fn player(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> Entity {
     world
         .spawn((
-            Character::new_player("Player", CharacterKind::Doss),
+            Character::new_npc(CharacterKind::Doss, 1),
             Health::new(hp),
             Stats {
                 max_hp: hp,

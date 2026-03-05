@@ -314,14 +314,11 @@ fn setup_battle(world: &mut World) {
     let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
     let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
 
-    for (i, (name, pc)) in [
-        ("Doss", CharacterKind::Doss),
-        ("Researcher", CharacterKind::Researcher),
-    ]
-    .into_iter()
-    .enumerate()
+    for (i, pc) in [CharacterKind::Doss, CharacterKind::Researcher]
+        .into_iter()
+        .enumerate()
     {
-        let ch = Character::new_player(name, pc);
+        let ch = Character::new_npc(pc, 1);
         let stats = ch.stats.clone();
         let hp = ch.current_hp;
         let (px, py) = player_positions[i];
