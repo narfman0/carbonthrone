@@ -318,7 +318,7 @@ fn setup_battle(world: &mut World) {
         .into_iter()
         .enumerate()
     {
-        let ch = Character::new_npc(pc, 1);
+        let ch = Character::new_character(pc, 1);
         let stats = ch.stats.clone();
         let hp = ch.current_hp;
         let (px, py) = player_positions[i];
@@ -339,7 +339,7 @@ fn setup_battle(world: &mut World) {
     .into_iter()
     .enumerate()
     {
-        let ch = Character::new_npc(kind, level);
+        let ch = Character::new_character(kind, level);
         let stats = ch.stats.clone();
         let hp = ch.current_hp;
         let (ex, ey) = enemy_positions[i];

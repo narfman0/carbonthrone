@@ -355,7 +355,7 @@ pub struct Character {
 
 impl Character {
     /// Create a character at the given level with scaled stats, default name, and default aggression.
-    pub fn new_npc(kind: CharacterKind, level: u32) -> Self {
+    pub fn new_character(kind: CharacterKind, level: u32) -> Self {
         let stats = scaled_stats(&kind, level);
         let current_hp = stats.max_hp;
         let xp_reward = base_xp(&kind) * level;

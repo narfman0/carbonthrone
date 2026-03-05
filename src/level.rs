@@ -78,7 +78,7 @@ impl Level {
                     None => random_enemy_kind(rng),
                 };
                 enemies.push((
-                    Character::new_npc(kind, enemy_level),
+                    Character::new_character(kind, enemy_level),
                     Position::new(x, y, 0),
                 ));
             }

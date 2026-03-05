@@ -11,7 +11,7 @@ use carbonthrone::{
 fn player(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> Entity {
     world
         .spawn((
-            Character::new_npc(CharacterKind::Doss, 1),
+            Character::new_character(CharacterKind::Doss, 1),
             Health::new(hp),
             Stats {
                 max_hp: hp,
@@ -28,7 +28,7 @@ fn player(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> 
 fn enemy(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> Entity {
     world
         .spawn((
-            Character::new_npc(CharacterKind::Scavenger, 1),
+            Character::new_character(CharacterKind::Scavenger, 1),
             Health::new(hp),
             Stats {
                 max_hp: hp,
