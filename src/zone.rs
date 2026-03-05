@@ -1,7 +1,7 @@
-use rand::Rng;
 use crate::enemy::EnemyKind;
 use crate::level::Level;
 use crate::terrain::Biome;
+use rand::Rng;
 
 /// One of the nine named zones in the Meridian station, as described in docs/world.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -103,14 +103,18 @@ impl Zone {
     /// after the encounter is resolved (or immediately when there is none).
     pub fn enter(kind: ZoneKind, depth: u32, rng: &mut impl Rng) -> Self {
         let connections = zone_connections(kind);
-        let encounter = if rng.gen::<f64>() < ENCOUNTER_CHANCE {
+        let encounter = if rng.r#gen::<f64>() < ENCOUNTER_CHANCE {
             let biome = kind.default_biome();
             let enemy_pool = kind.enemy_pool();
             Some(Level::generate_for_zone(depth, biome, enemy_pool, rng))
         } else {
             None
         };
-        Self { kind, connections, encounter }
+        Self {
+            kind,
+            connections,
+            encounter,
+        }
     }
 
     /// Returns `true` when NPCs may phase-shift into the zone.

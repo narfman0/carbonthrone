@@ -1,7 +1,7 @@
 use carbonthrone::dialog::{DialogEngine, Trigger};
 
-const LOOP1_YAML: &str = include_str!("../docs/loops/loop1.yaml");
-const LOOP2_YAML: &str = include_str!("../docs/loops/loop2.yaml");
+const LOOP1_YAML: &str = include_str!("../data/loops/loop1.yaml");
+const LOOP2_YAML: &str = include_str!("../data/loops/loop2.yaml");
 
 // ── Loading ───────────────────────────────────────────────────────────────
 
@@ -114,7 +114,7 @@ fn scene_blocked_when_unset_flag_is_present() {
 fn scene_blocked_by_wrong_companion() {
     let mut engine = DialogEngine::new();
     engine.load_script(LOOP1_YAML).unwrap();
-    engine.set_companion("doss");          // wrong companion
+    engine.set_companion("doss"); // wrong companion
     engine.set_flag("companion_orin");
 
     let scene = engine.trigger(&Trigger::OnEnter, "command_deck");

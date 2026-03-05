@@ -8,8 +8,8 @@ use crossterm::{
     execute,
     terminal::{self, ClearType},
 };
-use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 
 use carbonthrone::action_points::ActionPoints;
 use carbonthrone::character::{Character, CharacterClass};
@@ -58,14 +58,18 @@ struct ExplorationState {
 impl ExplorationState {
     fn new() -> Self {
         let mut dialog = DialogEngine::new();
-        let yaml = include_str!("../docs/loops/loop1.yaml");
+        let yaml = include_str!("../data/loops/loop1.yaml");
         dialog.load_script(yaml).expect("load loop1.yaml");
         dialog.set_companion("orin");
         dialog.set_flag("companion_orin");
 
         let mut state = Self {
             player_pos: (0, 2),
-            npcs: vec![NpcData { pos: (5, 2), name: "Orin", glyph: 'N' }],
+            npcs: vec![NpcData {
+                pos: (5, 2),
+                name: "Orin",
+                glyph: 'N',
+            }],
             dialog,
             location: "command_deck".to_string(),
             scene_lines: Vec::new(),
@@ -333,12 +337,9 @@ fn setup_battle(world: &mut World) {
         ));
     }
 
-    for (i, (kind, level)) in [
-        (EnemyKind::Scavenger, 1u32),
-        (EnemyKind::DrifterBoss, 2u32),
-    ]
-    .into_iter()
-    .enumerate()
+    for (i, (kind, level)) in [(EnemyKind::Scavenger, 1u32), (EnemyKind::DrifterBoss, 2u32)]
+        .into_iter()
+        .enumerate()
     {
         let enemy = Enemy::new(kind, level);
         let hp = enemy.stats.max_hp;
@@ -355,7 +356,12 @@ fn setup_battle(world: &mut World) {
     }
 
     let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-    let biomes = [Biome::VoidStation, Biome::NeonDistrict, Biome::BioLab, Biome::AsteroidColony];
+    let biomes = [
+        Biome::VoidStation,
+        Biome::NeonDistrict,
+        Biome::BioLab,
+        Biome::AsteroidColony,
+    ];
     let biome = biomes[rng.gen_range(0..4)];
     let mut reserved: Vec<(i32, i32)> = player_positions.to_vec();
     reserved.extend_from_slice(enemy_positions);
@@ -446,8 +452,7 @@ fn render_exploration(state: &ExplorationState) -> String {
     out += &format!("{}\r\n", bar);
     out += &format!(
         "  {:<27}  {}\r\n",
-        "[WASD/Arrows] move  [E] talk",
-        "[B] battle  [Q] quit"
+        "[WASD/Arrows] move  [E] talk", "[B] battle  [Q] quit"
     );
     out += &format!("{}\r\n", bar);
 
@@ -471,7 +476,10 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     };
     if let Some(next) = battle.next_actor() {
         let name = entity_name(world, next);
-        out += &format!("  Round {}  |  {}  |  Next: {}\r\n", battle.round, side_label, name);
+        out += &format!(
+            "  Round {}  |  {}  |  Next: {}\r\n",
+            battle.round, side_label, name
+        );
     } else {
         out += &format!("  Round {}  |  {}\r\n", battle.round, side_label);
     }
@@ -484,8 +492,14 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     out += &format!("  {:<27}  {}\r\n", "PLAYERS", "ENEMIES");
     out += &format!("  {}\r\n", "-".repeat(WIDTH - 2));
     for i in 0..rows {
-        let left = players.get(i).map(|&(e, cur, max)| combatant_line(world, e, cur, max)).unwrap_or_default();
-        let right = enemies.get(i).map(|&(e, cur, max)| combatant_line(world, e, cur, max)).unwrap_or_default();
+        let left = players
+            .get(i)
+            .map(|&(e, cur, max)| combatant_line(world, e, cur, max))
+            .unwrap_or_default();
+        let right = enemies
+            .get(i)
+            .map(|&(e, cur, max)| combatant_line(world, e, cur, max))
+            .unwrap_or_default();
         out += &format!("  {:<27}  {}\r\n", left, right);
     }
     out += "\r\n";
@@ -504,24 +518,38 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
         match event.actor {
             Some(actor) => {
                 let name = entity_name(world, actor);
-                let side_str = match event.side { Side::Player => "Player", Side::Enemy => "Enemy" };
+                let side_str = match event.side {
+                    Side::Player => "Player",
+                    Side::Enemy => "Enemy",
+                };
                 out += &format!("  -- {}'s turn ({}) --\r\n", name, side_str);
                 if event.actions.is_empty() {
                     out += "  > (no actions)\r\n";
                 }
                 for action in &event.actions {
                     match action {
-                        TurnAction::Attack { target, damage, hit, cover } => {
+                        TurnAction::Attack {
+                            target,
+                            damage,
+                            hit,
+                            cover,
+                        } => {
                             let tname = entity_name(world, *target);
                             let cover_str = match cover {
-                                CoverLevel::None    => "",
+                                CoverLevel::None => "",
                                 CoverLevel::Partial => " [partial cover]",
-                                CoverLevel::Full    => " [full cover]",
+                                CoverLevel::Full => " [full cover]",
                             };
                             if *hit {
-                                out += &format!("  > {} attacks {} for {} dmg{}\r\n", name, tname, damage, cover_str);
+                                out += &format!(
+                                    "  > {} attacks {} for {} dmg{}\r\n",
+                                    name, tname, damage, cover_str
+                                );
                             } else {
-                                out += &format!("  > {} attacks {} -- MISS{}\r\n", name, tname, cover_str);
+                                out += &format!(
+                                    "  > {} attacks {} -- MISS{}\r\n",
+                                    name, tname, cover_str
+                                );
                             }
                         }
                         TurnAction::Move { to } => {
@@ -566,7 +594,9 @@ fn side_entities(world: &mut World, side: Side) -> Vec<(Entity, i32, i32)> {
         .map(|(e, _, h, stats)| (e, h.current, h.max, stats.speed))
         .collect();
     v.sort_by(|a, b| b.3.cmp(&a.3));
-    v.into_iter().map(|(e, cur, max, _)| (e, cur, max)).collect()
+    v.into_iter()
+        .map(|(e, cur, max, _)| (e, cur, max))
+        .collect()
 }
 
 fn combatant_line(world: &World, entity: Entity, current: i32, max: i32) -> String {
