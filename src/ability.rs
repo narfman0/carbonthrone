@@ -1,6 +1,6 @@
 use bevy::prelude::Component;
 
-use crate::character::CharacterClass;
+use crate::character::PlayerCharacter;
 
 /// The mechanical effect of using an ability in combat.
 #[derive(Debug, Clone, PartialEq)]
@@ -19,7 +19,7 @@ pub enum AbilityEffect {
     GrantAP { amount: i32 },
 }
 
-/// A class ability that can be used in combat.
+/// A character ability that can be used in combat.
 #[derive(Debug, Clone)]
 pub struct Ability {
     pub name: &'static str,
@@ -31,45 +31,71 @@ pub struct Ability {
     pub effect: AbilityEffect,
 }
 
-/// Bevy component that records a character's class for ability queries.
+/// Bevy component that records which character this entity is for ability queries.
 /// Pair with `Experience` to call `available()` at runtime.
 #[derive(Debug, Clone, Component)]
-pub struct ClassAbilities {
-    pub class: CharacterClass,
+pub struct CharacterAbilities {
+    pub character: PlayerCharacter,
 }
 
-impl ClassAbilities {
-    pub fn new(class: CharacterClass) -> Self {
-        Self { class }
+impl CharacterAbilities {
+    pub fn new(character: PlayerCharacter) -> Self {
+        Self { character }
     }
 
     /// Returns abilities unlocked at or below `level`.
     pub fn available(&self, level: u32) -> Vec<Ability> {
-        available_abilities(&self.class, level)
+        available_abilities(&self.character, level)
     }
 }
 
-/// Returns all abilities defined for `class`.
-pub fn class_abilities(class: &CharacterClass) -> Vec<Ability> {
-    match class {
-        CharacterClass::Warrior => warrior_abilities(),
-        CharacterClass::Rogue => rogue_abilities(),
-        CharacterClass::Cleric => cleric_abilities(),
-        CharacterClass::Ranger => ranger_abilities(),
+/// Returns all abilities defined for `character`.
+pub fn character_abilities(character: &PlayerCharacter) -> Vec<Ability> {
+    match character {
+        PlayerCharacter::Researcher => researcher_abilities(),
+        PlayerCharacter::Orin => orin_abilities(),
+        PlayerCharacter::Doss => doss_abilities(),
+        PlayerCharacter::Kaleo => kaleo_abilities(),
     }
 }
 
-/// Returns abilities for `class` unlocked at or below `level`.
-pub fn available_abilities(class: &CharacterClass, level: u32) -> Vec<Ability> {
-    class_abilities(class)
+/// Returns abilities for `character` unlocked at or below `level`.
+pub fn available_abilities(character: &PlayerCharacter, level: u32) -> Vec<Ability> {
+    character_abilities(character)
         .into_iter()
         .filter(|a| a.level_required <= level)
         .collect()
 }
 
-// ── Per-class ability tables ──────────────────────────────────────────────────
+// ── Per-character ability tables ──────────────────────────────────────────────
 
-fn warrior_abilities() -> Vec<Ability> {
+fn researcher_abilities() -> Vec<Ability> {
+    vec![
+        Ability {
+            name: "Temporal Bolt",
+            description: "A focused burst of temporal energy that deals significant bonus damage.",
+            level_required: 1,
+            ap_cost: 3,
+            effect: AbilityEffect::BonusDamage { bonus: 10 },
+        },
+        Ability {
+            name: "Stasis",
+            description: "Lock an enemy in a temporal freeze, draining their action economy.",
+            level_required: 6,
+            ap_cost: 2,
+            effect: AbilityEffect::DrainAP { amount: 3 },
+        },
+        Ability {
+            name: "Rewind",
+            description: "Reverse an ally's recent injuries, restoring a substantial amount of HP.",
+            level_required: 12,
+            ap_cost: 3,
+            effect: AbilityEffect::Heal { amount: 35 },
+        },
+    ]
+}
+
+fn doss_abilities() -> Vec<Ability> {
     vec![
         Ability {
             name: "Power Strike",
@@ -95,35 +121,7 @@ fn warrior_abilities() -> Vec<Ability> {
     ]
 }
 
-fn rogue_abilities() -> Vec<Ability> {
-    vec![
-        Ability {
-            name: "Sneak Attack",
-            description: "Strike a vulnerable point, bypassing most of the target's armor.",
-            level_required: 1,
-            ap_cost: 2,
-            effect: AbilityEffect::ArmorPiercing {
-                pierce_fraction: 0.75,
-            },
-        },
-        Ability {
-            name: "Shadow Step",
-            description: "Blur through shadows, gaining momentum for rapid repositioning.",
-            level_required: 6,
-            ap_cost: 1,
-            effect: AbilityEffect::GrantAP { amount: 3 },
-        },
-        Ability {
-            name: "Assassination",
-            description: "A precisely timed killing blow that deals massive bonus damage.",
-            level_required: 12,
-            ap_cost: 3,
-            effect: AbilityEffect::BonusDamage { bonus: 25 },
-        },
-    ]
-}
-
-fn cleric_abilities() -> Vec<Ability> {
+fn orin_abilities() -> Vec<Ability> {
     vec![
         Ability {
             name: "Heal",
@@ -149,7 +147,7 @@ fn cleric_abilities() -> Vec<Ability> {
     ]
 }
 
-fn ranger_abilities() -> Vec<Ability> {
+fn kaleo_abilities() -> Vec<Ability> {
     vec![
         Ability {
             name: "Aimed Shot",

@@ -1,12 +1,16 @@
 use bevy::prelude::Component;
 
-/// The class of a player character, driving base stats and level-up growth.
+/// The named player characters, each with distinct stats and abilities.
 #[derive(Debug, Clone, PartialEq, Component)]
-pub enum CharacterClass {
-    Warrior,
-    Rogue,
-    Cleric,
-    Ranger,
+pub enum PlayerCharacter {
+    /// The player character — Temporal Mage; high magic, fragile, fast.
+    Researcher,
+    /// Dr. Sable Orin — Cleric; support healer, high defense, low offense.
+    Orin,
+    /// Recruiter Doss — Warrior; heavy armor, high HP, strong melee.
+    Doss,
+    /// Unit Kaleo — Ranger; precision attacks, system hacking, very fast.
+    Kaleo,
 }
 
 /// Identity component for player characters.
@@ -14,14 +18,14 @@ pub enum CharacterClass {
 #[derive(Debug, Clone, Component)]
 pub struct Character {
     pub name: String,
-    pub class: CharacterClass,
+    pub character: PlayerCharacter,
 }
 
 impl Character {
-    pub fn new(name: impl Into<String>, class: CharacterClass) -> Self {
+    pub fn new(name: impl Into<String>, character: PlayerCharacter) -> Self {
         Self {
             name: name.into(),
-            class,
+            character,
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::character::CharacterClass;
+use crate::character::PlayerCharacter;
 use bevy::prelude::Component;
 
 #[derive(Debug, Clone, Component)]
@@ -10,27 +10,27 @@ pub struct Stats {
 }
 
 impl Stats {
-    pub fn for_class(class: &CharacterClass) -> Self {
-        match class {
-            CharacterClass::Warrior => Self {
-                max_hp: 120,
-                attack: 15,
-                defense: 12,
-                speed: 8,
+    pub fn for_character(character: &PlayerCharacter) -> Self {
+        match character {
+            PlayerCharacter::Researcher => Self {
+                max_hp: 75,
+                attack: 9,
+                defense: 4,
+                speed: 16,
             },
-            CharacterClass::Rogue => Self {
-                max_hp: 80,
-                attack: 14,
-                defense: 6,
-                speed: 18,
-            },
-            CharacterClass::Cleric => Self {
+            PlayerCharacter::Orin => Self {
                 max_hp: 90,
                 attack: 8,
                 defense: 8,
                 speed: 9,
             },
-            CharacterClass::Ranger => Self {
+            PlayerCharacter::Doss => Self {
+                max_hp: 120,
+                attack: 15,
+                defense: 12,
+                speed: 8,
+            },
+            PlayerCharacter::Kaleo => Self {
                 max_hp: 85,
                 attack: 12,
                 defense: 7,
@@ -40,12 +40,12 @@ impl Stats {
     }
 
     /// Apply growth on level-up. Values are per-level increases.
-    pub fn level_up(&mut self, class: &CharacterClass) {
-        let (hp, atk, def, spd) = match class {
-            CharacterClass::Warrior => (18, 3, 3, 1),
-            CharacterClass::Rogue => (10, 3, 1, 3),
-            CharacterClass::Cleric => (12, 1, 2, 1),
-            CharacterClass::Ranger => (11, 2, 1, 2),
+    pub fn level_up(&mut self, character: &PlayerCharacter) {
+        let (hp, atk, def, spd) = match character {
+            PlayerCharacter::Researcher => (9, 2, 1, 2),
+            PlayerCharacter::Orin => (12, 1, 2, 1),
+            PlayerCharacter::Doss => (18, 3, 3, 1),
+            PlayerCharacter::Kaleo => (11, 2, 1, 2),
         };
         self.max_hp += hp;
         self.attack += atk;

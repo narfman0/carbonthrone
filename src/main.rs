@@ -12,7 +12,7 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 use carbonthrone::action_points::ActionPoints;
-use carbonthrone::character::{Character, CharacterClass};
+use carbonthrone::character::{Character, PlayerCharacter};
 use carbonthrone::dialog::{DialogEngine, Trigger};
 use carbonthrone::enemy::{Enemy, EnemyKind};
 use carbonthrone::experience::Experience;
@@ -316,18 +316,18 @@ fn setup_battle(world: &mut World) {
     let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
     let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
 
-    for (i, (name, class)) in [
-        ("Aldric", CharacterClass::Warrior),
-        ("Lyra", CharacterClass::Rogue),
+    for (i, (name, character)) in [
+        ("Doss", PlayerCharacter::Doss),
+        ("Researcher", PlayerCharacter::Researcher),
     ]
     .into_iter()
     .enumerate()
     {
-        let stats = Stats::for_class(&class);
+        let stats = Stats::for_character(&character);
         let hp = stats.max_hp;
         let (px, py) = player_positions[i];
         world.spawn((
-            Character::new(name, class),
+            Character::new(name, character),
             stats,
             Health::new(hp),
             ActionPoints::new(4),

@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use carbonthrone::{
-    ability::{AbilityEffect, ClassAbilities, available_abilities, class_abilities},
+    ability::{AbilityEffect, CharacterAbilities, available_abilities, character_abilities},
     action_points::ActionPoints,
-    character::CharacterClass,
+    character::PlayerCharacter,
     health::Health,
     stats::Stats,
     turn::{Action, TurnAction, apply_action},
@@ -11,75 +11,75 @@ use carbonthrone::{
 // ── Ability table tests ───────────────────────────────────────────────────────
 
 #[test]
-fn each_class_has_three_abilities() {
-    for class in [
-        CharacterClass::Warrior,
-        CharacterClass::Rogue,
-        CharacterClass::Cleric,
-        CharacterClass::Ranger,
+fn each_character_has_three_abilities() {
+    for character in [
+        PlayerCharacter::Researcher,
+        PlayerCharacter::Orin,
+        PlayerCharacter::Doss,
+        PlayerCharacter::Kaleo,
     ] {
         assert_eq!(
-            class_abilities(&class).len(),
+            character_abilities(&character).len(),
             3,
-            "{class:?} should have 3 abilities"
+            "{character:?} should have 3 abilities"
         );
     }
 }
 
 #[test]
-fn each_class_has_level_1_ability() {
-    for class in [
-        CharacterClass::Warrior,
-        CharacterClass::Rogue,
-        CharacterClass::Cleric,
-        CharacterClass::Ranger,
+fn each_character_has_level_1_ability() {
+    for character in [
+        PlayerCharacter::Researcher,
+        PlayerCharacter::Orin,
+        PlayerCharacter::Doss,
+        PlayerCharacter::Kaleo,
     ] {
-        let lvl1: Vec<_> = class_abilities(&class)
+        let lvl1: Vec<_> = character_abilities(&character)
             .into_iter()
             .filter(|a| a.level_required == 1)
             .collect();
         assert_eq!(
             lvl1.len(),
             1,
-            "{class:?} should have exactly one level-1 ability"
+            "{character:?} should have exactly one level-1 ability"
         );
     }
 }
 
 #[test]
 fn available_abilities_filters_by_level() {
-    // At level 1 warrior only has Power Strike
-    let lvl1 = available_abilities(&CharacterClass::Warrior, 1);
+    // At level 1 Doss only has Power Strike
+    let lvl1 = available_abilities(&PlayerCharacter::Doss, 1);
     assert_eq!(lvl1.len(), 1);
     assert_eq!(lvl1[0].name, "Power Strike");
 
-    // At level 5 warrior gains Shield Bash
-    let lvl5 = available_abilities(&CharacterClass::Warrior, 5);
+    // At level 5 Doss gains Shield Bash
+    let lvl5 = available_abilities(&PlayerCharacter::Doss, 5);
     assert_eq!(lvl5.len(), 2);
 
-    // At level 12 warrior has all three
-    let lvl12 = available_abilities(&CharacterClass::Warrior, 12);
+    // At level 12 Doss has all three
+    let lvl12 = available_abilities(&PlayerCharacter::Doss, 12);
     assert_eq!(lvl12.len(), 3);
 }
 
 #[test]
-fn class_abilities_component_available_matches_free_fn() {
-    let comp = ClassAbilities::new(CharacterClass::Rogue);
+fn character_abilities_component_available_matches_free_fn() {
+    let comp = CharacterAbilities::new(PlayerCharacter::Kaleo);
     assert_eq!(
         comp.available(6).len(),
-        available_abilities(&CharacterClass::Rogue, 6).len()
+        available_abilities(&PlayerCharacter::Kaleo, 6).len()
     );
 }
 
 #[test]
 fn all_abilities_have_positive_or_zero_ap_cost() {
-    for class in [
-        CharacterClass::Warrior,
-        CharacterClass::Rogue,
-        CharacterClass::Cleric,
-        CharacterClass::Ranger,
+    for character in [
+        PlayerCharacter::Researcher,
+        PlayerCharacter::Orin,
+        PlayerCharacter::Doss,
+        PlayerCharacter::Kaleo,
     ] {
-        for ability in class_abilities(&class) {
+        for ability in character_abilities(&character) {
             assert!(
                 ability.ap_cost >= 0,
                 "{} has negative AP cost",
@@ -91,13 +91,13 @@ fn all_abilities_have_positive_or_zero_ap_cost() {
 
 #[test]
 fn all_abilities_have_non_empty_names_and_descriptions() {
-    for class in [
-        CharacterClass::Warrior,
-        CharacterClass::Rogue,
-        CharacterClass::Cleric,
-        CharacterClass::Ranger,
+    for character in [
+        PlayerCharacter::Researcher,
+        PlayerCharacter::Orin,
+        PlayerCharacter::Doss,
+        PlayerCharacter::Kaleo,
     ] {
-        for ability in class_abilities(&class) {
+        for ability in character_abilities(&character) {
             assert!(!ability.name.is_empty(), "ability has empty name");
             assert!(
                 !ability.description.is_empty(),
@@ -121,7 +121,7 @@ fn stats(attack: i32, defense: i32) -> Stats {
 #[test]
 fn power_strike_deals_bonus_damage() {
     let mut world = World::new();
-    let ability = available_abilities(&CharacterClass::Warrior, 1).remove(0);
+    let ability = available_abilities(&PlayerCharacter::Doss, 1).remove(0);
     assert_eq!(ability.name, "Power Strike");
 
     let attacker = world.spawn((stats(10, 5), ActionPoints::new(4))).id();
@@ -151,7 +151,7 @@ fn power_strike_deals_bonus_damage() {
 #[test]
 fn power_strike_fails_without_enough_ap() {
     let mut world = World::new();
-    let ability = available_abilities(&CharacterClass::Warrior, 1).remove(0);
+    let ability = available_abilities(&PlayerCharacter::Doss, 1).remove(0);
     assert_eq!(ability.ap_cost, 3);
 
     let attacker = world.spawn((stats(10, 5), ActionPoints::new(2))).id(); // only 2 AP
@@ -172,42 +172,30 @@ fn power_strike_fails_without_enough_ap() {
 }
 
 #[test]
-fn sneak_attack_pierces_armor() {
+fn temporal_bolt_deals_bonus_damage() {
     let mut world = World::new();
-    let sneak_attack = available_abilities(&CharacterClass::Rogue, 1).remove(0);
-    assert_eq!(sneak_attack.name, "Sneak Attack");
-    assert!(matches!(
-        sneak_attack.effect,
-        AbilityEffect::ArmorPiercing { .. }
-    ));
+    let ability = available_abilities(&PlayerCharacter::Researcher, 1).remove(0);
+    assert_eq!(ability.name, "Temporal Bolt");
+    assert!(matches!(ability.effect, AbilityEffect::BonusDamage { .. }));
 
-    let attacker = world.spawn((stats(15, 5), ActionPoints::new(4))).id();
-    // High defense target
-    let target = world.spawn((stats(5, 20), Health::new(100))).id();
+    let attacker = world.spawn((stats(10, 5), ActionPoints::new(4))).id();
+    let target = world.spawn((stats(5, 0), Health::new(100))).id();
 
-    // Normal attack: calc_damage(15, 20) = (15 - 10).max(1) = 5
-    // Sneak attack with 75% pierce: effective_defense = 20 * 0.25 = 5 → calc_damage(15, 5) = 13
     apply_action(
         &mut world,
         attacker,
         &Action::UseAbility {
-            ability: sneak_attack,
+            ability,
             target: Some(target),
         },
     );
-    let hp_after = world.get::<Health>(target).unwrap().current;
-    assert!(hp_after < 100, "sneak attack should deal damage");
-    // Damage should be higher than a normal attack would give against same defense
-    assert!(
-        100 - hp_after > 5,
-        "sneak attack should deal more than normal attack against armored target"
-    );
+    assert!(world.get::<Health>(target).unwrap().current < 100);
 }
 
 #[test]
 fn shield_bash_drains_target_ap() {
     let mut world = World::new();
-    let mut abilities = available_abilities(&CharacterClass::Warrior, 5);
+    let mut abilities = available_abilities(&PlayerCharacter::Doss, 5);
     let shield_bash = abilities.remove(1); // Shield Bash is index 1 at level 5
     assert_eq!(shield_bash.name, "Shield Bash");
 
@@ -232,7 +220,7 @@ fn shield_bash_drains_target_ap() {
 #[test]
 fn adrenaline_rush_grants_extra_ap() {
     let mut world = World::new();
-    let abilities = available_abilities(&CharacterClass::Warrior, 12);
+    let abilities = available_abilities(&PlayerCharacter::Doss, 12);
     let adrenaline = abilities
         .into_iter()
         .find(|a| a.name == "Adrenaline Rush")
@@ -257,7 +245,7 @@ fn adrenaline_rush_grants_extra_ap() {
 #[test]
 fn heal_restores_hp() {
     let mut world = World::new();
-    let heal = available_abilities(&CharacterClass::Cleric, 1).remove(0);
+    let heal = available_abilities(&PlayerCharacter::Orin, 1).remove(0);
     assert_eq!(heal.name, "Heal");
 
     let healer = world.spawn(ActionPoints::new(4)).id();
@@ -279,7 +267,7 @@ fn heal_restores_hp() {
 #[test]
 fn heal_cannot_exceed_max_hp() {
     let mut world = World::new();
-    let heal = available_abilities(&CharacterClass::Cleric, 1).remove(0);
+    let heal = available_abilities(&PlayerCharacter::Orin, 1).remove(0);
 
     let healer = world.spawn(ActionPoints::new(4)).id();
     let target = world.spawn(Health::new(100)).id(); // full HP
@@ -298,7 +286,7 @@ fn heal_cannot_exceed_max_hp() {
 #[test]
 fn system_hack_drains_target_ap() {
     let mut world = World::new();
-    let hack = available_abilities(&CharacterClass::Ranger, 5)
+    let hack = available_abilities(&PlayerCharacter::Kaleo, 5)
         .into_iter()
         .find(|a| a.name == "System Hack")
         .unwrap();
@@ -321,7 +309,7 @@ fn system_hack_drains_target_ap() {
 #[test]
 fn precision_barrage_pierces_and_deals_bonus_damage() {
     let mut world = World::new();
-    let barrage = available_abilities(&CharacterClass::Ranger, 10)
+    let barrage = available_abilities(&PlayerCharacter::Kaleo, 10)
         .into_iter()
         .find(|a| a.name == "Precision Barrage")
         .unwrap();
@@ -350,7 +338,7 @@ fn precision_barrage_pierces_and_deals_bonus_damage() {
 #[test]
 fn ability_on_dead_target_fails() {
     let mut world = World::new();
-    let ability = available_abilities(&CharacterClass::Warrior, 1).remove(0);
+    let ability = available_abilities(&PlayerCharacter::Doss, 1).remove(0);
 
     let attacker = world.spawn((stats(10, 5), ActionPoints::new(4))).id();
     let mut dead_hp = Health::new(50);
@@ -370,11 +358,11 @@ fn ability_on_dead_target_fails() {
 
 #[test]
 fn greater_heal_restores_more_than_basic_heal() {
-    let basic = available_abilities(&CharacterClass::Cleric, 1)
+    let basic = available_abilities(&PlayerCharacter::Orin, 1)
         .into_iter()
         .find(|a| a.name == "Heal")
         .unwrap();
-    let greater = available_abilities(&CharacterClass::Cleric, 7)
+    let greater = available_abilities(&PlayerCharacter::Orin, 7)
         .into_iter()
         .find(|a| a.name == "Greater Heal")
         .unwrap();

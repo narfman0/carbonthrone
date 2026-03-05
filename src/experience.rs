@@ -1,4 +1,4 @@
-use crate::character::CharacterClass;
+use crate::character::PlayerCharacter;
 use crate::health::Health;
 use crate::stats::Stats;
 use bevy::prelude::*;
@@ -43,9 +43,9 @@ impl Default for Experience {
 }
 
 /// Bevy system: applies stat growth for pending level-ups and syncs Health.
-/// Entities must have (Experience, Stats, CharacterClass, Health).
+/// Entities must have (Experience, Stats, PlayerCharacter, Health).
 pub fn level_up_system(
-    mut query: Query<(&mut Experience, &mut Stats, &CharacterClass, &mut Health)>,
+    mut query: Query<(&mut Experience, &mut Stats, &PlayerCharacter, &mut Health)>,
 ) {
     for (mut xp, mut stats, class, mut health) in &mut query {
         while xp.pending_levels > 0 {
