@@ -53,9 +53,34 @@ impl CharacterKind {
     }
 }
 
-/// Base stats at level 1. Only valid for NPC kinds.
+/// Base stats at level 1.
 pub(crate) fn base_stats(kind: &CharacterKind) -> Stats {
     match kind {
+        // Player characters
+        CharacterKind::Researcher => Stats {
+            max_hp: 75,
+            attack: 9,
+            defense: 4,
+            speed: 16,
+        },
+        CharacterKind::Orin => Stats {
+            max_hp: 90,
+            attack: 8,
+            defense: 8,
+            speed: 9,
+        },
+        CharacterKind::Doss => Stats {
+            max_hp: 120,
+            attack: 15,
+            defense: 12,
+            speed: 8,
+        },
+        CharacterKind::Kaleo => Stats {
+            max_hp: 85,
+            attack: 12,
+            defense: 7,
+            speed: 15,
+        },
         // The Constancy
         CharacterKind::Zealot => Stats {
             max_hp: 45,
@@ -163,13 +188,17 @@ pub(crate) fn base_stats(kind: &CharacterKind) -> Stats {
             defense: 13,
             speed: 8,
         },
-        _ => panic!("base_stats called on player character kind {:?}", kind),
     }
 }
 
-/// Per-level stat growth: (hp, atk, def, spd). Only valid for NPC kinds.
+/// Per-level stat growth: (hp, atk, def, spd).
 pub(crate) fn growth(kind: &CharacterKind) -> (i32, i32, i32, i32) {
     match kind {
+        // Player characters
+        CharacterKind::Researcher => (9, 2, 1, 2),
+        CharacterKind::Orin => (12, 1, 2, 1),
+        CharacterKind::Doss => (18, 3, 3, 1),
+        CharacterKind::Kaleo => (11, 2, 1, 2),
         // The Constancy
         CharacterKind::Zealot => (5, 2, 0, 1),
         CharacterKind::Preacher => (6, 1, 1, 0),
@@ -192,7 +221,6 @@ pub(crate) fn growth(kind: &CharacterKind) -> (i32, i32, i32, i32) {
         CharacterKind::GunForHire => (10, 2, 1, 0),
         CharacterKind::StationGuard => (8, 2, 1, 0),
         CharacterKind::ShockTrooper => (13, 3, 2, 0),
-        _ => panic!("growth called on player character kind {:?}", kind),
     }
 }
 
@@ -319,7 +347,7 @@ pub struct Character {
 impl Character {
     /// Create a player character at level 1 with class-based base stats.
     pub fn new_player(name: impl Into<String>, kind: CharacterKind) -> Self {
-        let stats = Stats::for_character(&kind);
+        let stats = scaled_stats(&kind, 1);
         let current_hp = stats.max_hp;
         Self {
             name: name.into(),
