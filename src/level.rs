@@ -40,9 +40,29 @@ impl Level {
     /// Enemy level equals `depth` (minimum 1).
     /// Surprise: 25% party ambushed, 25% enemy ambushed, 50% normal.
     pub fn generate(depth: u32, rng: &mut impl Rng) -> Self {
+        let biome = random_biome(rng);
+        Self::generate_inner(depth, biome, None, rng)
+    }
+
+    /// Generate a level with a specific biome and optional enemy pool (for zone-scoped encounters).
+    /// When `enemy_pool` is `None`, all enemy kinds are eligible.
+    pub fn generate_for_zone(
+        depth: u32,
+        biome: Biome,
+        enemy_pool: &[EnemyKind],
+        rng: &mut impl Rng,
+    ) -> Self {
+        Self::generate_inner(depth, biome, Some(enemy_pool), rng)
+    }
+
+    fn generate_inner(
+        depth: u32,
+        biome: Biome,
+        enemy_pool: Option<&[EnemyKind]>,
+        rng: &mut impl Rng,
+    ) -> Self {
         let cols: u32 = rng.gen_range(8..=16);
         let rows: u32 = rng.gen_range(8..=16);
-        let biome = random_biome(rng);
         let enemy_level = depth.max(1);
         let enemy_count: usize = rng.gen_range(1..=4);
 
@@ -52,7 +72,10 @@ impl Level {
             let x = rng.gen_range(0..cols as i32);
             let y = rng.gen_range(0..rows as i32);
             if used.insert((x, y)) {
-                let kind = random_enemy_kind(rng);
+                let kind = match enemy_pool {
+                    Some(pool) => pool[rng.gen_range(0..pool.len())].clone(),
+                    None => random_enemy_kind(rng),
+                };
                 enemies.push((Enemy::new(kind, enemy_level), Position::new(x, y, 0)));
             }
         }
