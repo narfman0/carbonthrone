@@ -237,6 +237,11 @@ pub(crate) fn scaled_stats(kind: &CharacterKind, level: u32) -> Stats {
 
 pub(crate) fn base_xp(kind: &CharacterKind) -> u32 {
     match kind {
+        // Player characters — yield no XP
+        CharacterKind::Researcher => 0,
+        CharacterKind::Orin => 0,
+        CharacterKind::Doss => 0,
+        CharacterKind::Kaleo => 0,
         // The Constancy
         CharacterKind::Zealot => 22,
         CharacterKind::Preacher => 35,
@@ -259,12 +264,16 @@ pub(crate) fn base_xp(kind: &CharacterKind) -> u32 {
         CharacterKind::GunForHire => 50,
         CharacterKind::StationGuard => 30,
         CharacterKind::ShockTrooper => 60,
-        _ => panic!("base_xp called on player character kind {:?}", kind),
     }
 }
 
 pub(crate) fn default_name(kind: &CharacterKind) -> &'static str {
     match kind {
+        // Player characters
+        CharacterKind::Researcher => "Researcher",
+        CharacterKind::Orin => "Dr. Orin",
+        CharacterKind::Doss => "Doss",
+        CharacterKind::Kaleo => "Kaleo",
         CharacterKind::Zealot => "Zealot",
         CharacterKind::Preacher => "Preacher",
         CharacterKind::Purifier => "Purifier",
@@ -282,12 +291,16 @@ pub(crate) fn default_name(kind: &CharacterKind) -> &'static str {
         CharacterKind::GunForHire => "Gun-for-Hire",
         CharacterKind::StationGuard => "Station Guard",
         CharacterKind::ShockTrooper => "Shock Trooper",
-        _ => panic!("default_name called on player character kind {:?}", kind),
     }
 }
 
 pub(crate) fn default_aggression(kind: &CharacterKind) -> Aggression {
     match kind {
+        // Player characters
+        CharacterKind::Researcher => Aggression::Friendly,
+        CharacterKind::Orin => Aggression::Friendly,
+        CharacterKind::Doss => Aggression::Friendly,
+        CharacterKind::Kaleo => Aggression::Friendly,
         // The Constancy — always aggressive, no exceptions
         CharacterKind::Zealot => Aggression::Aggressive,
         CharacterKind::Preacher => Aggression::Aggressive,
@@ -310,10 +323,6 @@ pub(crate) fn default_aggression(kind: &CharacterKind) -> Aggression {
         CharacterKind::GunForHire => Aggression::Neutral,
         CharacterKind::StationGuard => Aggression::Friendly,
         CharacterKind::ShockTrooper => Aggression::Aggressive,
-        _ => panic!(
-            "default_aggression called on player character kind {:?}",
-            kind
-        ),
     }
 }
 
