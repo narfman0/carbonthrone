@@ -102,7 +102,9 @@ fn rogue_abilities() -> Vec<Ability> {
             description: "Strike a vulnerable point, bypassing most of the target's armor.",
             level_required: 1,
             ap_cost: 2,
-            effect: AbilityEffect::ArmorPiercing { pierce_fraction: 0.75 },
+            effect: AbilityEffect::ArmorPiercing {
+                pierce_fraction: 0.75,
+            },
         },
         Ability {
             name: "Shadow Step",
@@ -168,7 +170,10 @@ fn ranger_abilities() -> Vec<Ability> {
             description: "A sustained volley of precise fire that shreds armor and deals heavy damage.",
             level_required: 10,
             ap_cost: 4,
-            effect: AbilityEffect::ArmorPiercingStrike { pierce_fraction: 0.5, bonus: 10 },
+            effect: AbilityEffect::ArmorPiercingStrike {
+                pierce_fraction: 0.5,
+                bonus: 10,
+            },
         },
     ]
 }

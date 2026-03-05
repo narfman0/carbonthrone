@@ -3,10 +3,10 @@ use carbonthrone::{
     action_points::ActionPoints,
     combat::BASE_HIT_CHANCE,
     health::Health,
-    player_input::{available_player_actions, PlayerActionChoice},
+    player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
     side::Side,
-    simulation::{BattleStep, BattleOutcome},
+    simulation::{BattleOutcome, BattleStep},
     stats::Stats,
     terrain::{Biome, CoverLevel, LevelMap, Tile},
 };
@@ -18,7 +18,12 @@ fn spawn_player(world: &mut World, pos: (i32, i32), attack: i32, defense: i32) -
         .spawn((
             Side::Player,
             Health::new(100),
-            Stats { max_hp: 100, attack, defense, speed: 10 },
+            Stats {
+                max_hp: 100,
+                attack,
+                defense,
+                speed: 10,
+            },
             ActionPoints::new(4),
             Position::new(pos.0, pos.1, 0),
         ))
@@ -30,7 +35,12 @@ fn spawn_enemy(world: &mut World, pos: (i32, i32), defense: i32) -> Entity {
         .spawn((
             Side::Enemy,
             Health::new(50),
-            Stats { max_hp: 50, attack: 5, defense, speed: 5 },
+            Stats {
+                max_hp: 50,
+                attack: 5,
+                defense,
+                speed: 5,
+            },
             ActionPoints::new(4),
             Position::new(pos.0, pos.1, 0),
         ))
@@ -70,10 +80,15 @@ fn attack_choice_has_correct_hit_chance_no_cover() {
 
     let choices = available_player_actions(&mut world, actor);
     for choice in &choices {
-        if let PlayerActionChoice::Attack { hit_chance, cover, .. } = choice {
+        if let PlayerActionChoice::Attack {
+            hit_chance, cover, ..
+        } = choice
+        {
             assert_eq!(*cover, CoverLevel::None);
-            assert!((hit_chance - BASE_HIT_CHANCE).abs() < 0.001,
-                "no-cover hit chance should be {BASE_HIT_CHANCE}");
+            assert!(
+                (hit_chance - BASE_HIT_CHANCE).abs() < 0.001,
+                "no-cover hit chance should be {BASE_HIT_CHANCE}"
+            );
         }
     }
 }
@@ -93,7 +108,10 @@ fn attack_choice_reflects_partial_cover() {
 
     let choices = available_player_actions(&mut world, actor);
     let attack_opt = choices.iter().find_map(|c| {
-        if let PlayerActionChoice::Attack { hit_chance, cover, .. } = c {
+        if let PlayerActionChoice::Attack {
+            hit_chance, cover, ..
+        } = c
+        {
             Some((*hit_chance, *cover))
         } else {
             None
@@ -101,7 +119,10 @@ fn attack_choice_reflects_partial_cover() {
     });
     let (hit_chance, cover) = attack_opt.expect("expected an attack choice");
     assert_eq!(cover, CoverLevel::Partial);
-    assert!((hit_chance - 0.65).abs() < 0.001, "partial cover → 65% hit chance");
+    assert!(
+        (hit_chance - 0.65).abs() < 0.001,
+        "partial cover → 65% hit chance"
+    );
 }
 
 #[test]
@@ -117,12 +138,25 @@ fn attack_choice_reflects_full_cover() {
     world.insert_resource(map);
 
     let choices = available_player_actions(&mut world, actor);
-    let (hit_chance, cover) = choices.iter().find_map(|c| {
-        if let PlayerActionChoice::Attack { hit_chance, cover, .. } = c { Some((*hit_chance, *cover)) } else { None }
-    }).expect("expected an attack choice");
+    let (hit_chance, cover) = choices
+        .iter()
+        .find_map(|c| {
+            if let PlayerActionChoice::Attack {
+                hit_chance, cover, ..
+            } = c
+            {
+                Some((*hit_chance, *cover))
+            } else {
+                None
+            }
+        })
+        .expect("expected an attack choice");
 
     assert_eq!(cover, CoverLevel::Full);
-    assert!((hit_chance - 0.35).abs() < 0.001, "full cover → 35% hit chance");
+    assert!(
+        (hit_chance - 0.35).abs() < 0.001,
+        "full cover → 35% hit chance"
+    );
 }
 
 #[test]
@@ -133,9 +167,16 @@ fn attack_choice_reflects_correct_damage() {
     spawn_enemy(&mut world, (5, 0), 4);
 
     let choices = available_player_actions(&mut world, actor);
-    let damage = choices.iter().find_map(|c| {
-        if let PlayerActionChoice::Attack { damage, .. } = c { Some(*damage) } else { None }
-    }).expect("expected attack choice");
+    let damage = choices
+        .iter()
+        .find_map(|c| {
+            if let PlayerActionChoice::Attack { damage, .. } = c {
+                Some(*damage)
+            } else {
+                None
+            }
+        })
+        .expect("expected attack choice");
     assert_eq!(damage, 8);
 }
 
@@ -147,7 +188,12 @@ fn no_attack_choices_when_ap_too_low() {
         .spawn((
             Side::Player,
             Health::new(100),
-            Stats { max_hp: 100, attack: 10, defense: 5, speed: 10 },
+            Stats {
+                max_hp: 100,
+                attack: 10,
+                defense: 5,
+                speed: 10,
+            },
             ActionPoints::new(1),
             Position::new(0, 0, 0),
         ))
@@ -155,7 +201,11 @@ fn no_attack_choices_when_ap_too_low() {
     spawn_enemy(&mut world, (5, 0), 4);
 
     let choices = available_player_actions(&mut world, actor);
-    assert!(!choices.iter().any(|c| matches!(c, PlayerActionChoice::Attack { .. })));
+    assert!(
+        !choices
+            .iter()
+            .any(|c| matches!(c, PlayerActionChoice::Attack { .. }))
+    );
 }
 
 #[test]
@@ -175,7 +225,10 @@ fn move_to_cover_option_listed_when_cover_available() {
         .iter()
         .filter(|c| matches!(c, PlayerActionChoice::MoveToCover { .. }))
         .collect();
-    assert!(!cover_moves.is_empty(), "expected at least one MoveToCover option");
+    assert!(
+        !cover_moves.is_empty(),
+        "expected at least one MoveToCover option"
+    );
 }
 
 #[test]
@@ -192,7 +245,9 @@ fn no_move_to_cover_when_already_at_full_cover() {
 
     let choices = available_player_actions(&mut world, actor);
     assert!(
-        !choices.iter().any(|c| matches!(c, PlayerActionChoice::MoveToCover { .. })),
+        !choices
+            .iter()
+            .any(|c| matches!(c, PlayerActionChoice::MoveToCover { .. })),
         "already at full cover — no MoveToCover should be offered",
     );
 }
@@ -210,9 +265,17 @@ fn move_to_cover_ap_cost_is_correct() {
 
     let choices = available_player_actions(&mut world, actor);
     for c in &choices {
-        if let PlayerActionChoice::MoveToCover { destination, ap_cost, .. } = c {
+        if let PlayerActionChoice::MoveToCover {
+            destination,
+            ap_cost,
+            ..
+        } = c
+        {
             let dist = (destination.x - 0).abs() + (destination.y - 5).abs();
-            assert_eq!(*ap_cost, dist, "ap_cost should equal Manhattan distance (MOVE_AP_COST=1)");
+            assert_eq!(
+                *ap_cost, dist,
+                "ap_cost should equal Manhattan distance (MOVE_AP_COST=1)"
+            );
         }
     }
 }
@@ -237,14 +300,24 @@ fn player_choices_returns_options_on_player_turn() {
     world.spawn((
         Side::Player,
         Health::new(100),
-        Stats { max_hp: 100, attack: 10, defense: 5, speed: 10 },
+        Stats {
+            max_hp: 100,
+            attack: 10,
+            defense: 5,
+            speed: 10,
+        },
         ActionPoints::new(4),
         Position::new(0, 0, 0),
     ));
     world.spawn((
         Side::Enemy,
         Health::new(50),
-        Stats { max_hp: 50, attack: 5, defense: 4, speed: 5 },
+        Stats {
+            max_hp: 50,
+            attack: 5,
+            defense: 4,
+            speed: 5,
+        },
         ActionPoints::new(4),
         Position::new(5, 0, 0),
     ));
@@ -252,8 +325,16 @@ fn player_choices_returns_options_on_player_turn() {
     let mut bs = BattleStep::new(&mut world);
     let choices = bs.player_choices(&mut world);
     assert!(!choices.is_empty());
-    assert!(choices.iter().any(|c| matches!(c, PlayerActionChoice::Attack { .. })));
-    assert!(choices.iter().any(|c| matches!(c, PlayerActionChoice::Pass)));
+    assert!(
+        choices
+            .iter()
+            .any(|c| matches!(c, PlayerActionChoice::Attack { .. }))
+    );
+    assert!(
+        choices
+            .iter()
+            .any(|c| matches!(c, PlayerActionChoice::Pass))
+    );
 }
 
 #[test]
@@ -262,14 +343,24 @@ fn player_choices_empty_on_enemy_turn() {
     world.spawn((
         Side::Player,
         Health::new(100),
-        Stats { max_hp: 100, attack: 10, defense: 5, speed: 10 },
+        Stats {
+            max_hp: 100,
+            attack: 10,
+            defense: 5,
+            speed: 10,
+        },
         ActionPoints::new(4),
         Position::new(0, 0, 0),
     ));
     world.spawn((
         Side::Enemy,
         Health::new(50),
-        Stats { max_hp: 50, attack: 5, defense: 4, speed: 5 },
+        Stats {
+            max_hp: 50,
+            attack: 5,
+            defense: 4,
+            speed: 5,
+        },
         ActionPoints::new(4),
         Position::new(5, 0, 0),
     ));
@@ -291,7 +382,12 @@ fn step_player_action_pass_ends_turn() {
         .spawn((
             Side::Player,
             Health::new(100),
-            Stats { max_hp: 100, attack: 10, defense: 5, speed: 10 },
+            Stats {
+                max_hp: 100,
+                attack: 10,
+                defense: 5,
+                speed: 10,
+            },
             ActionPoints::new(4),
             Position::new(0, 0, 0),
         ))
@@ -299,7 +395,12 @@ fn step_player_action_pass_ends_turn() {
     world.spawn((
         Side::Enemy,
         Health::new(50),
-        Stats { max_hp: 50, attack: 5, defense: 4, speed: 5 },
+        Stats {
+            max_hp: 50,
+            attack: 5,
+            defense: 4,
+            speed: 5,
+        },
         ActionPoints::new(4),
         Position::new(5, 0, 0),
     ));
@@ -319,7 +420,12 @@ fn step_player_action_attack_deals_damage() {
     world.spawn((
         Side::Player,
         Health::new(100),
-        Stats { max_hp: 100, attack: 20, defense: 5, speed: 10 },
+        Stats {
+            max_hp: 100,
+            attack: 20,
+            defense: 5,
+            speed: 10,
+        },
         ActionPoints::new(4),
         Position::new(0, 0, 0),
     ));
@@ -327,7 +433,12 @@ fn step_player_action_attack_deals_damage() {
         .spawn((
             Side::Enemy,
             Health::new(50),
-            Stats { max_hp: 50, attack: 5, defense: 0, speed: 5 },
+            Stats {
+                max_hp: 50,
+                attack: 5,
+                defense: 0,
+                speed: 5,
+            },
             ActionPoints::new(4),
             Position::new(5, 0, 0),
         ))
@@ -355,14 +466,24 @@ fn step_player_action_outcome_set_on_victory() {
     world.spawn((
         Side::Player,
         Health::new(100),
-        Stats { max_hp: 100, attack: 100, defense: 5, speed: 10 },
+        Stats {
+            max_hp: 100,
+            attack: 100,
+            defense: 5,
+            speed: 10,
+        },
         ActionPoints::new(4),
         Position::new(0, 0, 0),
     ));
     world.spawn((
         Side::Enemy,
         Health::new(1),
-        Stats { max_hp: 1, attack: 5, defense: 0, speed: 5 },
+        Stats {
+            max_hp: 1,
+            attack: 5,
+            defense: 0,
+            speed: 5,
+        },
         ActionPoints::new(4),
         Position::new(5, 0, 0),
     ));

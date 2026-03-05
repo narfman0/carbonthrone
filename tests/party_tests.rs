@@ -1,14 +1,16 @@
 use bevy::prelude::World;
 use carbonthrone::character::{Character, CharacterClass};
 use carbonthrone::health::Health;
-use carbonthrone::party::{Party, MAX_PARTY_SIZE};
+use carbonthrone::party::{MAX_PARTY_SIZE, Party};
 use carbonthrone::stats::Stats;
 
 fn spawn_member(world: &mut World, name: &str) -> bevy::prelude::Entity {
     let class = CharacterClass::Warrior;
     let stats = Stats::for_class(&class);
     let hp = stats.max_hp;
-    world.spawn((Character::new(name, class), stats, Health::new(hp))).id()
+    world
+        .spawn((Character::new(name, class), stats, Health::new(hp)))
+        .id()
 }
 
 #[test]
@@ -39,7 +41,7 @@ fn remove_member_works() {
     let mut world = World::new();
     let mut party = Party::new();
     let alice = spawn_member(&mut world, "Alice");
-    let bob   = spawn_member(&mut world, "Bob");
+    let bob = spawn_member(&mut world, "Bob");
     party.add_member(alice).unwrap();
     party.add_member(bob).unwrap();
     let removed = party.remove_member(0).unwrap();
@@ -62,7 +64,7 @@ fn not_wiped_when_one_alive() {
     let mut world = World::new();
     let mut party = Party::new();
     let alice = spawn_member(&mut world, "Alice");
-    let bob   = spawn_member(&mut world, "Bob");
+    let bob = spawn_member(&mut world, "Bob");
     party.add_member(alice).unwrap();
     party.add_member(bob).unwrap();
     world.get_mut::<Health>(alice).unwrap().take_damage(9999);

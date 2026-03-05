@@ -71,8 +71,16 @@ impl Direction {
         let dx = attacker.0 - defender.0;
         let dy = attacker.1 - defender.1;
         if dx.abs() >= dy.abs() {
-            if dx >= 0 { Direction::East } else { Direction::West }
-        } else if dy >= 0 { Direction::South } else { Direction::North }
+            if dx >= 0 {
+                Direction::East
+            } else {
+                Direction::West
+            }
+        } else if dy >= 0 {
+            Direction::South
+        } else {
+            Direction::North
+        }
     }
 }
 
@@ -104,7 +112,13 @@ pub struct LevelMap {
 
 impl LevelMap {
     pub fn new(cols: u32, rows: u32, biome: Biome) -> Self {
-        Self { cols, rows, biome, tiles: HashMap::new(), cover: HashMap::new() }
+        Self {
+            cols,
+            rows,
+            biome,
+            tiles: HashMap::new(),
+            cover: HashMap::new(),
+        }
     }
 
     /// Returns the tile at `(x, y)`, defaulting to `Open`.
@@ -122,7 +136,10 @@ impl LevelMap {
 
     /// Returns the cover level at `(x, y)` from the given `from` direction.
     pub fn get_cover(&self, x: i32, y: i32, from: Direction) -> CoverLevel {
-        self.cover.get(&(x, y)).map(|dc| dc.get(from)).unwrap_or(CoverLevel::None)
+        self.cover
+            .get(&(x, y))
+            .map(|dc| dc.get(from))
+            .unwrap_or(CoverLevel::None)
     }
 
     /// Recomputes directional cover for all passable tiles from the current obstacle layout.
@@ -147,10 +164,21 @@ impl LevelMap {
         if self.get(x, y) == Tile::Obstacle {
             return '#';
         }
-        let dirs = [Direction::North, Direction::South, Direction::East, Direction::West];
-        if dirs.iter().any(|&d| self.get_cover(x, y, d) == CoverLevel::Full) {
+        let dirs = [
+            Direction::North,
+            Direction::South,
+            Direction::East,
+            Direction::West,
+        ];
+        if dirs
+            .iter()
+            .any(|&d| self.get_cover(x, y, d) == CoverLevel::Full)
+        {
             'C'
-        } else if dirs.iter().any(|&d| self.get_cover(x, y, d) == CoverLevel::Partial) {
+        } else if dirs
+            .iter()
+            .any(|&d| self.get_cover(x, y, d) == CoverLevel::Partial)
+        {
             'c'
         } else {
             '.'
@@ -170,9 +198,9 @@ struct BiomeDensity {
 
 fn biome_density(biome: Biome) -> BiomeDensity {
     match biome {
-        Biome::VoidStation    => BiomeDensity { obstacle: 0.15 },
-        Biome::NeonDistrict   => BiomeDensity { obstacle: 0.10 },
-        Biome::BioLab         => BiomeDensity { obstacle: 0.08 },
+        Biome::VoidStation => BiomeDensity { obstacle: 0.15 },
+        Biome::NeonDistrict => BiomeDensity { obstacle: 0.10 },
+        Biome::BioLab => BiomeDensity { obstacle: 0.08 },
         Biome::AsteroidColony => BiomeDensity { obstacle: 0.22 },
     }
 }
@@ -233,15 +261,21 @@ fn is_obstacle(tiles: &HashMap<(i32, i32), Tile>, x: i32, y: i32) -> bool {
 /// Direct obstacle neighbor → Full; diagonal obstacle neighbors → Partial; else None.
 fn cover_in_direction(
     tiles: &HashMap<(i32, i32), Tile>,
-    x: i32, y: i32,
-    dx: i32, dy: i32,
+    x: i32,
+    y: i32,
+    dx: i32,
+    dy: i32,
 ) -> CoverLevel {
     if is_obstacle(tiles, x + dx, y + dy) {
         return CoverLevel::Full;
     }
     // Perpendicular diagonals for this direction:
     // N/S (dx==0): check (x±1, y+dy)   E/W (dy==0): check (x+dx, y±1)
-    let (d1, d2) = if dy == 0 { ((dx, -1), (dx, 1)) } else { ((-1, dy), (1, dy)) };
+    let (d1, d2) = if dy == 0 {
+        ((dx, -1), (dx, 1))
+    } else {
+        ((-1, dy), (1, dy))
+    };
     if is_obstacle(tiles, x + d1.0, y + d1.1) || is_obstacle(tiles, x + d2.0, y + d2.1) {
         CoverLevel::Partial
     } else {
@@ -249,11 +283,15 @@ fn cover_in_direction(
     }
 }
 
-fn compute_directional_cover(tiles: &HashMap<(i32, i32), Tile>, x: i32, y: i32) -> DirectionalCover {
+fn compute_directional_cover(
+    tiles: &HashMap<(i32, i32), Tile>,
+    x: i32,
+    y: i32,
+) -> DirectionalCover {
     DirectionalCover([
-        cover_in_direction(tiles, x, y, 0, -1),  // North
-        cover_in_direction(tiles, x, y, 0, 1),   // South
-        cover_in_direction(tiles, x, y, 1, 0),   // East
-        cover_in_direction(tiles, x, y, -1, 0),  // West
+        cover_in_direction(tiles, x, y, 0, -1), // North
+        cover_in_direction(tiles, x, y, 0, 1),  // South
+        cover_in_direction(tiles, x, y, 1, 0),  // East
+        cover_in_direction(tiles, x, y, -1, 0), // West
     ])
 }

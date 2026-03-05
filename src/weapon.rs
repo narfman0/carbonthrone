@@ -19,10 +19,20 @@ pub struct Weapon {
 
 impl Weapon {
     pub fn melee(name: impl Into<String>, damage: i32, switch_cost: u32) -> Self {
-        Self { name: name.into(), kind: WeaponKind::Melee, damage, switch_cost }
+        Self {
+            name: name.into(),
+            kind: WeaponKind::Melee,
+            damage,
+            switch_cost,
+        }
     }
 
     pub fn ranged(name: impl Into<String>, damage: i32, switch_cost: u32) -> Self {
-        Self { name: name.into(), kind: WeaponKind::Ranged, damage, switch_cost }
+        Self {
+            name: name.into(),
+            kind: WeaponKind::Ranged,
+            damage,
+            switch_cost,
+        }
     }
 }

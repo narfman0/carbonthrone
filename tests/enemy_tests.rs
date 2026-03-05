@@ -23,21 +23,21 @@ fn hp_cannot_go_below_zero() {
 
 #[test]
 fn higher_level_enemy_has_more_hp() {
-    let low  = Enemy::new(EnemyKind::DrifterBoss, 1);
+    let low = Enemy::new(EnemyKind::DrifterBoss, 1);
     let high = Enemy::new(EnemyKind::DrifterBoss, 5);
     assert!(high.stats.max_hp > low.stats.max_hp);
 }
 
 #[test]
 fn higher_level_enemy_gives_more_xp() {
-    let low  = Enemy::new(EnemyKind::VoidRaider, 1);
+    let low = Enemy::new(EnemyKind::VoidRaider, 1);
     let high = Enemy::new(EnemyKind::VoidRaider, 3);
     assert!(high.xp_reward > low.xp_reward);
 }
 
 #[test]
 fn combat_frame_has_more_hp_than_scavenger_at_same_level() {
-    let boss  = Enemy::new(EnemyKind::CombatFrame, 1);
+    let boss = Enemy::new(EnemyKind::CombatFrame, 1);
     let light = Enemy::new(EnemyKind::Scavenger, 1);
     assert!(boss.stats.max_hp > light.stats.max_hp);
 }
@@ -53,9 +53,24 @@ fn take_damage_and_check_name() {
 
 #[test]
 fn default_aggression_is_correct() {
-    assert_eq!(Enemy::new(EnemyKind::Scavenger, 1).aggression,        Aggression::Aggressive);
-    assert_eq!(Enemy::new(EnemyKind::MaintenanceDrone, 1).aggression,  Aggression::Neutral);
-    assert_eq!(Enemy::new(EnemyKind::SalvageOperative, 1).aggression,  Aggression::Friendly);
-    assert_eq!(Enemy::new(EnemyKind::StationGuard, 1).aggression,      Aggression::Friendly);
-    assert_eq!(Enemy::new(EnemyKind::ShockTrooper, 1).aggression,      Aggression::Aggressive);
+    assert_eq!(
+        Enemy::new(EnemyKind::Scavenger, 1).aggression,
+        Aggression::Aggressive
+    );
+    assert_eq!(
+        Enemy::new(EnemyKind::MaintenanceDrone, 1).aggression,
+        Aggression::Neutral
+    );
+    assert_eq!(
+        Enemy::new(EnemyKind::SalvageOperative, 1).aggression,
+        Aggression::Friendly
+    );
+    assert_eq!(
+        Enemy::new(EnemyKind::StationGuard, 1).aggression,
+        Aggression::Friendly
+    );
+    assert_eq!(
+        Enemy::new(EnemyKind::ShockTrooper, 1).aggression,
+        Aggression::Aggressive
+    );
 }

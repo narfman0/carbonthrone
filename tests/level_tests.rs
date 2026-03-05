@@ -1,7 +1,7 @@
-use rand::SeedableRng;
-use rand::rngs::StdRng;
 use carbonthrone::level::{Level, SurpriseState};
 use carbonthrone::terrain::Tile;
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 fn rng() -> StdRng {
     StdRng::seed_from_u64(42)
@@ -66,7 +66,7 @@ fn surprise_states_all_occur_across_many_levels() {
 
     for _ in 0..200 {
         match Level::generate(1, &mut rng).surprise {
-            SurpriseState::Normal        => saw_normal = true,
+            SurpriseState::Normal => saw_normal = true,
             SurpriseState::PartyAmbushed => saw_party_ambushed = true,
             SurpriseState::EnemyAmbushed => saw_enemy_ambushed = true,
         }
@@ -82,7 +82,10 @@ fn different_seeds_produce_different_levels() {
     let a = Level::generate(3, &mut StdRng::seed_from_u64(1));
     let b = Level::generate(3, &mut StdRng::seed_from_u64(99));
     let same = a.enemies.len() == b.enemies.len()
-        && a.enemies.iter().zip(b.enemies.iter()).all(|((x, _), (y, _))| x.kind == y.kind);
+        && a.enemies
+            .iter()
+            .zip(b.enemies.iter())
+            .all(|((x, _), (y, _))| x.kind == y.kind);
     assert!(!same);
 }
 
@@ -110,7 +113,8 @@ fn enemy_spawn_tiles_are_open() {
             level.map.get(pos.x, pos.y),
             Tile::Open,
             "enemy spawn at ({}, {}) should be Open",
-            pos.x, pos.y
+            pos.x,
+            pos.y
         );
     }
 }
@@ -126,9 +130,9 @@ fn all_biome_variants_can_be_generated() {
     use carbonthrone::terrain::Biome;
     for _ in 0..200 {
         match Level::generate(1, &mut rng).biome {
-            Biome::VoidStation    => saw_void_station = true,
-            Biome::NeonDistrict   => saw_neon_district = true,
-            Biome::BioLab         => saw_bio_lab = true,
+            Biome::VoidStation => saw_void_station = true,
+            Biome::NeonDistrict => saw_neon_district = true,
+            Biome::BioLab => saw_bio_lab = true,
             Biome::AsteroidColony => saw_asteroid_colony = true,
         }
     }

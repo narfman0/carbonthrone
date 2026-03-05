@@ -1,7 +1,7 @@
-use bevy::prelude::*;
 use crate::character::CharacterClass;
 use crate::health::Health;
 use crate::stats::Stats;
+use bevy::prelude::*;
 
 /// Tracks XP and level for player characters.
 #[derive(Debug, Clone, Component)]
@@ -14,7 +14,11 @@ pub struct Experience {
 
 impl Experience {
     pub fn new() -> Self {
-        Self { level: 1, current: 0, pending_levels: 0 }
+        Self {
+            level: 1,
+            current: 0,
+            pending_levels: 0,
+        }
     }
 
     pub fn xp_to_next(&self) -> u32 {

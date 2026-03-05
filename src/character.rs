@@ -19,6 +19,9 @@ pub struct Character {
 
 impl Character {
     pub fn new(name: impl Into<String>, class: CharacterClass) -> Self {
-        Self { name: name.into(), class }
+        Self {
+            name: name.into(),
+            class,
+        }
     }
 }

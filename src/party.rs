@@ -1,5 +1,5 @@
-use bevy::prelude::{Entity, Resource, World};
 use crate::health::Health;
+use bevy::prelude::{Entity, Resource, World};
 
 pub const MAX_PARTY_SIZE: usize = 5;
 
@@ -12,7 +12,9 @@ pub struct Party {
 
 impl Party {
     pub fn new() -> Self {
-        Self { members: Vec::new() }
+        Self {
+            members: Vec::new(),
+        }
     }
 
     /// Returns `Err` if the party is already full.
@@ -46,9 +48,9 @@ impl Party {
 
     /// Returns true if every member's Health is at zero (or the entity has no Health).
     pub fn is_wiped(&self, world: &World) -> bool {
-        self.members.iter().all(|&e| {
-            world.get::<Health>(e).is_none_or(|h| !h.is_alive())
-        })
+        self.members
+            .iter()
+            .all(|&e| world.get::<Health>(e).is_none_or(|h| !h.is_alive()))
     }
 }
 

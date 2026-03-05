@@ -21,7 +21,10 @@ pub enum Action {
     /// Move to a destination. Costs `MOVE_AP_COST` × Manhattan distance AP.
     Move { destination: Position },
     /// Use a class ability. `target` is required for targeted effects; `None` for self-targeted.
-    UseAbility { ability: Ability, target: Option<Entity> },
+    UseAbility {
+        ability: Ability,
+        target: Option<Entity>,
+    },
     /// End the turn without spending AP.
     Pass,
 }
@@ -31,10 +34,22 @@ pub enum Action {
 pub enum TurnAction {
     /// An attack was attempted. `hit` indicates whether it connected; `cover` is the
     /// defender's cover level from this attack's direction.
-    Attack { target: Entity, damage: i32, hit: bool, cover: CoverLevel },
-    Move { to: Position },
+    Attack {
+        target: Entity,
+        damage: i32,
+        hit: bool,
+        cover: CoverLevel,
+    },
+    Move {
+        to: Position,
+    },
     /// An ability was used. `value` is the primary numeric result (damage, HP restored, AP drained/gained).
-    UseAbility { ability_name: &'static str, target: Option<Entity>, value: i32, hit: bool },
+    UseAbility {
+        ability_name: &'static str,
+        target: Option<Entity>,
+        value: i32,
+        hit: bool,
+    },
 }
 
 /// Execute an action for `actor`.
@@ -43,11 +58,18 @@ pub enum TurnAction {
 pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option<TurnAction> {
     match action {
         Action::Attack { target } => {
-            let ap = world.get::<ActionPoints>(actor).map(|ap| ap.current).unwrap_or(0);
+            let ap = world
+                .get::<ActionPoints>(actor)
+                .map(|ap| ap.current)
+                .unwrap_or(0);
             if ap < ATTACK_AP_COST {
                 return None;
             }
-            if !world.get::<Health>(*target).map(|h| h.is_alive()).unwrap_or(false) {
+            if !world
+                .get::<Health>(*target)
+                .map(|h| h.is_alive())
+                .unwrap_or(false)
+            {
                 return None;
             }
 
@@ -60,7 +82,8 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
                     let cover = match (attacker_pos, defender_pos) {
                         (Some(ap), Some(dp)) => {
                             let dir = Direction::from_attack((ap.x, ap.y), (dp.x, dp.y));
-                            world.get_resource::<LevelMap>()
+                            world
+                                .get_resource::<LevelMap>()
                                 .map(|m| m.get_cover(dp.x, dp.y, dir))
                                 .unwrap_or(CoverLevel::None)
                         }
@@ -77,25 +100,38 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
             let defense = world.get::<Stats>(*target).map(|s| s.defense).unwrap_or(0);
             let damage = if hit { calc_damage(attack, defense) } else { 0 };
 
-            world.get_mut::<ActionPoints>(actor).unwrap().spend(ATTACK_AP_COST);
+            world
+                .get_mut::<ActionPoints>(actor)
+                .unwrap()
+                .spend(ATTACK_AP_COST);
             if hit {
-                world.get_mut::<Health>(*target).unwrap().take_damage(damage);
+                world
+                    .get_mut::<Health>(*target)
+                    .unwrap()
+                    .take_damage(damage);
             }
 
-            Some(TurnAction::Attack { target: *target, damage, hit, cover })
+            Some(TurnAction::Attack {
+                target: *target,
+                damage,
+                hit,
+                cover,
+            })
         }
         Action::Move { destination } => {
             let current = match world.get::<Position>(actor) {
                 Some(p) => *p,
                 None => return None,
             };
-            let distance =
-                (destination.x - current.x).abs() + (destination.y - current.y).abs();
+            let distance = (destination.x - current.x).abs() + (destination.y - current.y).abs();
             if distance == 0 {
                 return None;
             }
             let cost = MOVE_AP_COST * distance;
-            let ap = world.get::<ActionPoints>(actor).map(|ap| ap.current).unwrap_or(0);
+            let ap = world
+                .get::<ActionPoints>(actor)
+                .map(|ap| ap.current)
+                .unwrap_or(0);
             if ap < cost {
                 return None;
             }
@@ -113,9 +149,7 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
             }
             Some(TurnAction::Move { to: *destination })
         }
-        Action::UseAbility { ability, target } => {
-            apply_ability(world, actor, ability, *target)
-        }
+        Action::UseAbility { ability, target } => apply_ability(world, actor, ability, *target),
         Action::Pass => None,
     }
 }
@@ -128,7 +162,10 @@ fn apply_ability(
     target: Option<Entity>,
 ) -> Option<TurnAction> {
     // Check AP before any validation so we never spend AP on invalid actions.
-    let ap = world.get::<ActionPoints>(actor).map(|ap| ap.current).unwrap_or(0);
+    let ap = world
+        .get::<ActionPoints>(actor)
+        .map(|ap| ap.current)
+        .unwrap_or(0);
     if ap < ability.ap_cost {
         return None;
     }
@@ -136,14 +173,25 @@ fn apply_ability(
     match &ability.effect {
         AbilityEffect::BonusDamage { bonus } => {
             let target_entity = target?;
-            if !world.get::<Health>(target_entity).map(|h| h.is_alive()).unwrap_or(false) {
+            if !world
+                .get::<Health>(target_entity)
+                .map(|h| h.is_alive())
+                .unwrap_or(false)
+            {
                 return None;
             }
             world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
             let (hit, _cover) = roll_ability_hit(world, actor, target_entity);
             let attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
-            let defense = world.get::<Stats>(target_entity).map(|s| s.defense).unwrap_or(0);
-            let damage = if hit { calc_damage(attack, defense) + bonus } else { 0 };
+            let defense = world
+                .get::<Stats>(target_entity)
+                .map(|s| s.defense)
+                .unwrap_or(0);
+            let damage = if hit {
+                calc_damage(attack, defense) + bonus
+            } else {
+                0
+            };
             if hit {
                 world.get_mut::<Health>(target_entity)?.take_damage(damage);
             }
@@ -157,15 +205,26 @@ fn apply_ability(
 
         AbilityEffect::ArmorPiercing { pierce_fraction } => {
             let target_entity = target?;
-            if !world.get::<Health>(target_entity).map(|h| h.is_alive()).unwrap_or(false) {
+            if !world
+                .get::<Health>(target_entity)
+                .map(|h| h.is_alive())
+                .unwrap_or(false)
+            {
                 return None;
             }
             world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
             let (hit, _cover) = roll_ability_hit(world, actor, target_entity);
             let attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
-            let defense = world.get::<Stats>(target_entity).map(|s| s.defense).unwrap_or(0);
+            let defense = world
+                .get::<Stats>(target_entity)
+                .map(|s| s.defense)
+                .unwrap_or(0);
             let effective_defense = (defense as f32 * (1.0 - pierce_fraction)) as i32;
-            let damage = if hit { calc_damage(attack, effective_defense) } else { 0 };
+            let damage = if hit {
+                calc_damage(attack, effective_defense)
+            } else {
+                0
+            };
             if hit {
                 world.get_mut::<Health>(target_entity)?.take_damage(damage);
             }
@@ -177,17 +236,31 @@ fn apply_ability(
             })
         }
 
-        AbilityEffect::ArmorPiercingStrike { pierce_fraction, bonus } => {
+        AbilityEffect::ArmorPiercingStrike {
+            pierce_fraction,
+            bonus,
+        } => {
             let target_entity = target?;
-            if !world.get::<Health>(target_entity).map(|h| h.is_alive()).unwrap_or(false) {
+            if !world
+                .get::<Health>(target_entity)
+                .map(|h| h.is_alive())
+                .unwrap_or(false)
+            {
                 return None;
             }
             world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
             let (hit, _cover) = roll_ability_hit(world, actor, target_entity);
             let attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
-            let defense = world.get::<Stats>(target_entity).map(|s| s.defense).unwrap_or(0);
+            let defense = world
+                .get::<Stats>(target_entity)
+                .map(|s| s.defense)
+                .unwrap_or(0);
             let effective_defense = (defense as f32 * (1.0 - pierce_fraction)) as i32;
-            let damage = if hit { calc_damage(attack, effective_defense) + bonus } else { 0 };
+            let damage = if hit {
+                calc_damage(attack, effective_defense) + bonus
+            } else {
+                0
+            };
             if hit {
                 world.get_mut::<Health>(target_entity)?.take_damage(damage);
             }
@@ -216,7 +289,10 @@ fn apply_ability(
             let target_entity = target?;
             world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
             let drained = (*amount).min(
-                world.get::<ActionPoints>(target_entity).map(|ap| ap.current).unwrap_or(0),
+                world
+                    .get::<ActionPoints>(target_entity)
+                    .map(|ap| ap.current)
+                    .unwrap_or(0),
             );
             world.get_mut::<ActionPoints>(target_entity)?.spend(drained);
             Some(TurnAction::UseAbility {

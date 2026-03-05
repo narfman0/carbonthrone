@@ -15,9 +15,9 @@ pub const BASE_HIT_CHANCE: f32 = 0.90;
 /// Partial cover reduces hit chance to 65%; full cover to 35%.
 pub fn calc_hit_chance(cover: CoverLevel) -> f32 {
     match cover {
-        CoverLevel::None    => BASE_HIT_CHANCE,
+        CoverLevel::None => BASE_HIT_CHANCE,
         CoverLevel::Partial => 0.65,
-        CoverLevel::Full    => 0.35,
+        CoverLevel::Full => 0.35,
     }
 }
 

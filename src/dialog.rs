@@ -117,7 +117,9 @@ impl DialogEngine {
 
     /// Return the currently active scene, if any.
     pub fn current_scene(&self) -> Option<&Scene> {
-        self.current_scene.as_ref().and_then(|id| self.scenes.get(id))
+        self.current_scene
+            .as_ref()
+            .and_then(|id| self.scenes.get(id))
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────
@@ -131,7 +133,11 @@ impl DialogEngine {
         }
     }
 
-    fn scene_available(scene: &Scene, flags: &HashSet<String>, active_companion: &Option<String>) -> bool {
+    fn scene_available(
+        scene: &Scene,
+        flags: &HashSet<String>,
+        active_companion: &Option<String>,
+    ) -> bool {
         let req = &scene.requires;
         if !Self::companion_matches(active_companion, &req.companion) {
             return false;
@@ -166,9 +172,10 @@ impl DialogEngine {
     /// Returns `None` if the scene does not exist or its requirements are unmet.
     pub fn go_to_scene(&mut self, scene_id: &str) -> Option<&Scene> {
         let id = scene_id.to_string();
-        let available = self.scenes.get(&id).map(|s| {
-            Self::scene_available(s, &self.flags, &self.active_companion)
-        })?;
+        let available = self
+            .scenes
+            .get(&id)
+            .map(|s| Self::scene_available(s, &self.flags, &self.active_companion))?;
         if !available {
             return None;
         }

@@ -1,6 +1,6 @@
+use carbonthrone::zone::{CardinalDir, ZoneKind, ZoneType, zone_connections};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
-use carbonthrone::zone::{CardinalDir, ZoneKind, ZoneType, zone_connections};
 
 fn rng() -> StdRng {
     StdRng::seed_from_u64(42)
@@ -38,7 +38,11 @@ fn connections_are_symmetric() {
                     back,
                     Some(zone),
                     "{:?} --{:?}--> {:?}, but {:?} does not connect back via {:?}",
-                    zone, dir, neighbor, neighbor, dir.opposite()
+                    zone,
+                    dir,
+                    neighbor,
+                    neighbor,
+                    dir.opposite()
                 );
             }
         }
@@ -97,7 +101,12 @@ fn interior_zones_have_correct_type() {
         ZoneKind::DockingBay,
     ];
     for zone in interiors {
-        assert_eq!(zone.zone_type(), ZoneType::Interior, "{:?} should be Interior", zone);
+        assert_eq!(
+            zone.zone_type(),
+            ZoneType::Interior,
+            "{:?} should be Interior",
+            zone
+        );
     }
 }
 
@@ -109,7 +118,12 @@ fn exterior_zones_have_correct_type() {
         ZoneKind::ExcavationSite,
     ];
     for zone in exteriors {
-        assert_eq!(zone.zone_type(), ZoneType::Exterior, "{:?} should be Exterior", zone);
+        assert_eq!(
+            zone.zone_type(),
+            ZoneType::Exterior,
+            "{:?} should be Exterior",
+            zone
+        );
     }
 }
 
@@ -119,7 +133,11 @@ fn exterior_zones_have_correct_type() {
 fn zone_enter_can_produce_encounter() {
     use carbonthrone::zone::Zone;
     let mut r = rng();
-    let found = (0..50).any(|_| Zone::enter(ZoneKind::DockingBay, 1, &mut r).encounter.is_some());
+    let found = (0..50).any(|_| {
+        Zone::enter(ZoneKind::DockingBay, 1, &mut r)
+            .encounter
+            .is_some()
+    });
     assert!(found, "expected at least one encounter in 50 attempts");
 }
 
@@ -127,8 +145,15 @@ fn zone_enter_can_produce_encounter() {
 fn zone_enter_can_skip_encounter() {
     use carbonthrone::zone::Zone;
     let mut r = rng();
-    let found = (0..50).any(|_| Zone::enter(ZoneKind::DockingBay, 1, &mut r).encounter.is_none());
-    assert!(found, "expected at least one zone without encounter in 50 attempts");
+    let found = (0..50).any(|_| {
+        Zone::enter(ZoneKind::DockingBay, 1, &mut r)
+            .encounter
+            .is_none()
+    });
+    assert!(
+        found,
+        "expected at least one zone without encounter in 50 attempts"
+    );
 }
 
 #[test]
@@ -223,7 +248,10 @@ fn npcs_available_when_no_encounter() {
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
         if zone.encounter.is_none() {
-            assert!(zone.npcs_available(false), "NPCs should be available with no encounter");
+            assert!(
+                zone.npcs_available(false),
+                "NPCs should be available with no encounter"
+            );
             return;
         }
     }
@@ -237,7 +265,10 @@ fn npcs_not_available_during_active_encounter() {
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
         if zone.encounter.is_some() {
-            assert!(!zone.npcs_available(false), "NPCs should be hidden during an active encounter");
+            assert!(
+                !zone.npcs_available(false),
+                "NPCs should be hidden during an active encounter"
+            );
             return;
         }
     }
@@ -251,7 +282,10 @@ fn npcs_available_after_encounter_cleared() {
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
         if zone.encounter.is_some() {
-            assert!(zone.npcs_available(true), "NPCs should phase-shift in after encounter is cleared");
+            assert!(
+                zone.npcs_available(true),
+                "NPCs should phase-shift in after encounter is cleared"
+            );
             return;
         }
     }

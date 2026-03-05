@@ -1,7 +1,7 @@
+use carbonthrone::combat::{BASE_HIT_CHANCE, calc_damage, calc_hit_chance, roll_hit, turn_order};
+use carbonthrone::terrain::CoverLevel;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
-use carbonthrone::combat::{calc_damage, calc_hit_chance, roll_hit, turn_order, BASE_HIT_CHANCE};
-use carbonthrone::terrain::CoverLevel;
 
 #[test]
 fn damage_reduced_by_defense() {

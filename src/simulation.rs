@@ -6,12 +6,12 @@ use crate::{
     action_points::ActionPoints,
     combat::{calc_damage, calc_hit_chance},
     health::Health,
-    player_input::{available_player_actions, PlayerActionChoice},
+    player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
     side::Side,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{Action, apply_action, ATTACK_AP_COST},
+    turn::{ATTACK_AP_COST, Action, apply_action},
 };
 
 // Re-export so callers can import TurnAction from `simulation` as before.
@@ -69,7 +69,12 @@ pub struct BattleStep {
 impl BattleStep {
     pub fn new(world: &mut World) -> Self {
         let queue = VecDeque::from(living_side(world, Side::Player));
-        Self { round: 1, side: Side::Player, actor_queue: queue, player_actor_ready: false }
+        Self {
+            round: 1,
+            side: Side::Player,
+            actor_queue: queue,
+            player_actor_ready: false,
+        }
     }
 
     /// Returns available actions for the next queued player actor.
@@ -126,7 +131,10 @@ impl BattleStep {
         let logged = apply_action(world, actor, &action);
 
         let is_pass = matches!(choice, PlayerActionChoice::Pass);
-        let ap_remaining = world.get::<ActionPoints>(actor).map(|ap| ap.current).unwrap_or(0);
+        let ap_remaining = world
+            .get::<ActionPoints>(actor)
+            .map(|ap| ap.current)
+            .unwrap_or(0);
         let turn_ended = is_pass || ap_remaining == 0;
 
         if turn_ended {
@@ -140,7 +148,12 @@ impl BattleStep {
             }
         }
 
-        PlayerTurnStep { actor, action: logged, turn_ended, outcome: check_outcome(world) }
+        PlayerTurnStep {
+            actor,
+            action: logged,
+            turn_ended,
+            outcome: check_outcome(world),
+        }
     }
 
     /// The next entity waiting to act this side, if any.
@@ -151,7 +164,12 @@ impl BattleStep {
     /// Advance one actor's full turn (all AP spent). Returns what happened.
     pub fn step(&mut self, world: &mut World) -> TurnEvent {
         if let Some(outcome) = check_outcome(world) {
-            return TurnEvent { actor: None, side: self.side, actions: vec![], outcome: Some(outcome) };
+            return TurnEvent {
+                actor: None,
+                side: self.side,
+                actions: vec![],
+                outcome: Some(outcome),
+            };
         }
 
         // Refill queue when the current side is exhausted.
@@ -177,7 +195,12 @@ impl BattleStep {
             }
             // Re-check after switching (e.g. all enemies already dead).
             if let Some(outcome) = check_outcome(world) {
-                return TurnEvent { actor: None, side: self.side, actions: vec![], outcome: Some(outcome) };
+                return TurnEvent {
+                    actor: None,
+                    side: self.side,
+                    actions: vec![],
+                    outcome: Some(outcome),
+                };
             }
         }
 
@@ -204,7 +227,12 @@ impl BattleStep {
             }
         }
 
-        TurnEvent { actor: Some(actor), side: self.side, actions, outcome: check_outcome(world) }
+        TurnEvent {
+            actor: Some(actor),
+            side: self.side,
+            actions,
+            outcome: check_outcome(world),
+        }
     }
 }
 
@@ -215,10 +243,14 @@ impl BattleStep {
 pub fn simulate_battle(world: &mut World) -> BattleOutcome {
     for _ in 0..MAX_ROUNDS {
         run_side(world, Side::Player);
-        if let Some(o) = check_outcome(world) { return o; }
+        if let Some(o) = check_outcome(world) {
+            return o;
+        }
 
         run_side(world, Side::Enemy);
-        if let Some(o) = check_outcome(world) { return o; }
+        if let Some(o) = check_outcome(world) {
+            return o;
+        }
     }
     BattleOutcome::Draw
 }
@@ -398,16 +430,19 @@ fn seek_cover_action(
     // Phase 1: prefer a tile reachable while keeping enough AP to attack after.
     let attack_budget = ap - ATTACK_AP_COST;
     if attack_budget > 0
-        && let Some(&(_, tx, ty, _)) =
-            candidates.iter().find(|&&(dist, _, _, _)| dist <= attack_budget)
+        && let Some(&(_, tx, ty, _)) = candidates
+            .iter()
+            .find(|&&(dist, _, _, _)| dist <= attack_budget)
     {
-        return Some(Action::Move { destination: Position::new(tx, ty, actor_pos.z) });
+        return Some(Action::Move {
+            destination: Position::new(tx, ty, actor_pos.z),
+        });
     }
 
     // Phase 2: advance toward the best cover using all AP (no attack this turn).
-    candidates
-        .first()
-        .map(|&(_, tx, ty, _)| Action::Move { destination: Position::new(tx, ty, actor_pos.z) })
+    candidates.first().map(|&(_, tx, ty, _)| Action::Move {
+        destination: Position::new(tx, ty, actor_pos.z),
+    })
 }
 
 /// Returns the entity that gives the highest expected damage (hit_chance × damage),

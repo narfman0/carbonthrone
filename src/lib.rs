@@ -1,8 +1,8 @@
 pub mod ability;
 pub mod action_points;
-pub mod dialog;
 pub mod character;
 pub mod combat;
+pub mod dialog;
 pub mod enemy;
 pub mod experience;
 pub mod health;

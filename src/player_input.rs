@@ -10,7 +10,7 @@ use crate::{
     side::Side,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{Action, ATTACK_AP_COST, MOVE_AP_COST},
+    turn::{ATTACK_AP_COST, Action, MOVE_AP_COST},
 };
 
 /// A fully-described action a player can choose for one of their combatants.
@@ -43,7 +43,9 @@ impl PlayerActionChoice {
     pub fn to_action(&self) -> Action {
         match self {
             Self::Attack { target, .. } => Action::Attack { target: *target },
-            Self::MoveToCover { destination, .. } => Action::Move { destination: *destination },
+            Self::MoveToCover { destination, .. } => Action::Move {
+                destination: *destination,
+            },
             Self::Pass => Action::Pass,
         }
     }
@@ -51,19 +53,28 @@ impl PlayerActionChoice {
     /// Short human-readable label suitable for a menu entry.
     pub fn display(&self) -> String {
         match self {
-            Self::Attack { hit_chance, damage, cover, .. } => {
+            Self::Attack {
+                hit_chance,
+                damage,
+                cover,
+                ..
+            } => {
                 let pct = (hit_chance * 100.0).round() as i32;
                 match cover {
-                    CoverLevel::None    => format!("Attack — {}% hit, {} dmg", pct, damage),
-                    CoverLevel::Partial => format!("Attack — {}% hit, {} dmg (partial cover)", pct, damage),
-                    CoverLevel::Full    => format!("Attack — {}% hit, {} dmg (full cover)", pct, damage),
+                    CoverLevel::None => format!("Attack — {}% hit, {} dmg", pct, damage),
+                    CoverLevel::Partial => {
+                        format!("Attack — {}% hit, {} dmg (partial cover)", pct, damage)
+                    }
+                    CoverLevel::Full => {
+                        format!("Attack — {}% hit, {} dmg (full cover)", pct, damage)
+                    }
                 }
             }
             Self::MoveToCover { cover, ap_cost, .. } => {
                 let label = match cover {
-                    CoverLevel::None    => "open ground",
+                    CoverLevel::None => "open ground",
                     CoverLevel::Partial => "partial cover",
-                    CoverLevel::Full    => "full cover",
+                    CoverLevel::Full => "full cover",
                 };
                 format!("Move to {} (costs {} AP)", label, ap_cost)
             }
@@ -111,7 +122,12 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                 .unwrap_or(CoverLevel::None);
             let hit_chance = calc_hit_chance(cover);
             let damage = calc_damage(actor_attack, defense);
-            choices.push(PlayerActionChoice::Attack { target: target_entity, hit_chance, damage, cover });
+            choices.push(PlayerActionChoice::Attack {
+                target: target_entity,
+                hit_chance,
+                damage,
+                cover,
+            });
         }
     }
 

@@ -5,13 +5,18 @@ use carbonthrone::{
     position::Position,
     stats::Stats,
     terrain::{BattleRng, Biome, LevelMap, Tile},
-    turn::{Action, TurnAction, apply_action, ATTACK_AP_COST, MOVE_AP_COST},
+    turn::{ATTACK_AP_COST, Action, MOVE_AP_COST, TurnAction, apply_action},
 };
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
 fn stats(attack: i32, defense: i32) -> Stats {
-    Stats { max_hp: 50, attack, defense, speed: 10 }
+    Stats {
+        max_hp: 50,
+        attack,
+        defense,
+        speed: 10,
+    }
 }
 
 // ── Existing action tests (updated for Option<TurnAction> return) ──────────
@@ -103,7 +108,9 @@ fn move_to_same_position_fails() {
     let result = apply_action(
         &mut world,
         mover,
-        &Action::Move { destination: Position::new(2, 3, 0) },
+        &Action::Move {
+            destination: Position::new(2, 3, 0),
+        },
     );
 
     assert!(result.is_none());
@@ -136,7 +143,9 @@ fn move_to_obstacle_is_blocked() {
     let result = apply_action(
         &mut world,
         mover,
-        &Action::Move { destination: Position::new(2, 0, 0) },
+        &Action::Move {
+            destination: Position::new(2, 0, 0),
+        },
     );
 
     assert!(result.is_none());
@@ -173,7 +182,9 @@ fn attack_hit_on_open_tile_deals_damage() {
     // seed 0 with StdRng will almost certainly hit.
     let mut world = World::new();
     let attacker = world.spawn((stats(10, 0), ActionPoints::new(4))).id();
-    let target = world.spawn((stats(0, 0), Health::new(100), Position::new(5, 5, 0))).id();
+    let target = world
+        .spawn((stats(0, 0), Health::new(100), Position::new(5, 5, 0)))
+        .id();
     world.insert_resource(BattleRng(StdRng::seed_from_u64(0)));
 
     let result = apply_action(&mut world, attacker, &Action::Attack { target });
@@ -209,7 +220,10 @@ fn attack_miss_does_not_deal_damage() {
             }
         }
     }
-    assert!(saw_miss, "expected at least one miss with Full cover over 200 seeds");
+    assert!(
+        saw_miss,
+        "expected at least one miss with Full cover over 200 seeds"
+    );
 }
 
 #[test]

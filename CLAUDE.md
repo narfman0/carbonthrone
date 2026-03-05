@@ -14,6 +14,7 @@ cargo test           # run all tests
 cargo test <name>    # run a single test by name (substring match)
 cargo run            # run the game
 cargo clippy         # lint
+cargo fmt            # format (run on any modified .rs files after changes)
 ```
 
 ## Architecture
@@ -26,6 +27,8 @@ All gameplay logic lives in `src/` as library modules, declared in `main.rs`:
 - **`combat.rs`** — Pure functions for damage math (`calc_damage`, `calc_magic_damage`) and speed-based turn ordering (`turn_order`).
 - **`combatant.rs`** — `Combatant` trait: common interface for anything in combat (name, hp, stats accessors, `take_damage`, `is_alive`). Implemented by both `Character` and `Enemy`.
 - **`enemy.rs`** — `EnemyKind` enum (Goblin, Skeleton, Orc, Troll, DarkMage, Dragon), `Enemy` struct with level-scaled stats and xp reward. `Enemy::new(kind, level)` applies base stats plus per-level growth. Implements `Combatant`.
+
+After modifying any `.rs` files, run `cargo fmt` on them before finishing.
 
 Tests live in `tests/` as integration tests (one file per module). `src/lib.rs` owns the module tree and makes them importable; `src/main.rs` is the binary entry point.
 

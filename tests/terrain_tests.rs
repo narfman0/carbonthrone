@@ -1,6 +1,6 @@
+use carbonthrone::terrain::{Biome, CoverLevel, Direction, Tile, generate_map};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
-use carbonthrone::terrain::{Biome, CoverLevel, Direction, Tile, generate_map};
 
 fn rng() -> StdRng {
     StdRng::seed_from_u64(42)
@@ -29,7 +29,8 @@ fn spawn_positions_are_always_open() {
             map.get(*x, *y),
             Tile::Open,
             "reserved position ({}, {}) should be Open",
-            x, y
+            x,
+            y
         );
     }
 }
@@ -61,7 +62,10 @@ fn map_contains_some_obstacles_for_asteroid_colony() {
         .flat_map(|y| (0..20i32).map(move |x| (x, y)))
         .filter(|(x, y)| map.get(*x, *y) == Tile::Obstacle)
         .count();
-    assert!(obstacle_count > 0, "expected obstacles in AsteroidColony map");
+    assert!(
+        obstacle_count > 0,
+        "expected obstacles in AsteroidColony map"
+    );
 }
 
 #[test]
@@ -99,14 +103,18 @@ fn tile_adjacent_to_obstacle_gets_full_cover_from_that_direction() {
                     map.get_cover(x, y, Direction::West),
                     CoverLevel::Full,
                     "tile ({},{}) directly east of obstacle should have Full cover from West",
-                    x, y
+                    x,
+                    y
                 );
                 found = true;
                 break 'outer;
             }
         }
     }
-    assert!(found, "expected obstacle-adjacent tile in AsteroidColony map");
+    assert!(
+        found,
+        "expected obstacle-adjacent tile in AsteroidColony map"
+    );
 }
 
 #[test]
@@ -131,7 +139,10 @@ fn cover_is_directional_not_omnidirectional() {
             }
         }
     }
-    assert!(found, "expected tile with obstacle to north and open to south");
+    assert!(
+        found,
+        "expected tile with obstacle to north and open to south"
+    );
 }
 
 #[test]
@@ -141,7 +152,9 @@ fn tile_diagonal_to_obstacle_may_get_partial_cover() {
     let mut found_partial = false;
     'outer: for y in 1..19i32 {
         for x in 1..19i32 {
-            if map.get(x, y) != Tile::Open { continue; }
+            if map.get(x, y) != Tile::Open {
+                continue;
+            }
             // Check: no direct obstacle north, but obstacle NW or NE
             let north_open = map.get(x, y - 1) == Tile::Open;
             let nw_obs = map.get(x - 1, y - 1) == Tile::Obstacle;
@@ -156,18 +169,28 @@ fn tile_diagonal_to_obstacle_may_get_partial_cover() {
         }
     }
     // Partial cover from diagonal obstacles should exist in a dense map
-    assert!(found_partial, "expected tile with partial cover from diagonal obstacle");
+    assert!(
+        found_partial,
+        "expected tile with partial cover from diagonal obstacle"
+    );
 }
 
 #[test]
 fn isolated_tile_has_no_cover() {
     // Find a tile where all 8 neighbors are open and verify no cover.
     let map = generate_map(20, 20, Biome::NeonDistrict, &[], &mut rng());
-    let dirs = [Direction::North, Direction::South, Direction::East, Direction::West];
+    let dirs = [
+        Direction::North,
+        Direction::South,
+        Direction::East,
+        Direction::West,
+    ];
     let mut found = false;
     'outer: for y in 1..19i32 {
         for x in 1..19i32 {
-            if map.get(x, y) != Tile::Open { continue; }
+            if map.get(x, y) != Tile::Open {
+                continue;
+            }
             let all_neighbors_open = (-1..=1i32)
                 .flat_map(|dy| (-1..=1i32).map(move |dx| (dx, dy)))
                 .filter(|&(dx, dy)| dx != 0 || dy != 0)
@@ -178,7 +201,9 @@ fn isolated_tile_has_no_cover() {
                         map.get_cover(x, y, dir),
                         CoverLevel::None,
                         "isolated tile ({},{}) dir {:?} should have no cover",
-                        x, y, dir
+                        x,
+                        y,
+                        dir
                     );
                 }
                 found = true;
@@ -195,7 +220,12 @@ fn isolated_tile_has_no_cover() {
 #[test]
 fn display_glyph_reflects_cover_levels() {
     let map = generate_map(20, 20, Biome::AsteroidColony, &[], &mut rng());
-    let dirs = [Direction::North, Direction::South, Direction::East, Direction::West];
+    let dirs = [
+        Direction::North,
+        Direction::South,
+        Direction::East,
+        Direction::West,
+    ];
     for y in 0..20i32 {
         for x in 0..20i32 {
             let glyph = map.display_glyph(x, y);
@@ -204,9 +234,9 @@ fn display_glyph_reflects_cover_levels() {
                 Tile::Open => {
                     let max_cover = dirs.iter().map(|&d| map.get_cover(x, y, d)).max().unwrap();
                     match max_cover {
-                        CoverLevel::Full    => assert_eq!(glyph, 'C'),
+                        CoverLevel::Full => assert_eq!(glyph, 'C'),
                         CoverLevel::Partial => assert_eq!(glyph, 'c'),
-                        CoverLevel::None    => assert_eq!(glyph, '.'),
+                        CoverLevel::None => assert_eq!(glyph, '.'),
                     }
                 }
             }
