@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use carbonthrone::{
     action_points::ActionPoints,
+    character::{Character, PlayerCharacter},
+    enemy::EnemyKind,
     health::Health,
     position::Position,
     simulation::{BattleOutcome, simulate_battle},
@@ -10,6 +12,7 @@ use carbonthrone::{
 fn player(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> Entity {
     world
         .spawn((
+            Character::new_player("Player", PlayerCharacter::Doss),
             Health::new(hp),
             Stats {
                 max_hp: hp,
@@ -26,6 +29,7 @@ fn player(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> 
 fn enemy(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> Entity {
     world
         .spawn((
+            Character::new_npc(EnemyKind::Scavenger, 1),
             Health::new(hp),
             Stats {
                 max_hp: hp,

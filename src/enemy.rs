@@ -1,7 +1,6 @@
 use crate::stats::Stats;
-use bevy::prelude::Component;
 
-#[derive(Debug, Clone, PartialEq, Component)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EnemyKind {
     // The Constancy — anti-temporal zealots
     Zealot,   // fast melee; glass cannon; first enemies encountered
@@ -31,59 +30,8 @@ pub enum EnemyKind {
     ShockTrooper,     // military enforcer; always aggressive
 }
 
-/// Current disposition of this enemy toward the player party.
-#[derive(Debug, Clone, PartialEq, Component)]
-pub enum Aggression {
-    /// Attacks the party on sight.
-    Aggressive,
-    /// Ignores the party unless provoked or bribed.
-    Neutral,
-    /// Will not initiate combat; may trade or give information.
-    Friendly,
-    /// Passive, slow, and non-initiating — temporal instability has dulled the creature.
-    Lethargic,
-}
-
-#[derive(Debug, Clone, Component)]
-pub struct Enemy {
-    pub name: String,
-    pub kind: EnemyKind,
-    pub level: u32,
-    pub stats: Stats,
-    pub current_hp: i32,
-    pub xp_reward: u32,
-    pub aggression: Aggression,
-}
-
-impl Enemy {
-    pub fn new(kind: EnemyKind, level: u32) -> Self {
-        let stats = scaled_stats(&kind, level);
-        let current_hp = stats.max_hp;
-        let xp_reward = base_xp(&kind) * level;
-        let name = default_name(&kind).to_string();
-        let aggression = default_aggression(&kind);
-        Self {
-            name,
-            kind,
-            level,
-            stats,
-            current_hp,
-            xp_reward,
-            aggression,
-        }
-    }
-
-    pub fn is_alive(&self) -> bool {
-        self.current_hp > 0
-    }
-
-    pub fn take_damage(&mut self, amount: i32) {
-        self.current_hp = (self.current_hp - amount).max(0);
-    }
-}
-
 /// Base stats at level 1.
-fn base_stats(kind: &EnemyKind) -> Stats {
+pub(crate) fn base_stats(kind: &EnemyKind) -> Stats {
     match kind {
         // The Constancy
         EnemyKind::Zealot => Stats {
@@ -196,7 +144,7 @@ fn base_stats(kind: &EnemyKind) -> Stats {
 }
 
 /// Per-level stat growth: (hp, atk, def, spd).
-fn growth(kind: &EnemyKind) -> (i32, i32, i32, i32) {
+pub(crate) fn growth(kind: &EnemyKind) -> (i32, i32, i32, i32) {
     match kind {
         // The Constancy
         EnemyKind::Zealot => (5, 2, 0, 1),
@@ -223,7 +171,7 @@ fn growth(kind: &EnemyKind) -> (i32, i32, i32, i32) {
     }
 }
 
-fn scaled_stats(kind: &EnemyKind, level: u32) -> Stats {
+pub(crate) fn scaled_stats(kind: &EnemyKind, level: u32) -> Stats {
     let mut s = base_stats(kind);
     let (hp, atk, def, spd) = growth(kind);
     let extra = (level - 1) as i32;
@@ -234,7 +182,7 @@ fn scaled_stats(kind: &EnemyKind, level: u32) -> Stats {
     s
 }
 
-fn base_xp(kind: &EnemyKind) -> u32 {
+pub(crate) fn base_xp(kind: &EnemyKind) -> u32 {
     match kind {
         // The Constancy
         EnemyKind::Zealot => 22,
@@ -261,7 +209,7 @@ fn base_xp(kind: &EnemyKind) -> u32 {
     }
 }
 
-fn default_name(kind: &EnemyKind) -> &'static str {
+pub(crate) fn default_name(kind: &EnemyKind) -> &'static str {
     match kind {
         EnemyKind::Zealot => "Zealot",
         EnemyKind::Preacher => "Preacher",
@@ -283,7 +231,8 @@ fn default_name(kind: &EnemyKind) -> &'static str {
     }
 }
 
-fn default_aggression(kind: &EnemyKind) -> Aggression {
+pub(crate) fn default_aggression(kind: &EnemyKind) -> crate::character::Aggression {
+    use crate::character::Aggression;
     match kind {
         // The Constancy — always aggressive, no exceptions
         EnemyKind::Zealot => Aggression::Aggressive,

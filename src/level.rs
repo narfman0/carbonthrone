@@ -1,4 +1,5 @@
-use crate::enemy::{Enemy, EnemyKind};
+use crate::character::Character;
+use crate::enemy::EnemyKind;
 use crate::position::Position;
 use crate::terrain::{Biome, LevelMap, generate_map};
 use bevy::prelude::Resource;
@@ -27,8 +28,8 @@ pub struct Level {
     pub rows: u32,
     /// The scifi biome theme for this level.
     pub biome: Biome,
-    /// Each enemy paired with its starting grid position (z = 0).
-    pub enemies: Vec<(Enemy, Position)>,
+    /// Each NPC paired with its starting grid position (z = 0).
+    pub enemies: Vec<(Character, Position)>,
     /// The terrain map for this level.
     pub map: LevelMap,
     pub surprise: SurpriseState,
@@ -76,7 +77,10 @@ impl Level {
                     Some(pool) => pool[rng.gen_range(0..pool.len())].clone(),
                     None => random_enemy_kind(rng),
                 };
-                enemies.push((Enemy::new(kind, enemy_level), Position::new(x, y, 0)));
+                enemies.push((
+                    Character::new_npc(kind, enemy_level),
+                    Position::new(x, y, 0),
+                ));
             }
         }
 

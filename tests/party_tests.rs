@@ -2,15 +2,12 @@ use bevy::prelude::World;
 use carbonthrone::character::{Character, PlayerCharacter};
 use carbonthrone::health::Health;
 use carbonthrone::party::{MAX_PARTY_SIZE, Party};
-use carbonthrone::stats::Stats;
 
 fn spawn_member(world: &mut World, name: &str) -> bevy::prelude::Entity {
-    let character = PlayerCharacter::Doss;
-    let stats = Stats::for_character(&character);
-    let hp = stats.max_hp;
-    world
-        .spawn((Character::new(name, character), stats, Health::new(hp)))
-        .id()
+    let ch = Character::new_player(name, PlayerCharacter::Doss);
+    let stats = ch.stats.clone();
+    let hp = ch.current_hp;
+    world.spawn((ch, stats, Health::new(hp))).id()
 }
 
 #[test]

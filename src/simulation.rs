@@ -4,9 +4,8 @@ use bevy::prelude::*;
 
 use crate::{
     action_points::ActionPoints,
-    character::Character,
+    character::{Aggression, Character, CharacterKind},
     combat::{calc_damage, calc_hit_chance},
-    enemy::{Aggression, Enemy},
     health::Health,
     player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
@@ -65,8 +64,7 @@ pub struct PlayerTurnStep {
 }
 
 /// Incremental battle driver: call `step()` once per key-press.
-/// All combatants must carry `Health`, `Stats`, and `ActionPoints`.
-/// Player characters carry `Character`; enemies carry `Enemy`.
+/// All combatants must carry `Health`, `Stats`, `ActionPoints`, and `Character`.
 pub struct BattleStep {
     pub round: u32,
     pub turn: Turn,
@@ -305,19 +303,23 @@ fn living_players(world: &mut World) -> Vec<Entity> {
     let mut query = world.query::<(Entity, &Character, &Health, &Stats)>();
     let mut entities: Vec<(Entity, i32)> = query
         .iter(world)
-        .filter(|(_, _, h, _)| h.is_alive())
+        .filter(|(_, c, h, _)| matches!(c.kind, CharacterKind::Player(_)) && h.is_alive())
         .map(|(e, _, _, stats)| (e, stats.speed))
         .collect();
     entities.sort_by(|a, b| b.1.cmp(&a.1));
     entities.into_iter().map(|(e, _)| e).collect()
 }
 
-/// Returns living non-friendly enemies, sorted by descending speed.
+/// Returns living non-friendly NPCs, sorted by descending speed.
 fn living_enemies(world: &mut World) -> Vec<Entity> {
-    let mut query = world.query::<(Entity, &Enemy, &Health, &Stats)>();
+    let mut query = world.query::<(Entity, &Character, &Health, &Stats)>();
     let mut entities: Vec<(Entity, i32)> = query
         .iter(world)
-        .filter(|(_, e, h, _)| e.aggression != Aggression::Friendly && h.is_alive())
+        .filter(|(_, c, h, _)| {
+            matches!(c.kind, CharacterKind::NPC(_))
+                && c.aggression != Aggression::Friendly
+                && h.is_alive()
+        })
         .map(|(e, _, _, stats)| (e, stats.speed))
         .collect();
     entities.sort_by(|a, b| b.1.cmp(&a.1));
@@ -327,16 +329,22 @@ fn living_enemies(world: &mut World) -> Vec<Entity> {
 /// `true` if every player character is dead, or none exist.
 fn all_players_defeated(world: &mut World) -> bool {
     let mut query = world.query::<(&Character, &Health)>();
-    let combatants: Vec<bool> = query.iter(world).map(|(_, h)| h.is_alive()).collect();
+    let combatants: Vec<bool> = query
+        .iter(world)
+        .filter(|(c, _)| matches!(c.kind, CharacterKind::Player(_)))
+        .map(|(_, h)| h.is_alive())
+        .collect();
     combatants.is_empty() || combatants.iter().all(|alive| !alive)
 }
 
-/// `true` if every non-friendly enemy is dead, or none exist.
+/// `true` if every non-friendly NPC is dead, or none exist.
 fn all_enemies_defeated(world: &mut World) -> bool {
-    let mut query = world.query::<(&Enemy, &Health)>();
+    let mut query = world.query::<(&Character, &Health)>();
     let combatants: Vec<bool> = query
         .iter(world)
-        .filter(|(e, _)| e.aggression != Aggression::Friendly)
+        .filter(|(c, _)| {
+            matches!(c.kind, CharacterKind::NPC(_)) && c.aggression != Aggression::Friendly
+        })
         .map(|(_, h)| h.is_alive())
         .collect();
     combatants.is_empty() || combatants.iter().all(|alive| !alive)
@@ -357,7 +365,9 @@ fn choose_action(world: &mut World, actor: Entity, turn: Turn) -> Option<Action>
     }
 
     // Phase 2: attack the target most likely to take significant damage.
-    if ap >= ATTACK_AP_COST && let Some(target) = best_attack_target(world, actor, turn) {
+    if ap >= ATTACK_AP_COST
+        && let Some(target) = best_attack_target(world, actor, turn)
+    {
         return Some(Action::Attack { target });
     }
 
@@ -381,16 +391,20 @@ fn seek_cover_action(world: &mut World, actor: Entity, turn: Turn, ap: i32) -> O
     // Find the nearest living opponent position (collect then drop query borrow).
     let opponent_positions: Vec<Position> = match turn {
         Turn::Player => {
-            let mut q = world.query::<(&Enemy, &Health, &Position)>();
+            let mut q = world.query::<(&Character, &Health, &Position)>();
             q.iter(world)
-                .filter(|(e, h, _)| e.aggression != Aggression::Friendly && h.is_alive())
+                .filter(|(c, h, _)| {
+                    matches!(c.kind, CharacterKind::NPC(_))
+                        && c.aggression != Aggression::Friendly
+                        && h.is_alive()
+                })
                 .map(|(_, _, pos)| *pos)
                 .collect()
         }
         Turn::Enemy => {
             let mut q = world.query::<(&Character, &Health, &Position)>();
             q.iter(world)
-                .filter(|(_, h, _)| h.is_alive())
+                .filter(|(c, h, _)| matches!(c.kind, CharacterKind::Player(_)) && h.is_alive())
                 .map(|(_, _, pos)| *pos)
                 .collect()
         }
@@ -481,16 +495,22 @@ fn best_attack_target(world: &mut World, actor: Entity, turn: Turn) -> Option<En
     // Collect target data (drop query borrow before accessing resources).
     let targets: Vec<(Entity, i32, i32, i32)> = match turn {
         Turn::Player => {
-            let mut q = world.query::<(Entity, &Enemy, &Health, &Stats, &Position)>();
+            let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
             q.iter(world)
-                .filter(|(_, e, h, _, _)| e.aggression != Aggression::Friendly && h.is_alive())
+                .filter(|(_, c, h, _, _)| {
+                    matches!(c.kind, CharacterKind::NPC(_))
+                        && c.aggression != Aggression::Friendly
+                        && h.is_alive()
+                })
                 .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
                 .collect()
         }
         Turn::Enemy => {
             let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
             q.iter(world)
-                .filter(|(_, _, h, _, _)| h.is_alive())
+                .filter(|(_, c, h, _, _)| {
+                    matches!(c.kind, CharacterKind::Player(_)) && h.is_alive()
+                })
                 .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
                 .collect()
         }

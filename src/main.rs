@@ -12,13 +12,13 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 use carbonthrone::action_points::ActionPoints;
-use carbonthrone::character::{Character, PlayerCharacter};
+use carbonthrone::character::{Aggression, Character, CharacterKind, PlayerCharacter};
 use carbonthrone::dialog::{DialogEngine, Trigger};
-use carbonthrone::enemy::{Enemy, EnemyKind};
+use carbonthrone::enemy::EnemyKind;
 use carbonthrone::experience::Experience;
 use carbonthrone::health::Health;
 use carbonthrone::position::Position;
-use carbonthrone::simulation::{BattleOutcome, BattleStep, TurnAction, TurnEvent, Turn};
+use carbonthrone::simulation::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;
 use carbonthrone::terrain::{BattleRng, Biome, CoverLevel, LevelMap, generate_map};
 
@@ -315,18 +315,19 @@ fn setup_battle(world: &mut World) {
     let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
     let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
 
-    for (i, (name, character)) in [
+    for (i, (name, pc)) in [
         ("Doss", PlayerCharacter::Doss),
         ("Researcher", PlayerCharacter::Researcher),
     ]
     .into_iter()
     .enumerate()
     {
-        let stats = Stats::for_character(&character);
-        let hp = stats.max_hp;
+        let ch = Character::new_player(name, pc);
+        let stats = ch.stats.clone();
+        let hp = ch.current_hp;
         let (px, py) = player_positions[i];
         world.spawn((
-            Character::new(name, character),
+            ch,
             stats,
             Health::new(hp),
             ActionPoints::new(4),
@@ -339,12 +340,12 @@ fn setup_battle(world: &mut World) {
         .into_iter()
         .enumerate()
     {
-        let enemy = Enemy::new(kind, level);
-        let hp = enemy.stats.max_hp;
-        let stats = enemy.stats.clone();
+        let ch = Character::new_npc(kind, level);
+        let stats = ch.stats.clone();
+        let hp = ch.current_hp;
         let (ex, ey) = enemy_positions[i];
         world.spawn((
-            enemy,
+            ch,
             stats,
             Health::new(hp),
             ActionPoints::new(4),
@@ -609,6 +610,7 @@ fn player_entities(world: &mut World) -> Vec<(Entity, i32, i32)> {
     let mut q = world.query::<(Entity, &Character, &Health, &Stats)>();
     let mut v: Vec<(Entity, i32, i32, i32)> = q
         .iter(world)
+        .filter(|(_, c, _, _)| matches!(c.kind, CharacterKind::Player(_)))
         .map(|(e, _, h, stats)| (e, h.current, h.max, stats.speed))
         .collect();
     v.sort_by(|a, b| b.3.cmp(&a.3));
@@ -618,11 +620,11 @@ fn player_entities(world: &mut World) -> Vec<(Entity, i32, i32)> {
 }
 
 fn enemy_entities(world: &mut World) -> Vec<(Entity, i32, i32)> {
-    use carbonthrone::enemy::Aggression;
-    let mut q = world.query::<(Entity, &Enemy, &Health, &Stats)>();
+    let mut q = world.query::<(Entity, &Character, &Health, &Stats)>();
     let mut v: Vec<(Entity, i32, i32, i32)> = q
         .iter(world)
-        .filter(|(_, e, _, _)| e.aggression != Aggression::Friendly)
+        .filter(|(_, c, _, _)| c.aggression != Aggression::Friendly)
+        .filter(|(_, c, _, _)| matches!(c.kind, CharacterKind::NPC(_)))
         .map(|(e, _, h, stats)| (e, h.current, h.max, stats.speed))
         .collect();
     v.sort_by(|a, b| b.3.cmp(&a.3));
@@ -651,9 +653,6 @@ fn entity_name(world: &World, entity: Entity) -> String {
     if let Some(c) = world.get::<Character>(entity) {
         return c.name.clone();
     }
-    if let Some(e) = world.get::<Enemy>(entity) {
-        return e.name.clone();
-    }
     format!("#{}", entity.index())
 }
 
@@ -669,23 +668,21 @@ fn map_string(world: &mut World) -> String {
 
     let (mut max_x, mut max_y, mut cells) = terrain.unwrap_or_else(|| (9, 1, HashMap::new()));
 
-    let mut qp = world.query::<(&Position, &Character, &Health)>();
-    let player_glyphs: Vec<(i32, i32, char)> = qp
+    let mut qc = world.query::<(&Position, &Character, &Health)>();
+    let char_glyphs: Vec<(i32, i32, char)> = qc
         .iter(world)
-        .map(|(pos, _, h)| (pos.x, pos.y, if h.is_alive() { 'P' } else { 'x' }))
+        .map(|(pos, c, h)| {
+            let glyph = if !h.is_alive() {
+                'x'
+            } else if matches!(c.kind, CharacterKind::Player(_)) {
+                'P'
+            } else {
+                'E'
+            };
+            (pos.x, pos.y, glyph)
+        })
         .collect();
-    for (x, y, ch) in player_glyphs {
-        max_x = max_x.max(x);
-        max_y = max_y.max(y);
-        cells.insert((x, y), ch);
-    }
-
-    let mut qe = world.query::<(&Position, &Enemy, &Health)>();
-    let enemy_glyphs: Vec<(i32, i32, char)> = qe
-        .iter(world)
-        .map(|(pos, _, h)| (pos.x, pos.y, if h.is_alive() { 'E' } else { 'x' }))
-        .collect();
-    for (x, y, ch) in enemy_glyphs {
+    for (x, y, ch) in char_glyphs {
         max_x = max_x.max(x);
         max_y = max_y.max(y);
         cells.insert((x, y), ch);
