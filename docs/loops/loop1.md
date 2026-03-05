@@ -35,10 +35,27 @@ You walk toward one door. It opens. The others seal. The NPCs on the other side 
 
 ---
 
+## Character Beats
+
+### The Researcher
+Has no context for anything that just happened. Executes the mission because there is nothing else to do. The choice of companion feels like a practical decision — who do I trust more in a fight. It isn't yet.
+
+### Orin
+Perfectly composed. Gives the briefing cleanly. Her goal this loop: determine whether this player-iteration will stay on mission or investigate. She gives less than she could, and waits. If the player picks her, she is warm in the precise way of someone who has learned exactly how warm to be.
+
+### Doss
+Gruff, efficient, nothing personal. If the player picks him, he's functional — gives access, clears obstacles, doesn't explain himself. He mentions the war exactly once, in passing, in a way that sounds like nothing.
+
+### Kaleo
+Bureaucratic. Helpful. Every answer arrives a half-beat faster than it should. In loop 1, the player has no baseline to notice. It is already running its plan.
+
+---
+
 ## What the Player Can Discover
 
 - Basic station layout and mission briefing
 - The anomaly is unstable and the containment plan is underway
+- The Constancy attacked — but no one on the station explains who they are or why
 - Nothing feels wrong yet
 
 ---
