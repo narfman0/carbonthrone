@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use carbonthrone::{
     ability::{AbilityEffect, CharacterAbilities, available_abilities, character_abilities},
     action_points::ActionPoints,
-    character::PlayerCharacter,
     health::Health,
+    npc::NPCKind,
     stats::Stats,
     turn::{Action, TurnAction, apply_action},
 };
@@ -13,10 +13,10 @@ use carbonthrone::{
 #[test]
 fn each_character_has_three_abilities() {
     for character in [
-        PlayerCharacter::Researcher,
-        PlayerCharacter::Orin,
-        PlayerCharacter::Doss,
-        PlayerCharacter::Kaleo,
+        NPCKind::Researcher,
+        NPCKind::Orin,
+        NPCKind::Doss,
+        NPCKind::Kaleo,
     ] {
         assert_eq!(
             character_abilities(&character).len(),
@@ -29,10 +29,10 @@ fn each_character_has_three_abilities() {
 #[test]
 fn each_character_has_level_1_ability() {
     for character in [
-        PlayerCharacter::Researcher,
-        PlayerCharacter::Orin,
-        PlayerCharacter::Doss,
-        PlayerCharacter::Kaleo,
+        NPCKind::Researcher,
+        NPCKind::Orin,
+        NPCKind::Doss,
+        NPCKind::Kaleo,
     ] {
         let lvl1: Vec<_> = character_abilities(&character)
             .into_iter()
@@ -49,35 +49,35 @@ fn each_character_has_level_1_ability() {
 #[test]
 fn available_abilities_filters_by_level() {
     // At level 1 Doss only has Power Strike
-    let lvl1 = available_abilities(&PlayerCharacter::Doss, 1);
+    let lvl1 = available_abilities(&NPCKind::Doss, 1);
     assert_eq!(lvl1.len(), 1);
     assert_eq!(lvl1[0].name, "Power Strike");
 
     // At level 5 Doss gains Shield Bash
-    let lvl5 = available_abilities(&PlayerCharacter::Doss, 5);
+    let lvl5 = available_abilities(&NPCKind::Doss, 5);
     assert_eq!(lvl5.len(), 2);
 
     // At level 12 Doss has all three
-    let lvl12 = available_abilities(&PlayerCharacter::Doss, 12);
+    let lvl12 = available_abilities(&NPCKind::Doss, 12);
     assert_eq!(lvl12.len(), 3);
 }
 
 #[test]
 fn character_abilities_component_available_matches_free_fn() {
-    let comp = CharacterAbilities::new(PlayerCharacter::Kaleo);
+    let comp = CharacterAbilities::new(NPCKind::Kaleo);
     assert_eq!(
         comp.available(6).len(),
-        available_abilities(&PlayerCharacter::Kaleo, 6).len()
+        available_abilities(&NPCKind::Kaleo, 6).len()
     );
 }
 
 #[test]
 fn all_abilities_have_positive_or_zero_ap_cost() {
     for character in [
-        PlayerCharacter::Researcher,
-        PlayerCharacter::Orin,
-        PlayerCharacter::Doss,
-        PlayerCharacter::Kaleo,
+        NPCKind::Researcher,
+        NPCKind::Orin,
+        NPCKind::Doss,
+        NPCKind::Kaleo,
     ] {
         for ability in character_abilities(&character) {
             assert!(
@@ -92,10 +92,10 @@ fn all_abilities_have_positive_or_zero_ap_cost() {
 #[test]
 fn all_abilities_have_non_empty_names_and_descriptions() {
     for character in [
-        PlayerCharacter::Researcher,
-        PlayerCharacter::Orin,
-        PlayerCharacter::Doss,
-        PlayerCharacter::Kaleo,
+        NPCKind::Researcher,
+        NPCKind::Orin,
+        NPCKind::Doss,
+        NPCKind::Kaleo,
     ] {
         for ability in character_abilities(&character) {
             assert!(!ability.name.is_empty(), "ability has empty name");
@@ -121,7 +121,7 @@ fn stats(attack: i32, defense: i32) -> Stats {
 #[test]
 fn power_strike_deals_bonus_damage() {
     let mut world = World::new();
-    let ability = available_abilities(&PlayerCharacter::Doss, 1).remove(0);
+    let ability = available_abilities(&NPCKind::Doss, 1).remove(0);
     assert_eq!(ability.name, "Power Strike");
 
     let attacker = world.spawn((stats(10, 5), ActionPoints::new(4))).id();
@@ -151,7 +151,7 @@ fn power_strike_deals_bonus_damage() {
 #[test]
 fn power_strike_fails_without_enough_ap() {
     let mut world = World::new();
-    let ability = available_abilities(&PlayerCharacter::Doss, 1).remove(0);
+    let ability = available_abilities(&NPCKind::Doss, 1).remove(0);
     assert_eq!(ability.ap_cost, 3);
 
     let attacker = world.spawn((stats(10, 5), ActionPoints::new(2))).id(); // only 2 AP
@@ -174,7 +174,7 @@ fn power_strike_fails_without_enough_ap() {
 #[test]
 fn temporal_bolt_deals_bonus_damage() {
     let mut world = World::new();
-    let ability = available_abilities(&PlayerCharacter::Researcher, 1).remove(0);
+    let ability = available_abilities(&NPCKind::Researcher, 1).remove(0);
     assert_eq!(ability.name, "Temporal Bolt");
     assert!(matches!(ability.effect, AbilityEffect::BonusDamage { .. }));
 
@@ -195,7 +195,7 @@ fn temporal_bolt_deals_bonus_damage() {
 #[test]
 fn shield_bash_drains_target_ap() {
     let mut world = World::new();
-    let mut abilities = available_abilities(&PlayerCharacter::Doss, 5);
+    let mut abilities = available_abilities(&NPCKind::Doss, 5);
     let shield_bash = abilities.remove(1); // Shield Bash is index 1 at level 5
     assert_eq!(shield_bash.name, "Shield Bash");
 
@@ -220,7 +220,7 @@ fn shield_bash_drains_target_ap() {
 #[test]
 fn adrenaline_rush_grants_extra_ap() {
     let mut world = World::new();
-    let abilities = available_abilities(&PlayerCharacter::Doss, 12);
+    let abilities = available_abilities(&NPCKind::Doss, 12);
     let adrenaline = abilities
         .into_iter()
         .find(|a| a.name == "Adrenaline Rush")
@@ -245,7 +245,7 @@ fn adrenaline_rush_grants_extra_ap() {
 #[test]
 fn heal_restores_hp() {
     let mut world = World::new();
-    let heal = available_abilities(&PlayerCharacter::Orin, 1).remove(0);
+    let heal = available_abilities(&NPCKind::Orin, 1).remove(0);
     assert_eq!(heal.name, "Heal");
 
     let healer = world.spawn(ActionPoints::new(4)).id();
@@ -267,7 +267,7 @@ fn heal_restores_hp() {
 #[test]
 fn heal_cannot_exceed_max_hp() {
     let mut world = World::new();
-    let heal = available_abilities(&PlayerCharacter::Orin, 1).remove(0);
+    let heal = available_abilities(&NPCKind::Orin, 1).remove(0);
 
     let healer = world.spawn(ActionPoints::new(4)).id();
     let target = world.spawn(Health::new(100)).id(); // full HP
@@ -286,7 +286,7 @@ fn heal_cannot_exceed_max_hp() {
 #[test]
 fn system_hack_drains_target_ap() {
     let mut world = World::new();
-    let hack = available_abilities(&PlayerCharacter::Kaleo, 5)
+    let hack = available_abilities(&NPCKind::Kaleo, 5)
         .into_iter()
         .find(|a| a.name == "System Hack")
         .unwrap();
@@ -309,7 +309,7 @@ fn system_hack_drains_target_ap() {
 #[test]
 fn precision_barrage_pierces_and_deals_bonus_damage() {
     let mut world = World::new();
-    let barrage = available_abilities(&PlayerCharacter::Kaleo, 10)
+    let barrage = available_abilities(&NPCKind::Kaleo, 10)
         .into_iter()
         .find(|a| a.name == "Precision Barrage")
         .unwrap();
@@ -338,7 +338,7 @@ fn precision_barrage_pierces_and_deals_bonus_damage() {
 #[test]
 fn ability_on_dead_target_fails() {
     let mut world = World::new();
-    let ability = available_abilities(&PlayerCharacter::Doss, 1).remove(0);
+    let ability = available_abilities(&NPCKind::Doss, 1).remove(0);
 
     let attacker = world.spawn((stats(10, 5), ActionPoints::new(4))).id();
     let mut dead_hp = Health::new(50);
@@ -358,11 +358,11 @@ fn ability_on_dead_target_fails() {
 
 #[test]
 fn greater_heal_restores_more_than_basic_heal() {
-    let basic = available_abilities(&PlayerCharacter::Orin, 1)
+    let basic = available_abilities(&NPCKind::Orin, 1)
         .into_iter()
         .find(|a| a.name == "Heal")
         .unwrap();
-    let greater = available_abilities(&PlayerCharacter::Orin, 7)
+    let greater = available_abilities(&NPCKind::Orin, 7)
         .into_iter()
         .find(|a| a.name == "Greater Heal")
         .unwrap();

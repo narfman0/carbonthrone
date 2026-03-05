@@ -1,4 +1,4 @@
-use crate::character::{Character, CharacterKind};
+use crate::character::Character;
 use crate::health::Health;
 use crate::stats::Stats;
 use bevy::prelude::*;
@@ -46,9 +46,9 @@ impl Default for Experience {
 /// Entities must have (Experience, Stats, Character, Health).
 pub fn level_up_system(mut query: Query<(&mut Experience, &mut Stats, &Character, &mut Health)>) {
     for (mut xp, mut stats, character, mut health) in &mut query {
-        if let CharacterKind::Player(class) = &character.kind {
+        if character.kind.is_player() {
             while xp.pending_levels > 0 {
-                stats.level_up(class);
+                stats.level_up(&character.kind);
                 health.max = stats.max_hp;
                 health.current = stats.max_hp; // full restore on level-up
                 xp.pending_levels -= 1;

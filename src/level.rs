@@ -1,5 +1,5 @@
 use crate::character::Character;
-use crate::enemy::EnemyKind;
+use crate::npc::NPCKind;
 use crate::position::Position;
 use crate::terrain::{Biome, LevelMap, generate_map};
 use bevy::prelude::Resource;
@@ -50,7 +50,7 @@ impl Level {
     pub fn generate_for_zone(
         depth: u32,
         biome: Biome,
-        enemy_pool: &[EnemyKind],
+        enemy_pool: &[NPCKind],
         rng: &mut impl Rng,
     ) -> Self {
         Self::generate_inner(depth, biome, Some(enemy_pool), rng)
@@ -59,7 +59,7 @@ impl Level {
     fn generate_inner(
         depth: u32,
         biome: Biome,
-        enemy_pool: Option<&[EnemyKind]>,
+        enemy_pool: Option<&[NPCKind]>,
         rng: &mut impl Rng,
     ) -> Self {
         let cols: u32 = rng.gen_range(8..=16);
@@ -114,20 +114,20 @@ fn random_biome(rng: &mut impl Rng) -> Biome {
     }
 }
 
-fn random_enemy_kind(rng: &mut impl Rng) -> EnemyKind {
+fn random_enemy_kind(rng: &mut impl Rng) -> NPCKind {
     match rng.gen_range(0..13u32) {
-        0 => EnemyKind::Scavenger,
-        1 => EnemyKind::VoidRaider,
-        2 => EnemyKind::DrifterBoss,
-        3 => EnemyKind::MaintenanceDrone,
-        4 => EnemyKind::SecurityUnit,
-        5 => EnemyKind::CombatFrame,
-        6 => EnemyKind::MoonCrawler,
-        7 => EnemyKind::VoidSpitter,
-        8 => EnemyKind::AbyssalBrute,
-        9 => EnemyKind::SalvageOperative,
-        10 => EnemyKind::GunForHire,
-        11 => EnemyKind::StationGuard,
-        _ => EnemyKind::ShockTrooper,
+        0 => NPCKind::Scavenger,
+        1 => NPCKind::VoidRaider,
+        2 => NPCKind::DrifterBoss,
+        3 => NPCKind::MaintenanceDrone,
+        4 => NPCKind::SecurityUnit,
+        5 => NPCKind::CombatFrame,
+        6 => NPCKind::MoonCrawler,
+        7 => NPCKind::VoidSpitter,
+        8 => NPCKind::AbyssalBrute,
+        9 => NPCKind::SalvageOperative,
+        10 => NPCKind::GunForHire,
+        11 => NPCKind::StationGuard,
+        _ => NPCKind::ShockTrooper,
     }
 }

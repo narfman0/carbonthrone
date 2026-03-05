@@ -12,11 +12,11 @@ use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 use carbonthrone::action_points::ActionPoints;
-use carbonthrone::character::{Aggression, Character, CharacterKind, PlayerCharacter};
+use carbonthrone::character::{Aggression, Character};
 use carbonthrone::dialog::{DialogEngine, Trigger};
-use carbonthrone::enemy::EnemyKind;
 use carbonthrone::experience::Experience;
 use carbonthrone::health::Health;
+use carbonthrone::npc::NPCKind;
 use carbonthrone::position::Position;
 use carbonthrone::simulation::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;
@@ -315,12 +315,9 @@ fn setup_battle(world: &mut World) {
     let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
     let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
 
-    for (i, (name, pc)) in [
-        ("Doss", PlayerCharacter::Doss),
-        ("Researcher", PlayerCharacter::Researcher),
-    ]
-    .into_iter()
-    .enumerate()
+    for (i, (name, pc)) in [("Doss", NPCKind::Doss), ("Researcher", NPCKind::Researcher)]
+        .into_iter()
+        .enumerate()
     {
         let ch = Character::new_player(name, pc);
         let stats = ch.stats.clone();
@@ -336,7 +333,7 @@ fn setup_battle(world: &mut World) {
         ));
     }
 
-    for (i, (kind, level)) in [(EnemyKind::Scavenger, 1u32), (EnemyKind::DrifterBoss, 2u32)]
+    for (i, (kind, level)) in [(NPCKind::Scavenger, 1u32), (NPCKind::DrifterBoss, 2u32)]
         .into_iter()
         .enumerate()
     {
@@ -610,7 +607,7 @@ fn player_entities(world: &mut World) -> Vec<(Entity, i32, i32)> {
     let mut q = world.query::<(Entity, &Character, &Health, &Stats)>();
     let mut v: Vec<(Entity, i32, i32, i32)> = q
         .iter(world)
-        .filter(|(_, c, _, _)| matches!(c.kind, CharacterKind::Player(_)))
+        .filter(|(_, c, _, _)| c.kind.is_player())
         .map(|(e, _, h, stats)| (e, h.current, h.max, stats.speed))
         .collect();
     v.sort_by(|a, b| b.3.cmp(&a.3));
@@ -624,7 +621,7 @@ fn enemy_entities(world: &mut World) -> Vec<(Entity, i32, i32)> {
     let mut v: Vec<(Entity, i32, i32, i32)> = q
         .iter(world)
         .filter(|(_, c, _, _)| c.aggression != Aggression::Friendly)
-        .filter(|(_, c, _, _)| matches!(c.kind, CharacterKind::NPC(_)))
+        .filter(|(_, c, _, _)| !c.kind.is_player())
         .map(|(e, _, h, stats)| (e, h.current, h.max, stats.speed))
         .collect();
     v.sort_by(|a, b| b.3.cmp(&a.3));
@@ -674,7 +671,7 @@ fn map_string(world: &mut World) -> String {
         .map(|(pos, c, h)| {
             let glyph = if !h.is_alive() {
                 'x'
-            } else if matches!(c.kind, CharacterKind::Player(_)) {
+            } else if c.kind.is_player() {
                 'P'
             } else {
                 'E'

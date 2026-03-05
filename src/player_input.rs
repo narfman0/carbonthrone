@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use crate::{
     action_points::ActionPoints,
-    character::{Aggression, Character, CharacterKind},
+    character::{Aggression, Character},
     combat::{calc_damage, calc_hit_chance},
     health::Health,
     position::Position,
@@ -111,9 +111,7 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
         let targets: Vec<(Entity, i32, i32, i32)> = q
             .iter(world)
             .filter(|(_, c, h, _, _)| {
-                matches!(c.kind, CharacterKind::NPC(_))
-                    && c.aggression != Aggression::Friendly
-                    && h.is_alive()
+                !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
             })
             .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
             .collect();
@@ -146,9 +144,7 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
         let enemy_positions: Vec<(i32, i32)> = q2
             .iter(world)
             .filter(|(c, h, _)| {
-                matches!(c.kind, CharacterKind::NPC(_))
-                    && c.aggression != Aggression::Friendly
-                    && h.is_alive()
+                !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
             })
             .map(|(_, _, pos)| (pos.x, pos.y))
             .collect();

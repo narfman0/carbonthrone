@@ -1,26 +1,6 @@
-use crate::enemy::EnemyKind;
+use crate::npc::NPCKind;
 use crate::stats::Stats;
 use bevy::prelude::Component;
-
-/// The named player characters, each with distinct stats and abilities.
-#[derive(Debug, Clone, PartialEq, Component)]
-pub enum PlayerCharacter {
-    /// The player character — Temporal Mage; high magic, fragile, fast.
-    Researcher,
-    /// Dr. Sable Orin — Cleric; support healer, high defense, low offense.
-    Orin,
-    /// Recruiter Doss — Warrior; heavy armor, high HP, strong melee.
-    Doss,
-    /// Unit Kaleo — Ranger; precision attacks, system hacking, very fast.
-    Kaleo,
-}
-
-/// Discriminator for any entity in the world — player or NPC.
-#[derive(Debug, Clone, PartialEq)]
-pub enum CharacterKind {
-    Player(PlayerCharacter),
-    NPC(EnemyKind),
-}
 
 /// Current disposition of this character toward the player party.
 #[derive(Debug, Clone, PartialEq, Component)]
@@ -37,10 +17,11 @@ pub enum Aggression {
 
 /// Universal entity component for both player characters and NPCs.
 /// Use `aggression` to determine combat role; use `kind` to access class-specific data.
+/// Use `kind.is_player()` to distinguish player characters from NPCs.
 #[derive(Debug, Clone, Component)]
 pub struct Character {
     pub name: String,
-    pub kind: CharacterKind,
+    pub kind: NPCKind,
     pub level: u32,
     pub stats: Stats,
     pub current_hp: i32,
@@ -50,12 +31,12 @@ pub struct Character {
 
 impl Character {
     /// Create a player character at level 1 with class-based base stats.
-    pub fn new_player(name: impl Into<String>, pc: PlayerCharacter) -> Self {
-        let stats = Stats::for_character(&pc);
+    pub fn new_player(name: impl Into<String>, kind: NPCKind) -> Self {
+        let stats = Stats::for_character(&kind);
         let current_hp = stats.max_hp;
         Self {
             name: name.into(),
-            kind: CharacterKind::Player(pc),
+            kind,
             level: 1,
             stats,
             current_hp,
@@ -65,8 +46,8 @@ impl Character {
     }
 
     /// Create an NPC (enemy or neutral) at the given level with scaled stats.
-    pub fn new_npc(kind: EnemyKind, level: u32) -> Self {
-        use crate::enemy::{base_xp, default_aggression, default_name, scaled_stats};
+    pub fn new_npc(kind: NPCKind, level: u32) -> Self {
+        use crate::npc::{base_xp, default_aggression, default_name, scaled_stats};
         let stats = scaled_stats(&kind, level);
         let current_hp = stats.max_hp;
         let xp_reward = base_xp(&kind) * level;
@@ -74,7 +55,7 @@ impl Character {
         let aggression = default_aggression(&kind);
         Self {
             name,
-            kind: CharacterKind::NPC(kind),
+            kind,
             level,
             stats,
             current_hp,

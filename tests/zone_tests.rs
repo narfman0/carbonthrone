@@ -1,4 +1,3 @@
-use carbonthrone::character::CharacterKind;
 use carbonthrone::zone::{CardinalDir, ZoneKind, ZoneType, zone_connections};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -181,7 +180,7 @@ fn zone_enter_enemies_come_from_zone_pool() {
         if let Some(level) = &zone.encounter {
             for (enemy, _) in &level.enemies {
                 assert!(
-                    matches!(&enemy.kind, CharacterKind::NPC(k) if pool.contains(k)),
+                    pool.contains(&enemy.kind),
                     "ResearchWing spawned unexpected enemy kind: {:?}",
                     enemy.kind
                 );

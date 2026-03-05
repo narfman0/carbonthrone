@@ -1,5 +1,5 @@
-use crate::enemy::EnemyKind;
 use crate::level::Level;
+use crate::npc::NPCKind;
 use crate::terrain::Biome;
 use rand::Rng;
 
@@ -166,28 +166,28 @@ impl ZoneKind {
     }
 
     /// The set of enemy types that can spawn in encounters within this zone.
-    pub fn enemy_pool(self) -> &'static [EnemyKind] {
+    pub fn enemy_pool(self) -> &'static [NPCKind] {
         match self {
-            ZoneKind::ResearchWing => &[EnemyKind::MaintenanceDrone, EnemyKind::Scavenger],
-            ZoneKind::CommandDeck => &[EnemyKind::StationGuard, EnemyKind::SecurityUnit],
-            ZoneKind::MilitaryAnnex => &[EnemyKind::GunForHire, EnemyKind::ShockTrooper],
-            ZoneKind::SystemsCore => &[EnemyKind::MaintenanceDrone, EnemyKind::SecurityUnit],
-            ZoneKind::MedicalBay => &[EnemyKind::VoidSpitter, EnemyKind::StationGuard],
+            ZoneKind::ResearchWing => &[NPCKind::MaintenanceDrone, NPCKind::Scavenger],
+            ZoneKind::CommandDeck => &[NPCKind::StationGuard, NPCKind::SecurityUnit],
+            ZoneKind::MilitaryAnnex => &[NPCKind::GunForHire, NPCKind::ShockTrooper],
+            ZoneKind::SystemsCore => &[NPCKind::MaintenanceDrone, NPCKind::SecurityUnit],
+            ZoneKind::MedicalBay => &[NPCKind::VoidSpitter, NPCKind::StationGuard],
             ZoneKind::DockingBay => &[
-                EnemyKind::Scavenger,
-                EnemyKind::VoidRaider,
-                EnemyKind::DrifterBoss,
+                NPCKind::Scavenger,
+                NPCKind::VoidRaider,
+                NPCKind::DrifterBoss,
             ],
             ZoneKind::StationExterior => &[
-                EnemyKind::MoonCrawler,
-                EnemyKind::VoidRaider,
-                EnemyKind::AbyssalBrute,
+                NPCKind::MoonCrawler,
+                NPCKind::VoidRaider,
+                NPCKind::AbyssalBrute,
             ],
-            ZoneKind::RelayArray => &[EnemyKind::VoidRaider, EnemyKind::DrifterBoss],
+            ZoneKind::RelayArray => &[NPCKind::VoidRaider, NPCKind::DrifterBoss],
             ZoneKind::ExcavationSite => &[
-                EnemyKind::MoonCrawler,
-                EnemyKind::VoidSpitter,
-                EnemyKind::AbyssalBrute,
+                NPCKind::MoonCrawler,
+                NPCKind::VoidSpitter,
+                NPCKind::AbyssalBrute,
             ],
         }
     }

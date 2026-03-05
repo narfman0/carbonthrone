@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use crate::{
     action_points::ActionPoints,
-    character::{Aggression, Character, CharacterKind},
+    character::{Aggression, Character},
     combat::{calc_damage, calc_hit_chance},
     health::Health,
     player_input::{PlayerActionChoice, available_player_actions},
@@ -303,7 +303,7 @@ fn living_players(world: &mut World) -> Vec<Entity> {
     let mut query = world.query::<(Entity, &Character, &Health, &Stats)>();
     let mut entities: Vec<(Entity, i32)> = query
         .iter(world)
-        .filter(|(_, c, h, _)| matches!(c.kind, CharacterKind::Player(_)) && h.is_alive())
+        .filter(|(_, c, h, _)| c.kind.is_player() && h.is_alive())
         .map(|(e, _, _, stats)| (e, stats.speed))
         .collect();
     entities.sort_by(|a, b| b.1.cmp(&a.1));
@@ -316,9 +316,7 @@ fn living_enemies(world: &mut World) -> Vec<Entity> {
     let mut entities: Vec<(Entity, i32)> = query
         .iter(world)
         .filter(|(_, c, h, _)| {
-            matches!(c.kind, CharacterKind::NPC(_))
-                && c.aggression != Aggression::Friendly
-                && h.is_alive()
+            !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
         })
         .map(|(e, _, _, stats)| (e, stats.speed))
         .collect();
@@ -331,7 +329,7 @@ fn all_players_defeated(world: &mut World) -> bool {
     let mut query = world.query::<(&Character, &Health)>();
     let combatants: Vec<bool> = query
         .iter(world)
-        .filter(|(c, _)| matches!(c.kind, CharacterKind::Player(_)))
+        .filter(|(c, _)| c.kind.is_player())
         .map(|(_, h)| h.is_alive())
         .collect();
     combatants.is_empty() || combatants.iter().all(|alive| !alive)
@@ -342,9 +340,7 @@ fn all_enemies_defeated(world: &mut World) -> bool {
     let mut query = world.query::<(&Character, &Health)>();
     let combatants: Vec<bool> = query
         .iter(world)
-        .filter(|(c, _)| {
-            matches!(c.kind, CharacterKind::NPC(_)) && c.aggression != Aggression::Friendly
-        })
+        .filter(|(c, _)| !c.kind.is_player() && c.aggression != Aggression::Friendly)
         .map(|(_, h)| h.is_alive())
         .collect();
     combatants.is_empty() || combatants.iter().all(|alive| !alive)
@@ -394,9 +390,7 @@ fn seek_cover_action(world: &mut World, actor: Entity, turn: Turn, ap: i32) -> O
             let mut q = world.query::<(&Character, &Health, &Position)>();
             q.iter(world)
                 .filter(|(c, h, _)| {
-                    matches!(c.kind, CharacterKind::NPC(_))
-                        && c.aggression != Aggression::Friendly
-                        && h.is_alive()
+                    !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
                 })
                 .map(|(_, _, pos)| *pos)
                 .collect()
@@ -404,7 +398,7 @@ fn seek_cover_action(world: &mut World, actor: Entity, turn: Turn, ap: i32) -> O
         Turn::Enemy => {
             let mut q = world.query::<(&Character, &Health, &Position)>();
             q.iter(world)
-                .filter(|(c, h, _)| matches!(c.kind, CharacterKind::Player(_)) && h.is_alive())
+                .filter(|(c, h, _)| c.kind.is_player() && h.is_alive())
                 .map(|(_, _, pos)| *pos)
                 .collect()
         }
@@ -498,9 +492,7 @@ fn best_attack_target(world: &mut World, actor: Entity, turn: Turn) -> Option<En
             let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
             q.iter(world)
                 .filter(|(_, c, h, _, _)| {
-                    matches!(c.kind, CharacterKind::NPC(_))
-                        && c.aggression != Aggression::Friendly
-                        && h.is_alive()
+                    !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
                 })
                 .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
                 .collect()
@@ -508,9 +500,7 @@ fn best_attack_target(world: &mut World, actor: Entity, turn: Turn) -> Option<En
         Turn::Enemy => {
             let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
             q.iter(world)
-                .filter(|(_, c, h, _, _)| {
-                    matches!(c.kind, CharacterKind::Player(_)) && h.is_alive()
-                })
+                .filter(|(_, c, h, _, _)| c.kind.is_player() && h.is_alive())
                 .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
                 .collect()
         }
