@@ -7,6 +7,7 @@ pub mod experience;
 pub mod health;
 pub mod level;
 pub mod party;
+pub mod player_input;
 pub mod position;
 pub mod side;
 pub mod simulation;
