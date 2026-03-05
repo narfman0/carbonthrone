@@ -13,6 +13,7 @@ use rand::rngs::StdRng;
 
 use carbonthrone::action_points::ActionPoints;
 use carbonthrone::character::{Character, CharacterClass};
+use carbonthrone::dialog::{DialogEngine, Trigger};
 use carbonthrone::enemy::{Enemy, EnemyKind};
 use carbonthrone::experience::Experience;
 use carbonthrone::health::Health;
@@ -22,11 +23,151 @@ use carbonthrone::simulation::{BattleOutcome, BattleStep, TurnAction, TurnEvent}
 use carbonthrone::stats::Stats;
 use carbonthrone::terrain::{BattleRng, Biome, CoverLevel, LevelMap, generate_map};
 
-fn main() {
-    let mut world = World::new();
-    setup_battle(&mut world);
+// ── Game phase ────────────────────────────────────────────────────────────────
 
-    let mut battle = BattleStep::new(&mut world);
+enum GamePhase {
+    Exploration(ExplorationState),
+    Battle,
+}
+
+// ── Exploration state ─────────────────────────────────────────────────────────
+
+struct NpcData {
+    pos: (i32, i32),
+    name: &'static str,
+    glyph: char,
+}
+
+struct ExplorationState {
+    player_pos: (i32, i32),
+    npcs: Vec<NpcData>,
+    dialog: DialogEngine,
+    location: String,
+    /// Lines in the active scene as (speaker, text).
+    scene_lines: Vec<(String, String)>,
+    /// Choice texts in the active scene (empty when no choices).
+    scene_choices: Vec<String>,
+    /// Index of the currently displayed line.
+    line_index: usize,
+    /// Index of the highlighted choice (only meaningful at choice screen).
+    choice_index: usize,
+    /// Whether dialog is currently displayed.
+    in_dialog: bool,
+}
+
+impl ExplorationState {
+    fn new() -> Self {
+        let mut dialog = DialogEngine::new();
+        let yaml = include_str!("../docs/loops/loop1.yaml");
+        dialog.load_script(yaml).expect("load loop1.yaml");
+        dialog.set_companion("orin");
+        dialog.set_flag("companion_orin");
+
+        let mut state = Self {
+            player_pos: (0, 2),
+            npcs: vec![NpcData { pos: (5, 2), name: "Orin", glyph: 'N' }],
+            dialog,
+            location: "command_deck".to_string(),
+            scene_lines: Vec::new(),
+            scene_choices: Vec::new(),
+            line_index: 0,
+            choice_index: 0,
+            in_dialog: false,
+        };
+        state.fire_trigger(Trigger::OnEnter);
+        state
+    }
+
+    /// Fire a trigger at the current location and load the resulting scene, if any.
+    fn fire_trigger(&mut self, trigger: Trigger) {
+        let loc = self.location.clone();
+        if let Some(scene) = self.dialog.trigger(&trigger, &loc) {
+            self.scene_lines = scene
+                .lines
+                .iter()
+                .map(|l| (l.speaker.clone(), l.text.clone()))
+                .collect();
+            self.scene_choices = scene
+                .choices
+                .as_ref()
+                .map(|cs| cs.iter().map(|c| c.text.clone()).collect())
+                .unwrap_or_default();
+            self.line_index = 0;
+            self.choice_index = 0;
+            self.in_dialog = !self.scene_lines.is_empty();
+        }
+    }
+
+    /// True when the player is at the last line and choices are visible.
+    fn at_choice_screen(&self) -> bool {
+        self.in_dialog
+            && self.line_index + 1 >= self.scene_lines.len()
+            && !self.scene_choices.is_empty()
+    }
+
+    /// Advance one dialog line.  Returns `true` when the dialog closes.
+    fn advance_dialog(&mut self) -> bool {
+        if self.line_index + 1 < self.scene_lines.len() {
+            self.line_index += 1;
+            false
+        } else if !self.scene_choices.is_empty() {
+            // Stay at the choice screen — handled by select_choice().
+            false
+        } else {
+            self.in_dialog = false;
+            true
+        }
+    }
+
+    /// Confirm the highlighted choice.
+    fn select_choice(&mut self) {
+        if let Some(scene) = self.dialog.select_choice(self.choice_index) {
+            self.scene_lines = scene
+                .lines
+                .iter()
+                .map(|l| (l.speaker.clone(), l.text.clone()))
+                .collect();
+            self.scene_choices = scene
+                .choices
+                .as_ref()
+                .map(|cs| cs.iter().map(|c| c.text.clone()).collect())
+                .unwrap_or_default();
+            self.line_index = 0;
+            self.choice_index = 0;
+            self.in_dialog = !self.scene_lines.is_empty();
+        } else {
+            self.in_dialog = false;
+        }
+    }
+
+    /// Try to move the player by (dx, dy).  Blocked by NPCs and map edges.
+    fn try_move(&mut self, dx: i32, dy: i32) {
+        if self.in_dialog {
+            return;
+        }
+        let nx = (self.player_pos.0 + dx).clamp(0, 9);
+        let ny = (self.player_pos.1 + dy).clamp(0, 9);
+        if !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
+            self.player_pos = (nx, ny);
+        }
+    }
+
+    /// True when the player is adjacent (Manhattan distance 1) to any NPC.
+    fn adjacent_to_npc(&self) -> bool {
+        let (px, py) = self.player_pos;
+        self.npcs.iter().any(|n| {
+            let (nx, ny) = n.pos;
+            (px - nx).abs() + (py - ny).abs() == 1
+        })
+    }
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
+fn main() {
+    let mut phase = GamePhase::Exploration(ExplorationState::new());
+    let mut world = World::new();
+    let mut battle: Option<BattleStep> = None;
     let mut last_event: Option<TurnEvent> = None;
 
     let mut stdout = io::stdout();
@@ -40,46 +181,135 @@ fn main() {
         )
         .unwrap();
 
-        let frame = render(&mut world, &battle, last_event.as_ref());
-        write!(stdout, "{}", frame).unwrap();
+        match &phase {
+            GamePhase::Exploration(state) => {
+                let frame = render_exploration(state);
+                write!(stdout, "{}", frame).unwrap();
+            }
+            GamePhase::Battle => {
+                let b = battle.as_mut().unwrap();
+                let frame = render(&mut world, b, last_event.as_ref());
+                write!(stdout, "{}", frame).unwrap();
+            }
+        }
         stdout.flush().unwrap();
 
-        let battle_over = last_event.as_ref().and_then(|e| e.outcome.as_ref()).is_some();
-
+        // ── Input ────────────────────────────────────────────────────────────
         loop {
             let Ok(ev) = event::read() else { continue };
-            match ev {
-                Event::Key(k) if k.kind == KeyEventKind::Press => match k.code {
-                    KeyCode::Char('c') if k.modifiers.contains(KeyModifiers::CONTROL) => {
-                        terminal::disable_raw_mode().unwrap();
-                        return;
-                    }
-                    KeyCode::Char('q') | KeyCode::Esc => {
-                        terminal::disable_raw_mode().unwrap();
-                        return;
-                    }
-                    KeyCode::Char(' ') if !battle_over => {
-                        last_event = Some(battle.step(&mut world));
-                        break;
-                    }
-                    _ if battle_over => {
-                        terminal::disable_raw_mode().unwrap();
-                        return;
-                    }
-                    _ => {}
-                },
+            let Event::Key(k) = ev else { continue };
+            if k.kind != KeyEventKind::Press {
+                continue;
+            }
+
+            // Global quit
+            match k.code {
+                KeyCode::Char('c') if k.modifiers.contains(KeyModifiers::CONTROL) => {
+                    terminal::disable_raw_mode().unwrap();
+                    return;
+                }
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    terminal::disable_raw_mode().unwrap();
+                    return;
+                }
                 _ => {}
+            }
+
+            match &mut phase {
+                // ── Exploration input ─────────────────────────────────────
+                GamePhase::Exploration(state) => {
+                    if state.in_dialog {
+                        match k.code {
+                            KeyCode::Char(' ') | KeyCode::Enter => {
+                                if state.at_choice_screen() {
+                                    state.select_choice();
+                                } else {
+                                    state.advance_dialog();
+                                }
+                                break;
+                            }
+                            KeyCode::Up => {
+                                if state.at_choice_screen() && state.choice_index > 0 {
+                                    state.choice_index -= 1;
+                                }
+                                break;
+                            }
+                            KeyCode::Down => {
+                                if state.at_choice_screen()
+                                    && state.choice_index + 1 < state.scene_choices.len()
+                                {
+                                    state.choice_index += 1;
+                                }
+                                break;
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        match k.code {
+                            KeyCode::Up | KeyCode::Char('w') => {
+                                state.try_move(0, -1);
+                                break;
+                            }
+                            KeyCode::Down | KeyCode::Char('s') => {
+                                state.try_move(0, 1);
+                                break;
+                            }
+                            KeyCode::Left | KeyCode::Char('a') => {
+                                state.try_move(-1, 0);
+                                break;
+                            }
+                            KeyCode::Right | KeyCode::Char('d') => {
+                                state.try_move(1, 0);
+                                break;
+                            }
+                            KeyCode::Char('e') => {
+                                if state.adjacent_to_npc() {
+                                    state.fire_trigger(Trigger::OnInteract);
+                                }
+                                break;
+                            }
+                            KeyCode::Char('b') => {
+                                // Transition to battle
+                                setup_battle(&mut world);
+                                battle = Some(BattleStep::new(&mut world));
+                                last_event = None;
+                                phase = GamePhase::Battle;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                // ── Battle input ──────────────────────────────────────────
+                GamePhase::Battle => {
+                    let b = battle.as_mut().unwrap();
+                    let battle_over = last_event
+                        .as_ref()
+                        .and_then(|e| e.outcome.as_ref())
+                        .is_some();
+
+                    match k.code {
+                        KeyCode::Char(' ') if !battle_over => {
+                            last_event = Some(b.step(&mut world));
+                            break;
+                        }
+                        _ if battle_over => {
+                            terminal::disable_raw_mode().unwrap();
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
     }
 }
 
-// ── World setup ──────────────────────────────────────────────────────────────
+// ── World setup ───────────────────────────────────────────────────────────────
 
 fn setup_battle(world: &mut World) {
-    // Player spawn positions (col 0, rows 0–1)
     let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
-    // Enemy spawn positions (col 9, rows 0–1)
     let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
 
     for (i, (name, class)) in [
@@ -124,7 +354,6 @@ fn setup_battle(world: &mut World) {
         ));
     }
 
-    // Generate terrain map, keeping all spawn positions open.
     let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
     let biomes = [Biome::VoidStation, Biome::NeonDistrict, Biome::BioLab, Biome::AsteroidColony];
     let biome = biomes[rng.gen_range(0..4)];
@@ -135,21 +364,107 @@ fn setup_battle(world: &mut World) {
     world.insert_resource(BattleRng(rng));
 }
 
-// ── Rendering ────────────────────────────────────────────────────────────────
+// ── Exploration rendering ─────────────────────────────────────────────────────
 
 const WIDTH: usize = 58;
 
-fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> String {
+fn render_exploration(state: &ExplorationState) -> String {
     let mut out = String::new();
     let bar = "=".repeat(WIDTH);
 
-    // Title
     out += &format!("{}\r\n", bar);
     out += &format!("{:^width$}\r\n", "C A R B O N T H R O N E", width = WIDTH);
     out += &format!("{}\r\n", bar);
     out += "\r\n";
 
-    // Round / side
+    out += &format!("  Zone: Command Deck\r\n");
+    out += "\r\n";
+
+    // Zone grid (10 x 6)
+    let grid_cols = 10i32;
+    let grid_rows = 6i32;
+    let (px, py) = state.player_pos;
+
+    for y in 0..grid_rows {
+        out += "  ";
+        for x in 0..grid_cols {
+            let ch = if (x, y) == (px, py) {
+                '@'
+            } else if let Some(npc) = state.npcs.iter().find(|n| n.pos == (x, y)) {
+                npc.glyph
+            } else {
+                '.'
+            };
+            out += &format!("{} ", ch);
+        }
+        out += "\r\n";
+    }
+    out += "\r\n";
+
+    // NPC legend
+    for npc in &state.npcs {
+        let hint = if {
+            let (nx, ny) = npc.pos;
+            (px - nx).abs() + (py - ny).abs() == 1
+        } {
+            "  [E] to talk"
+        } else {
+            ""
+        };
+        out += &format!("  {} = {}{}\r\n", npc.glyph, npc.name, hint);
+    }
+    out += "\r\n";
+
+    // Dialog area
+    out += &format!("  {}\r\n", "-".repeat(WIDTH - 2));
+    if state.in_dialog && !state.scene_lines.is_empty() {
+        let (speaker, text) = &state.scene_lines[state.line_index];
+        out += &format!("  [{speaker}]: {text}\r\n");
+        out += "\r\n";
+
+        if state.at_choice_screen() {
+            for (i, choice) in state.scene_choices.iter().enumerate() {
+                let cursor = if i == state.choice_index { ">" } else { " " };
+                out += &format!("  {cursor} {choice}\r\n");
+            }
+            out += "\r\n";
+            out += "  [UP/DOWN] choose  [ENTER] confirm\r\n";
+        } else {
+            let remaining = state.scene_lines.len().saturating_sub(state.line_index + 1);
+            if remaining > 0 {
+                out += &format!("  ({remaining} line(s) remaining — SPACE to continue)\r\n");
+            } else {
+                out += "  [SPACE] close\r\n";
+            }
+        }
+    } else {
+        out += "  (explore the zone — move with WASD / arrow keys)\r\n";
+    }
+
+    // Controls footer
+    out += "\r\n";
+    out += &format!("{}\r\n", bar);
+    out += &format!(
+        "  {:<27}  {}\r\n",
+        "[WASD/Arrows] move  [E] talk",
+        "[B] battle  [Q] quit"
+    );
+    out += &format!("{}\r\n", bar);
+
+    out
+}
+
+// ── Battle rendering ──────────────────────────────────────────────────────────
+
+fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> String {
+    let mut out = String::new();
+    let bar = "=".repeat(WIDTH);
+
+    out += &format!("{}\r\n", bar);
+    out += &format!("{:^width$}\r\n", "C A R B O N T H R O N E", width = WIDTH);
+    out += &format!("{}\r\n", bar);
+    out += "\r\n";
+
     let side_label = match battle.side {
         Side::Player => "Player Side",
         Side::Enemy => "Enemy Side",
@@ -162,7 +477,6 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     }
     out += "\r\n";
 
-    // Combatant HP
     let players = side_entities(world, Side::Player);
     let enemies = side_entities(world, Side::Enemy);
     let rows = players.len().max(enemies.len());
@@ -176,18 +490,15 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     }
     out += "\r\n";
 
-    // Battle map
     out += &format!("  {}\r\n", map_string(world));
     out += "\r\n";
 
-    // Biome and legend
     if let Some(map) = world.get_resource::<LevelMap>() {
         out += &format!("  Biome: {}\r\n", map.biome.display_name());
     }
     out += "  . open  # obstacle  c partial-cover  C full-cover\r\n";
     out += "\r\n";
 
-    // Action log for last turn
     out += &format!("  {}\r\n", "-".repeat(WIDTH - 2));
     if let Some(event) = last {
         match event.actor {
@@ -235,7 +546,6 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
         out += "  (press SPACE to begin)\r\n";
     }
 
-    // Controls footer
     out += "\r\n";
     out += &format!("{}\r\n", bar);
     if last.and_then(|e| e.outcome.as_ref()).is_some() {
@@ -248,8 +558,6 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
     out
 }
 
-/// Returns `(entity, current_hp, max_hp)` for all living+dead entities on a side,
-/// sorted by descending speed (so display order matches turn order).
 fn side_entities(world: &mut World, side: Side) -> Vec<(Entity, i32, i32)> {
     let mut q = world.query::<(Entity, &Side, &Health, &Stats)>();
     let mut v: Vec<(Entity, i32, i32, i32)> = q
@@ -288,7 +596,6 @@ fn entity_name(world: &World, entity: Entity) -> String {
 }
 
 fn map_string(world: &mut World) -> String {
-    // Collect terrain data first (immutable borrow, released before query).
     let terrain = world.get_resource::<LevelMap>().map(|map| {
         let max_x = map.cols as i32 - 1;
         let max_y = map.rows as i32 - 1;
@@ -300,7 +607,6 @@ fn map_string(world: &mut World) -> String {
 
     let (mut max_x, mut max_y, mut cells) = terrain.unwrap_or_else(|| (9, 1, HashMap::new()));
 
-    // Overlay entity glyphs on top of terrain.
     let mut q = world.query::<(Entity, &Position, &Side, &Health)>();
     for (_e, pos, side, health) in q.iter(world) {
         max_x = max_x.max(pos.x);
