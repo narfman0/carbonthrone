@@ -1,4 +1,4 @@
-use crate::npc::NPCKind;
+use crate::npc::CharacterKind;
 use bevy::prelude::Component;
 
 #[derive(Debug, Clone, Component)]
@@ -10,27 +10,27 @@ pub struct Stats {
 }
 
 impl Stats {
-    pub fn for_character(kind: &NPCKind) -> Self {
+    pub fn for_character(kind: &CharacterKind) -> Self {
         match kind {
-            NPCKind::Researcher => Self {
+            CharacterKind::Researcher => Self {
                 max_hp: 75,
                 attack: 9,
                 defense: 4,
                 speed: 16,
             },
-            NPCKind::Orin => Self {
+            CharacterKind::Orin => Self {
                 max_hp: 90,
                 attack: 8,
                 defense: 8,
                 speed: 9,
             },
-            NPCKind::Doss => Self {
+            CharacterKind::Doss => Self {
                 max_hp: 120,
                 attack: 15,
                 defense: 12,
                 speed: 8,
             },
-            NPCKind::Kaleo => Self {
+            CharacterKind::Kaleo => Self {
                 max_hp: 85,
                 attack: 12,
                 defense: 7,
@@ -41,12 +41,12 @@ impl Stats {
     }
 
     /// Apply growth on level-up. Values are per-level increases.
-    pub fn level_up(&mut self, kind: &NPCKind) {
+    pub fn level_up(&mut self, kind: &CharacterKind) {
         let (hp, atk, def, spd) = match kind {
-            NPCKind::Researcher => (9, 2, 1, 2),
-            NPCKind::Orin => (12, 1, 2, 1),
-            NPCKind::Doss => (18, 3, 3, 1),
-            NPCKind::Kaleo => (11, 2, 1, 2),
+            CharacterKind::Researcher => (9, 2, 1, 2),
+            CharacterKind::Orin => (12, 1, 2, 1),
+            CharacterKind::Doss => (18, 3, 3, 1),
+            CharacterKind::Kaleo => (11, 2, 1, 2),
             _ => panic!("Stats::level_up called on NPC kind {:?}", kind),
         };
         self.max_hp += hp;

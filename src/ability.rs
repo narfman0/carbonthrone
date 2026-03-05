@@ -1,6 +1,6 @@
 use bevy::prelude::Component;
 
-use crate::npc::NPCKind;
+use crate::npc::CharacterKind;
 
 /// The mechanical effect of using an ability in combat.
 #[derive(Debug, Clone, PartialEq)]
@@ -35,11 +35,11 @@ pub struct Ability {
 /// Pair with `Experience` to call `available()` at runtime.
 #[derive(Debug, Clone, Component)]
 pub struct CharacterAbilities {
-    pub character: NPCKind,
+    pub character: CharacterKind,
 }
 
 impl CharacterAbilities {
-    pub fn new(character: NPCKind) -> Self {
+    pub fn new(character: CharacterKind) -> Self {
         Self { character }
     }
 
@@ -50,18 +50,18 @@ impl CharacterAbilities {
 }
 
 /// Returns all abilities defined for `character`.
-pub fn character_abilities(character: &NPCKind) -> Vec<Ability> {
+pub fn character_abilities(character: &CharacterKind) -> Vec<Ability> {
     match character {
-        NPCKind::Researcher => researcher_abilities(),
-        NPCKind::Orin => orin_abilities(),
-        NPCKind::Doss => doss_abilities(),
-        NPCKind::Kaleo => kaleo_abilities(),
+        CharacterKind::Researcher => researcher_abilities(),
+        CharacterKind::Orin => orin_abilities(),
+        CharacterKind::Doss => doss_abilities(),
+        CharacterKind::Kaleo => kaleo_abilities(),
         _ => panic!("character_abilities called on NPC kind {:?}", character),
     }
 }
 
 /// Returns abilities for `character` unlocked at or below `level`.
-pub fn available_abilities(character: &NPCKind, level: u32) -> Vec<Ability> {
+pub fn available_abilities(character: &CharacterKind, level: u32) -> Vec<Ability> {
     character_abilities(character)
         .into_iter()
         .filter(|a| a.level_required <= level)

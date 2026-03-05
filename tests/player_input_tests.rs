@@ -4,7 +4,7 @@ use carbonthrone::{
     character::Character,
     combat::BASE_HIT_CHANCE,
     health::Health,
-    npc::NPCKind,
+    npc::CharacterKind,
     player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
     simulation::{BattleOutcome, BattleStep},
@@ -15,7 +15,7 @@ use carbonthrone::{
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 fn spawn_player(world: &mut World, pos: (i32, i32), attack: i32, defense: i32) -> Entity {
-    let ch = Character::new_player("Player", NPCKind::Doss);
+    let ch = Character::new_player("Player", CharacterKind::Doss);
     world
         .spawn((
             ch,
@@ -33,7 +33,7 @@ fn spawn_player(world: &mut World, pos: (i32, i32), attack: i32, defense: i32) -
 }
 
 fn spawn_enemy(world: &mut World, pos: (i32, i32), defense: i32) -> Entity {
-    let ch = Character::new_npc(NPCKind::Scavenger, 1);
+    let ch = Character::new_npc(CharacterKind::Scavenger, 1);
     world
         .spawn((
             ch,
@@ -300,7 +300,7 @@ fn display_strings_are_non_empty() {
 fn player_choices_returns_options_on_player_turn() {
     let mut world = World::new();
     world.spawn((
-        Character::new_player("Player", NPCKind::Doss),
+        Character::new_player("Player", CharacterKind::Doss),
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -312,7 +312,7 @@ fn player_choices_returns_options_on_player_turn() {
         Position::new(0, 0, 0),
     ));
     world.spawn((
-        Character::new_npc(NPCKind::Scavenger, 1),
+        Character::new_npc(CharacterKind::Scavenger, 1),
         Health::new(50),
         Stats {
             max_hp: 50,
@@ -344,7 +344,7 @@ fn step_player_action_pass_ends_turn() {
     let mut world = World::new();
     let player = world
         .spawn((
-            Character::new_player("Player", NPCKind::Doss),
+            Character::new_player("Player", CharacterKind::Doss),
             Health::new(100),
             Stats {
                 max_hp: 100,
@@ -357,7 +357,7 @@ fn step_player_action_pass_ends_turn() {
         ))
         .id();
     world.spawn((
-        Character::new_npc(NPCKind::Scavenger, 1),
+        Character::new_npc(CharacterKind::Scavenger, 1),
         Health::new(50),
         Stats {
             max_hp: 50,
@@ -382,7 +382,7 @@ fn step_player_action_pass_ends_turn() {
 fn step_player_action_attack_deals_damage() {
     let mut world = World::new();
     world.spawn((
-        Character::new_player("Player", NPCKind::Doss),
+        Character::new_player("Player", CharacterKind::Doss),
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -395,7 +395,7 @@ fn step_player_action_attack_deals_damage() {
     ));
     let enemy = world
         .spawn((
-            Character::new_npc(NPCKind::Scavenger, 1),
+            Character::new_npc(CharacterKind::Scavenger, 1),
             Health::new(50),
             Stats {
                 max_hp: 50,
@@ -428,7 +428,7 @@ fn step_player_action_attack_deals_damage() {
 fn step_player_action_outcome_set_on_victory() {
     let mut world = World::new();
     world.spawn((
-        Character::new_player("Player", NPCKind::Doss),
+        Character::new_player("Player", CharacterKind::Doss),
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -440,7 +440,7 @@ fn step_player_action_outcome_set_on_victory() {
         Position::new(0, 0, 0),
     ));
     world.spawn((
-        Character::new_npc(NPCKind::Scavenger, 1),
+        Character::new_npc(CharacterKind::Scavenger, 1),
         Health::new(1),
         Stats {
             max_hp: 1,

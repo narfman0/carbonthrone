@@ -16,7 +16,7 @@ use carbonthrone::character::{Aggression, Character};
 use carbonthrone::dialog::{DialogEngine, Trigger};
 use carbonthrone::experience::Experience;
 use carbonthrone::health::Health;
-use carbonthrone::npc::NPCKind;
+use carbonthrone::npc::CharacterKind;
 use carbonthrone::position::Position;
 use carbonthrone::simulation::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::stats::Stats;
@@ -315,9 +315,12 @@ fn setup_battle(world: &mut World) {
     let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
     let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
 
-    for (i, (name, pc)) in [("Doss", NPCKind::Doss), ("Researcher", NPCKind::Researcher)]
-        .into_iter()
-        .enumerate()
+    for (i, (name, pc)) in [
+        ("Doss", CharacterKind::Doss),
+        ("Researcher", CharacterKind::Researcher),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let ch = Character::new_player(name, pc);
         let stats = ch.stats.clone();
@@ -333,9 +336,12 @@ fn setup_battle(world: &mut World) {
         ));
     }
 
-    for (i, (kind, level)) in [(NPCKind::Scavenger, 1u32), (NPCKind::DrifterBoss, 2u32)]
-        .into_iter()
-        .enumerate()
+    for (i, (kind, level)) in [
+        (CharacterKind::Scavenger, 1u32),
+        (CharacterKind::DrifterBoss, 2u32),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let ch = Character::new_npc(kind, level);
         let stats = ch.stats.clone();
