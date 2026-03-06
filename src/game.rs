@@ -9,7 +9,7 @@ use crate::dialog::{DialogEngine, Trigger};
 use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
-use crate::terrain::{BattleRng, Tile};
+use crate::terrain::{BattleRng, LevelMap, Tile};
 use crate::zone::{Zone, ZoneKind};
 
 // ── Game phase ────────────────────────────────────────────────────────────────
@@ -219,14 +219,24 @@ impl GameSession {
         let GamePhase::Battle(_) = &self.phase else {
             return;
         };
-        let GamePhase::Battle(mut exploration) =
+        let GamePhase::Battle(exploration) =
             std::mem::replace(&mut self.phase, GamePhase::Transitioning)
         else {
             unreachable!()
         };
-        self.world = World::new();
-        let player_entity = setup_exploration(&mut self.world, &exploration.party);
-        exploration.player_entity = player_entity;
+        // Despawn enemies; party entities persist with their current state.
+        let enemies: Vec<Entity> = {
+            let mut q = self.world.query::<(Entity, &Character)>();
+            q.iter(&self.world)
+                .filter(|(_, c)| !c.kind.is_player())
+                .map(|(e, _)| e)
+                .collect()
+        };
+        for e in enemies {
+            self.world.despawn(e);
+        }
+        self.world.remove_resource::<LevelMap>();
+        self.world.remove_resource::<BattleRng>();
         self.battle = None;
         self.last_event = None;
         self.phase = GamePhase::Exploration(exploration);
