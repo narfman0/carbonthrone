@@ -1,6 +1,6 @@
 use bevy::prelude::*;
+use rand::SeedableRng;
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
 
 use crate::action_points::ActionPoints;
 use crate::character::{Character, CharacterKind};
@@ -32,6 +32,7 @@ pub struct ExplorationState {
     pub npcs: Vec<NpcData>,
     pub dialog: DialogEngine,
     pub location: String,
+    pub zone_kind: ZoneKind,
     /// Lines in the active scene as (speaker, text).
     pub scene_lines: Vec<(String, String)>,
     /// Choice texts in the active scene (empty when no choices).
@@ -61,6 +62,7 @@ impl ExplorationState {
             }],
             dialog,
             location: "command_deck".to_string(),
+            zone_kind: ZoneKind::CommandDeck,
             scene_lines: Vec::new(),
             scene_choices: Vec::new(),
             line_index: 0,
@@ -184,7 +186,10 @@ impl GameSession {
 
     /// Transition from exploration into a fresh battle.
     pub fn transition_to_battle(&mut self) {
-        setup_battle(&mut self.world);
+        let GamePhase::Exploration(state) = &self.phase else {
+            return;
+        };
+        setup_battle(&mut self.world, state.zone_kind);
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
         self.phase = GamePhase::Battle;
@@ -214,7 +219,7 @@ impl Default for GameSession {
 
 // ── World setup ───────────────────────────────────────────────────────────────
 
-pub fn setup_battle(world: &mut World) {
+pub fn setup_battle(world: &mut World, zone_kind: ZoneKind) {
     let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
     let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
 
@@ -257,13 +262,6 @@ pub fn setup_battle(world: &mut World) {
     }
 
     let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-    let zone_kinds = [
-        ZoneKind::CommandDeck,
-        ZoneKind::DockingBay,
-        ZoneKind::ResearchWing,
-        ZoneKind::ExcavationSite,
-    ];
-    let zone_kind = zone_kinds[rng.gen_range(0..4)];
     let mut reserved: Vec<(i32, i32)> = player_positions.to_vec();
     reserved.extend_from_slice(enemy_positions);
     let map = generate_map(10, 10, zone_kind, &reserved, &mut rng);
