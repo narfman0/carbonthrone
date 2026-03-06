@@ -164,7 +164,7 @@ fn render_exploration(state: &ExplorationState) -> String {
     out += &format!("{}\r\n", bar);
     out += "\r\n";
 
-    out += "  Zone: Command Deck\r\n";
+    out += &format!("  Zone: {} \r\n", state.zone_kind.display_name());
     out += "\r\n";
 
     // Zone grid (10 x 6)
@@ -190,15 +190,7 @@ fn render_exploration(state: &ExplorationState) -> String {
 
     // NPC legend
     for npc in &state.npcs {
-        let hint = if {
-            let (nx, ny) = npc.pos;
-            (px - nx).abs() + (py - ny).abs() == 1
-        } {
-            "  [E] to talk"
-        } else {
-            ""
-        };
-        out += &format!("  {} = {}{}\r\n", npc.glyph, npc.name, hint);
+        out += &format!("  {} = {}\r\n", npc.glyph, npc.name);
     }
     out += "\r\n";
 
@@ -231,10 +223,12 @@ fn render_exploration(state: &ExplorationState) -> String {
     // Controls footer
     out += "\r\n";
     out += &format!("{}\r\n", bar);
-    out += &format!(
-        "  {:<27}  {}\r\n",
-        "[WASD/Arrows] move  [E] talk", "[B] battle  [Q] quit"
-    );
+    let move_controls = if state.adjacent_to_npc() {
+        "[WASD/Arrows] move  [E] talk"
+    } else {
+        "[WASD/Arrows] move"
+    };
+    out += &format!("  {:<27}  {}\r\n", move_controls, "[B] battle  [Q] quit");
     out += &format!("{}\r\n", bar);
 
     out
