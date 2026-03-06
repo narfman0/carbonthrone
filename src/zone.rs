@@ -1,6 +1,8 @@
-use crate::character::CharacterKind;
-use crate::level::Level;
+use crate::character::{Character, CharacterKind};
+use crate::position::Position;
+use crate::terrain::{LevelMap, generate_map};
 use rand::Rng;
+use std::collections::HashSet;
 
 /// One of the nine named zones in the Meridian station, as described in docs/world.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -80,18 +82,36 @@ impl CardinalDir {
 /// At 0.75, three out of four zone entries trigger a fight.
 pub const ENCOUNTER_CHANCE: f64 = 0.75;
 
-/// A zone in the Meridian station with a freshly generated encounter layout.
+/// Who, if anyone, has the initiative advantage at the start of an encounter.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SurpriseState {
+    /// Turn order is determined normally by speed stats.
+    Normal,
+    /// Enemies detected the party first — enemies act before the party this encounter.
+    PartyAmbushed,
+    /// The party detected the enemies first — party acts before enemies this encounter.
+    EnemyAmbushed,
+}
+
+/// A zone in the Meridian station with a generated terrain map and optional encounter.
 ///
 /// Call [`Zone::enter`] each time the player enters a zone to get a new random layout.
-/// Combat happens before exploration: if `encounter` is `Some`, the party must resolve
-/// that fight before NPCs phase-shift in. Use [`Zone::npcs_available`] to check
-/// whether NPCs should appear.
+/// Combat happens before exploration: if `has_encounter()` is true, the party must
+/// resolve that fight before NPCs phase-shift in. Use [`Zone::npcs_available`] to check.
 #[derive(Debug)]
 pub struct Zone {
     pub kind: ZoneKind,
     pub connections: ZoneConnections,
-    /// `Some` when a combat encounter was rolled on entry; `None` for a clear zone.
-    pub encounter: Option<Level>,
+    pub depth: u32,
+    /// Grid width (number of columns along the X axis).
+    pub cols: u32,
+    /// Grid height (number of rows along the Y axis).
+    pub rows: u32,
+    /// Enemies and their starting positions. Empty when there is no encounter.
+    pub enemies: Vec<(Character, Position)>,
+    /// The terrain map for this zone.
+    pub map: LevelMap,
+    pub surprise: SurpriseState,
 }
 
 impl Zone {
@@ -101,18 +121,65 @@ impl Zone {
     /// using zone-appropriate terrain and enemy types. NPCs only phase-shift in
     /// after the encounter is resolved (or immediately when there is none).
     pub fn enter(kind: ZoneKind, depth: u32, rng: &mut impl Rng) -> Self {
+        let with_encounter = rng.r#gen::<f64>() < ENCOUNTER_CHANCE;
+        Self::build(kind, depth, with_encounter, rng)
+    }
+
+    /// Generate a zone with a guaranteed encounter, picking a random zone kind.
+    /// Useful for testing and procedural content generation.
+    pub fn generate(depth: u32, rng: &mut impl Rng) -> Self {
+        let kind = random_zone_kind(rng);
+        Self::build(kind, depth, true, rng)
+    }
+
+    fn build(kind: ZoneKind, depth: u32, with_encounter: bool, rng: &mut impl Rng) -> Self {
         let connections = zone_connections(kind);
-        let encounter = if rng.r#gen::<f64>() < ENCOUNTER_CHANCE {
+        let cols: u32 = rng.gen_range(8..=16);
+        let rows: u32 = rng.gen_range(8..=16);
+
+        let mut enemies = Vec::new();
+        if with_encounter {
+            let enemy_level = depth.max(1);
             let enemy_pool = kind.enemy_pool();
-            Some(Level::generate_for_zone(depth, kind, enemy_pool, rng))
-        } else {
-            None
+            let enemy_count: usize = rng.gen_range(1..=4);
+            let mut used: HashSet<(i32, i32)> = HashSet::new();
+            while enemies.len() < enemy_count {
+                let x = rng.gen_range(0..cols as i32);
+                let y = rng.gen_range(0..rows as i32);
+                if used.insert((x, y)) {
+                    let ek = enemy_pool[rng.gen_range(0..enemy_pool.len())].clone();
+                    enemies.push((
+                        Character::new_character(ek, enemy_level),
+                        Position::new(x, y, 0),
+                    ));
+                }
+            }
+        }
+
+        let reserved: Vec<(i32, i32)> = enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
+        let map = generate_map(cols, rows, kind, &reserved, rng);
+
+        let surprise = match rng.gen_range(0..4u32) {
+            0 => SurpriseState::PartyAmbushed,
+            1 => SurpriseState::EnemyAmbushed,
+            _ => SurpriseState::Normal,
         };
+
         Self {
             kind,
             connections,
-            encounter,
+            depth,
+            cols,
+            rows,
+            enemies,
+            map,
+            surprise,
         }
+    }
+
+    /// True when this zone has a combat encounter (enemies present).
+    pub fn has_encounter(&self) -> bool {
+        !self.enemies.is_empty()
     }
 
     /// Returns `true` when NPCs may phase-shift into the zone.
@@ -120,7 +187,7 @@ impl Zone {
     /// NPCs are held back during an active combat encounter and become
     /// available only once the encounter is cleared (or when there was none).
     pub fn npcs_available(&self, encounter_cleared: bool) -> bool {
-        self.encounter.is_none() || encounter_cleared
+        !self.has_encounter() || encounter_cleared
     }
 }
 
@@ -241,5 +308,19 @@ pub fn zone_connections(kind: ZoneKind) -> ZoneConnections {
             east: Some(ZoneKind::StationExterior),
             ..Default::default()
         },
+    }
+}
+
+fn random_zone_kind(rng: &mut impl Rng) -> ZoneKind {
+    match rng.gen_range(0..9u32) {
+        0 => ZoneKind::ResearchWing,
+        1 => ZoneKind::CommandDeck,
+        2 => ZoneKind::MilitaryAnnex,
+        3 => ZoneKind::SystemsCore,
+        4 => ZoneKind::MedicalBay,
+        5 => ZoneKind::DockingBay,
+        6 => ZoneKind::StationExterior,
+        7 => ZoneKind::RelayArray,
+        _ => ZoneKind::ExcavationSite,
     }
 }

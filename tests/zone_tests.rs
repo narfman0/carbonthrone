@@ -133,11 +133,7 @@ fn exterior_zones_have_correct_type() {
 fn zone_enter_can_produce_encounter() {
     use carbonthrone::zone::Zone;
     let mut r = rng();
-    let found = (0..50).any(|_| {
-        Zone::enter(ZoneKind::DockingBay, 1, &mut r)
-            .encounter
-            .is_some()
-    });
+    let found = (0..50).any(|_| Zone::enter(ZoneKind::DockingBay, 1, &mut r).has_encounter());
     assert!(found, "expected at least one encounter in 50 attempts");
 }
 
@@ -145,11 +141,7 @@ fn zone_enter_can_produce_encounter() {
 fn zone_enter_can_skip_encounter() {
     use carbonthrone::zone::Zone;
     let mut r = rng();
-    let found = (0..50).any(|_| {
-        Zone::enter(ZoneKind::DockingBay, 1, &mut r)
-            .encounter
-            .is_none()
-    });
+    let found = (0..50).any(|_| !Zone::enter(ZoneKind::DockingBay, 1, &mut r).has_encounter());
     assert!(
         found,
         "expected at least one zone without encounter in 50 attempts"
@@ -162,8 +154,8 @@ fn zone_enter_encounter_has_enemies() {
     let mut r = rng();
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
-        if let Some(level) = &zone.encounter {
-            assert!(!level.enemies.is_empty(), "encounter had no enemies");
+        if zone.has_encounter() {
+            assert!(!zone.enemies.is_empty(), "encounter had no enemies");
             return;
         }
     }
@@ -177,8 +169,8 @@ fn zone_enter_enemies_come_from_zone_pool() {
     let pool = ZoneKind::ResearchWing.enemy_pool();
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::ResearchWing, 1, &mut r);
-        if let Some(level) = &zone.encounter {
-            for (enemy, _) in &level.enemies {
+        if zone.has_encounter() {
+            for (enemy, _) in &zone.enemies {
                 assert!(
                     pool.contains(&enemy.kind),
                     "ResearchWing spawned unexpected enemy kind: {:?}",
@@ -210,8 +202,8 @@ fn enemy_level_matches_depth_in_zone() {
     let mut r = rng();
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::MilitaryAnnex, depth, &mut r);
-        if let Some(level) = &zone.encounter {
-            assert!(level.enemies.iter().all(|(e, _)| e.level == depth));
+        if zone.has_encounter() {
+            assert!(zone.enemies.iter().all(|(e, _)| e.level == depth));
             return;
         }
     }
@@ -247,7 +239,7 @@ fn npcs_available_when_no_encounter() {
     let mut r = rng();
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
-        if zone.encounter.is_none() {
+        if !zone.has_encounter() {
             assert!(
                 zone.npcs_available(false),
                 "NPCs should be available with no encounter"
@@ -264,7 +256,7 @@ fn npcs_not_available_during_active_encounter() {
     let mut r = rng();
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
-        if zone.encounter.is_some() {
+        if zone.has_encounter() {
             assert!(
                 !zone.npcs_available(false),
                 "NPCs should be hidden during an active encounter"
@@ -281,7 +273,7 @@ fn npcs_available_after_encounter_cleared() {
     let mut r = rng();
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
-        if zone.encounter.is_some() {
+        if zone.has_encounter() {
             assert!(
                 zone.npcs_available(true),
                 "NPCs should phase-shift in after encounter is cleared"

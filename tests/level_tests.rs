@@ -1,5 +1,5 @@
-use carbonthrone::level::{Level, SurpriseState};
 use carbonthrone::terrain::Tile;
+use carbonthrone::zone::{SurpriseState, Zone, ZoneKind};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -9,52 +9,52 @@ fn rng() -> StdRng {
 
 #[test]
 fn level_has_at_least_one_enemy() {
-    let level = Level::generate(1, &mut rng());
-    assert!(!level.enemies.is_empty());
+    let zone = Zone::generate(1, &mut rng());
+    assert!(!zone.enemies.is_empty());
 }
 
 #[test]
 fn level_has_at_most_four_enemies() {
-    let level = Level::generate(1, &mut rng());
-    assert!(level.enemies.len() <= 4);
+    let zone = Zone::generate(1, &mut rng());
+    assert!(zone.enemies.len() <= 4);
 }
 
 #[test]
 fn enemy_level_matches_depth() {
     let depth = 5;
-    let level = Level::generate(depth, &mut rng());
-    assert!(level.enemies.iter().all(|(e, _)| e.level == depth));
+    let zone = Zone::generate(depth, &mut rng());
+    assert!(zone.enemies.iter().all(|(e, _)| e.level == depth));
 }
 
 #[test]
 fn depth_zero_clamps_enemy_level_to_one() {
-    let level = Level::generate(0, &mut rng());
-    assert!(level.enemies.iter().all(|(e, _)| e.level == 1));
+    let zone = Zone::generate(0, &mut rng());
+    assert!(zone.enemies.iter().all(|(e, _)| e.level == 1));
 }
 
 #[test]
 fn enemy_positions_are_within_grid() {
-    let level = Level::generate(1, &mut rng());
-    for (_, pos) in &level.enemies {
-        assert!(pos.x >= 0 && pos.x < level.cols as i32);
-        assert!(pos.y >= 0 && pos.y < level.rows as i32);
+    let zone = Zone::generate(1, &mut rng());
+    for (_, pos) in &zone.enemies {
+        assert!(pos.x >= 0 && pos.x < zone.cols as i32);
+        assert!(pos.y >= 0 && pos.y < zone.rows as i32);
         assert_eq!(pos.z, 0);
     }
 }
 
 #[test]
 fn enemy_positions_are_unique() {
-    let level = Level::generate(1, &mut rng());
-    let positions: Vec<_> = level.enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
+    let zone = Zone::generate(1, &mut rng());
+    let positions: Vec<_> = zone.enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
     let unique: std::collections::HashSet<_> = positions.iter().collect();
     assert_eq!(positions.len(), unique.len());
 }
 
 #[test]
 fn level_grid_has_minimum_dimensions() {
-    let level = Level::generate(1, &mut rng());
-    assert!(level.cols >= 8);
-    assert!(level.rows >= 8);
+    let zone = Zone::generate(1, &mut rng());
+    assert!(zone.cols >= 8);
+    assert!(zone.rows >= 8);
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn surprise_states_all_occur_across_many_levels() {
     let mut saw_enemy_ambushed = false;
 
     for _ in 0..200 {
-        match Level::generate(1, &mut rng).surprise {
+        match Zone::generate(1, &mut rng).surprise {
             SurpriseState::Normal => saw_normal = true,
             SurpriseState::PartyAmbushed => saw_party_ambushed = true,
             SurpriseState::EnemyAmbushed => saw_enemy_ambushed = true,
@@ -79,8 +79,8 @@ fn surprise_states_all_occur_across_many_levels() {
 
 #[test]
 fn different_seeds_produce_different_levels() {
-    let a = Level::generate(3, &mut StdRng::seed_from_u64(1));
-    let b = Level::generate(3, &mut StdRng::seed_from_u64(99));
+    let a = Zone::generate(3, &mut StdRng::seed_from_u64(1));
+    let b = Zone::generate(3, &mut StdRng::seed_from_u64(99));
     let same = a.enemies.len() == b.enemies.len()
         && a.enemies
             .iter()
@@ -93,24 +93,23 @@ fn different_seeds_produce_different_levels() {
 
 #[test]
 fn level_has_a_zone_kind() {
-    let level = Level::generate(1, &mut rng());
-    // Just verify the zone_kind field exists and is valid (all variants are valid)
-    let _ = level.zone_kind;
+    let zone = Zone::generate(1, &mut rng());
+    let _ = zone.kind;
 }
 
 #[test]
 fn level_map_dimensions_match_cols_rows() {
-    let level = Level::generate(1, &mut rng());
-    assert_eq!(level.map.cols, level.cols);
-    assert_eq!(level.map.rows, level.rows);
+    let zone = Zone::generate(1, &mut rng());
+    assert_eq!(zone.map.cols, zone.cols);
+    assert_eq!(zone.map.rows, zone.rows);
 }
 
 #[test]
 fn enemy_spawn_tiles_are_open() {
-    let level = Level::generate(1, &mut rng());
-    for (_, pos) in &level.enemies {
+    let zone = Zone::generate(1, &mut rng());
+    for (_, pos) in &zone.enemies {
         assert_eq!(
-            level.map.get(pos.x, pos.y),
+            zone.map.get(pos.x, pos.y),
             Tile::Open,
             "enemy spawn at ({}, {}) should be Open",
             pos.x,
@@ -121,12 +120,11 @@ fn enemy_spawn_tiles_are_open() {
 
 #[test]
 fn all_zone_kind_variants_can_be_generated() {
-    use carbonthrone::zone::ZoneKind;
     let mut rng = rng();
     let mut saw = [false; 9];
 
     for _ in 0..500 {
-        let idx = match Level::generate(1, &mut rng).zone_kind {
+        let idx = match Zone::generate(1, &mut rng).kind {
             ZoneKind::ResearchWing => 0,
             ZoneKind::CommandDeck => 1,
             ZoneKind::MilitaryAnnex => 2,
