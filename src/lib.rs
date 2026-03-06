@@ -4,6 +4,7 @@ pub mod character;
 pub mod combat;
 pub mod dialog;
 pub mod experience;
+pub mod game;
 pub mod health;
 pub mod level;
 pub mod party;

@@ -8,170 +8,17 @@ use crossterm::{
     execute,
     terminal::{self, ClearType},
 };
-use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
 
-use carbonthrone::action_points::ActionPoints;
-use carbonthrone::character::{Aggression, Character, CharacterKind};
+use carbonthrone::character::{Aggression, Character};
 use carbonthrone::combat::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
-use carbonthrone::dialog::{DialogEngine, Trigger};
-use carbonthrone::experience::Experience;
+use carbonthrone::game::{ExplorationState, GamePhase, GameSession};
 use carbonthrone::health::Health;
 use carbonthrone::position::Position;
 use carbonthrone::stats::Stats;
-use carbonthrone::terrain::{BattleRng, CoverLevel, LevelMap, generate_map};
-use carbonthrone::zone::ZoneKind;
-
-// ── Game phase ────────────────────────────────────────────────────────────────
-
-enum GamePhase {
-    Exploration(ExplorationState),
-    Battle,
-}
-
-// ── Exploration state ─────────────────────────────────────────────────────────
-
-struct NpcData {
-    pos: (i32, i32),
-    name: &'static str,
-    glyph: char,
-}
-
-struct ExplorationState {
-    player_pos: (i32, i32),
-    npcs: Vec<NpcData>,
-    dialog: DialogEngine,
-    location: String,
-    /// Lines in the active scene as (speaker, text).
-    scene_lines: Vec<(String, String)>,
-    /// Choice texts in the active scene (empty when no choices).
-    scene_choices: Vec<String>,
-    /// Index of the currently displayed line.
-    line_index: usize,
-    /// Index of the highlighted choice (only meaningful at choice screen).
-    choice_index: usize,
-    /// Whether dialog is currently displayed.
-    in_dialog: bool,
-}
-
-impl ExplorationState {
-    fn new() -> Self {
-        let mut dialog = DialogEngine::new();
-        let yaml = include_str!("../data/loops/loop1.yaml");
-        dialog.load_script(yaml).expect("load loop1.yaml");
-        dialog.set_companion("orin");
-        dialog.set_flag("companion_orin");
-
-        let mut state = Self {
-            player_pos: (0, 2),
-            npcs: vec![NpcData {
-                pos: (5, 2),
-                name: "Orin",
-                glyph: 'N',
-            }],
-            dialog,
-            location: "command_deck".to_string(),
-            scene_lines: Vec::new(),
-            scene_choices: Vec::new(),
-            line_index: 0,
-            choice_index: 0,
-            in_dialog: false,
-        };
-        state.fire_trigger(Trigger::OnEnter);
-        state
-    }
-
-    /// Fire a trigger at the current location and load the resulting scene, if any.
-    fn fire_trigger(&mut self, trigger: Trigger) {
-        let loc = self.location.clone();
-        if let Some(scene) = self.dialog.trigger(&trigger, &loc) {
-            self.scene_lines = scene
-                .lines
-                .iter()
-                .map(|l| (l.speaker.clone(), l.text.clone()))
-                .collect();
-            self.scene_choices = scene
-                .choices
-                .as_ref()
-                .map(|cs| cs.iter().map(|c| c.text.clone()).collect())
-                .unwrap_or_default();
-            self.line_index = 0;
-            self.choice_index = 0;
-            self.in_dialog = !self.scene_lines.is_empty();
-        }
-    }
-
-    /// True when the player is at the last line and choices are visible.
-    fn at_choice_screen(&self) -> bool {
-        self.in_dialog
-            && self.line_index + 1 >= self.scene_lines.len()
-            && !self.scene_choices.is_empty()
-    }
-
-    /// Advance one dialog line.  Returns `true` when the dialog closes.
-    fn advance_dialog(&mut self) -> bool {
-        if self.line_index + 1 < self.scene_lines.len() {
-            self.line_index += 1;
-            false
-        } else if !self.scene_choices.is_empty() {
-            // Stay at the choice screen — handled by select_choice().
-            false
-        } else {
-            self.in_dialog = false;
-            true
-        }
-    }
-
-    /// Confirm the highlighted choice.
-    fn select_choice(&mut self) {
-        if let Some(scene) = self.dialog.select_choice(self.choice_index) {
-            self.scene_lines = scene
-                .lines
-                .iter()
-                .map(|l| (l.speaker.clone(), l.text.clone()))
-                .collect();
-            self.scene_choices = scene
-                .choices
-                .as_ref()
-                .map(|cs| cs.iter().map(|c| c.text.clone()).collect())
-                .unwrap_or_default();
-            self.line_index = 0;
-            self.choice_index = 0;
-            self.in_dialog = !self.scene_lines.is_empty();
-        } else {
-            self.in_dialog = false;
-        }
-    }
-
-    /// Try to move the player by (dx, dy).  Blocked by NPCs and map edges.
-    fn try_move(&mut self, dx: i32, dy: i32) {
-        if self.in_dialog {
-            return;
-        }
-        let nx = (self.player_pos.0 + dx).clamp(0, 9);
-        let ny = (self.player_pos.1 + dy).clamp(0, 9);
-        if !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
-            self.player_pos = (nx, ny);
-        }
-    }
-
-    /// True when the player is adjacent (Manhattan distance 1) to any NPC.
-    fn adjacent_to_npc(&self) -> bool {
-        let (px, py) = self.player_pos;
-        self.npcs.iter().any(|n| {
-            let (nx, ny) = n.pos;
-            (px - nx).abs() + (py - ny).abs() == 1
-        })
-    }
-}
-
-// ── Entry point ───────────────────────────────────────────────────────────────
+use carbonthrone::terrain::{CoverLevel, LevelMap};
 
 fn main() {
-    let mut phase = GamePhase::Exploration(ExplorationState::new());
-    let mut world = World::new();
-    let mut battle: Option<BattleStep> = None;
-    let mut last_event: Option<TurnEvent> = None;
+    let mut session = GameSession::new();
 
     let mut stdout = io::stdout();
     terminal::enable_raw_mode().expect("enable raw mode");
@@ -184,14 +31,17 @@ fn main() {
         )
         .unwrap();
 
-        match &phase {
+        match &session.phase {
             GamePhase::Exploration(state) => {
                 let frame = render_exploration(state);
                 write!(stdout, "{}", frame).unwrap();
             }
             GamePhase::Battle => {
-                let b = battle.as_mut().unwrap();
-                let frame = render(&mut world, b, last_event.as_ref());
+                let frame = render(
+                    &mut session.world,
+                    session.battle.as_ref().unwrap(),
+                    session.last_event.as_ref(),
+                );
                 write!(stdout, "{}", frame).unwrap();
             }
         }
@@ -218,7 +68,7 @@ fn main() {
                 _ => {}
             }
 
-            match &mut phase {
+            match &mut session.phase {
                 // ── Exploration input ─────────────────────────────────────
                 GamePhase::Exploration(state) => {
                     if state.in_dialog {
@@ -266,17 +116,14 @@ fn main() {
                                 break;
                             }
                             KeyCode::Char('e') => {
+                                use carbonthrone::dialog::Trigger;
                                 if state.adjacent_to_npc() {
                                     state.fire_trigger(Trigger::OnInteract);
                                 }
                                 break;
                             }
                             KeyCode::Char('b') => {
-                                // Transition to battle
-                                setup_battle(&mut world);
-                                battle = Some(BattleStep::new(&mut world));
-                                last_event = None;
-                                phase = GamePhase::Battle;
+                                session.transition_to_battle();
                                 break;
                             }
                             _ => {}
@@ -286,15 +133,10 @@ fn main() {
 
                 // ── Battle input ──────────────────────────────────────────
                 GamePhase::Battle => {
-                    let b = battle.as_mut().unwrap();
-                    let battle_over = last_event
-                        .as_ref()
-                        .and_then(|e| e.outcome.as_ref())
-                        .is_some();
-
+                    let battle_over = session.battle_over();
                     match k.code {
                         KeyCode::Char(' ') if !battle_over => {
-                            last_event = Some(b.step(&mut world));
+                            session.step_battle();
                             break;
                         }
                         _ if battle_over => {
@@ -307,65 +149,6 @@ fn main() {
             }
         }
     }
-}
-
-// ── World setup ───────────────────────────────────────────────────────────────
-
-fn setup_battle(world: &mut World) {
-    let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
-    let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
-
-    for (i, pc) in [CharacterKind::Doss, CharacterKind::Researcher]
-        .into_iter()
-        .enumerate()
-    {
-        let ch = Character::new_character(pc, 1);
-        let stats = ch.stats.clone();
-        let hp = ch.current_hp;
-        let (px, py) = player_positions[i];
-        world.spawn((
-            ch,
-            stats,
-            Health::new(hp),
-            ActionPoints::new(4),
-            Experience::new(),
-            Position::new(px, py, 0),
-        ));
-    }
-
-    for (i, (kind, level)) in [
-        (CharacterKind::Scavenger, 1u32),
-        (CharacterKind::DrifterBoss, 2u32),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let ch = Character::new_character(kind, level);
-        let stats = ch.stats.clone();
-        let hp = ch.current_hp;
-        let (ex, ey) = enemy_positions[i];
-        world.spawn((
-            ch,
-            stats,
-            Health::new(hp),
-            ActionPoints::new(4),
-            Position::new(ex, ey, 0),
-        ));
-    }
-
-    let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-    let zone_kinds = [
-        ZoneKind::CommandDeck,
-        ZoneKind::DockingBay,
-        ZoneKind::ResearchWing,
-        ZoneKind::ExcavationSite,
-    ];
-    let zone_kind = zone_kinds[rng.gen_range(0..4)];
-    let mut reserved: Vec<(i32, i32)> = player_positions.to_vec();
-    reserved.extend_from_slice(enemy_positions);
-    let map = generate_map(10, 10, zone_kind, &reserved, &mut rng);
-    world.insert_resource(map);
-    world.insert_resource(BattleRng(rng));
 }
 
 // ── Exploration rendering ─────────────────────────────────────────────────────
@@ -381,7 +164,7 @@ fn render_exploration(state: &ExplorationState) -> String {
     out += &format!("{}\r\n", bar);
     out += "\r\n";
 
-    out += &format!("  Zone: Command Deck\r\n");
+    out += "  Zone: Command Deck\r\n";
     out += "\r\n";
 
     // Zone grid (10 x 6)
