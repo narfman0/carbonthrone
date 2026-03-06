@@ -207,28 +207,26 @@ fn render_exploration(state: &ExplorationState) -> String {
                 out += &format!("  {cursor} {choice}\r\n");
             }
             out += "\r\n";
-            out += "  [UP/DOWN] choose  [ENTER] confirm\r\n";
-        } else {
-            let remaining = state.scene_lines.len().saturating_sub(state.line_index + 1);
-            if remaining > 0 {
-                out += &format!("  ({remaining} line(s) remaining — SPACE to continue)\r\n");
-            } else {
-                out += "  [SPACE] close\r\n";
-            }
         }
     } else {
-        out += "  (explore the zone — move with WASD / arrow keys)\r\n";
+        out += "  (explore the zone)\r\n";
     }
 
     // Controls footer
     out += "\r\n";
     out += &format!("{}\r\n", bar);
-    let move_controls = if state.adjacent_to_npc() {
-        "[WASD/Arrows] move  [E] talk"
+    let controls_str = if state.in_dialog {
+        if state.at_choice_screen() {
+            "[UP/DOWN] choose  [ENTER] confirm"
+        } else {
+            "[SPACE] continue"
+        }
+    } else if state.adjacent_to_npc() {
+        "[WASD/Arrows] move  [E] talk  [B] battle  [Q] quit"
     } else {
-        "[WASD/Arrows] move"
+        "[WASD/Arrows] move  [B] battle  [Q] quit"
     };
-    out += &format!("  {:<27}  {}\r\n", move_controls, "[B] battle  [Q] quit");
+    out += &format!("{controls_str}\r\n");
     out += &format!("{}\r\n", bar);
 
     out
