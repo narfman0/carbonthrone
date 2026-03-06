@@ -191,7 +191,7 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
             for (tile_cover, dist, tx, ty) in candidates {
                 if seen.insert(tile_cover as u8) {
                     choices.push(PlayerActionChoice::MoveToCover {
-                        destination: Position::new(tx, ty, actor_pos.z),
+                        destination: Position::new(tx, ty),
                         cover: tile_cover,
                         ap_cost: dist * MOVE_AP_COST,
                     });

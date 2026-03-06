@@ -38,7 +38,6 @@ fn enemy_positions_are_within_grid() {
     for (_, pos) in &zone.enemies {
         assert!(pos.x >= 0 && pos.x < zone.cols as i32);
         assert!(pos.y >= 0 && pos.y < zone.rows as i32);
-        assert_eq!(pos.z, 0);
     }
 }
 

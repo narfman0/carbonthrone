@@ -69,9 +69,9 @@ fn attack_on_dead_target_fails() {
 fn move_changes_position_and_costs_ap() {
     let mut world = World::new();
     let mover = world
-        .spawn((ActionPoints::new(4), Position::new(0, 0, 0)))
+        .spawn((ActionPoints::new(4), Position::new(0, 0)))
         .id();
-    let dest = Position::new(3, 0, 0); // distance = 3
+    let dest = Position::new(3, 0); // distance = 3
 
     let result = apply_action(&mut world, mover, &Action::Move { destination: dest });
 
@@ -88,9 +88,9 @@ fn move_changes_position_and_costs_ap() {
 fn move_fails_without_enough_ap() {
     let mut world = World::new();
     let mover = world
-        .spawn((ActionPoints::new(2), Position::new(0, 0, 0)))
+        .spawn((ActionPoints::new(2), Position::new(0, 0)))
         .id();
-    let dest = Position::new(5, 0, 0); // distance = 5, costs 5 AP
+    let dest = Position::new(5, 0); // distance = 5, costs 5 AP
 
     let result = apply_action(&mut world, mover, &Action::Move { destination: dest });
 
@@ -103,14 +103,14 @@ fn move_fails_without_enough_ap() {
 fn move_to_same_position_fails() {
     let mut world = World::new();
     let mover = world
-        .spawn((ActionPoints::new(4), Position::new(2, 3, 0)))
+        .spawn((ActionPoints::new(4), Position::new(2, 3)))
         .id();
 
     let result = apply_action(
         &mut world,
         mover,
         &Action::Move {
-            destination: Position::new(2, 3, 0),
+            destination: Position::new(2, 3),
         },
     );
 
@@ -134,7 +134,7 @@ fn pass_does_not_change_ap() {
 fn move_to_obstacle_is_blocked() {
     let mut world = World::new();
     let mover = world
-        .spawn((ActionPoints::new(4), Position::new(0, 0, 0)))
+        .spawn((ActionPoints::new(4), Position::new(0, 0)))
         .id();
 
     let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
@@ -145,7 +145,7 @@ fn move_to_obstacle_is_blocked() {
         &mut world,
         mover,
         &Action::Move {
-            destination: Position::new(2, 0, 0),
+            destination: Position::new(2, 0),
         },
     );
 
@@ -162,10 +162,10 @@ fn move_to_obstacle_is_blocked() {
 fn seeded_world_with_full_cover(seed: u64) -> (World, Entity, Entity) {
     let mut world = World::new();
     let attacker = world
-        .spawn((stats(10, 0), ActionPoints::new(4), Position::new(5, 0, 0)))
+        .spawn((stats(10, 0), ActionPoints::new(4), Position::new(5, 0)))
         .id();
     let target = world
-        .spawn((stats(0, 0), Health::new(100), Position::new(5, 5, 0)))
+        .spawn((stats(0, 0), Health::new(100), Position::new(5, 5)))
         .id();
 
     let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
@@ -184,7 +184,7 @@ fn attack_hit_on_open_tile_deals_damage() {
     let mut world = World::new();
     let attacker = world.spawn((stats(10, 0), ActionPoints::new(4))).id();
     let target = world
-        .spawn((stats(0, 0), Health::new(100), Position::new(5, 5, 0)))
+        .spawn((stats(0, 0), Health::new(100), Position::new(5, 5)))
         .id();
     world.insert_resource(BattleRng(StdRng::seed_from_u64(0)));
 

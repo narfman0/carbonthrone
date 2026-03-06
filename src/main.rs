@@ -169,7 +169,7 @@ fn render_exploration(state: &ExplorationState) -> String {
 
     let grid_cols = state.zone.cols as i32;
     let grid_rows = state.zone.rows as i32;
-    let (px, py) = state.player_pos;
+    let (px, py) = (state.pos.x, state.pos.y);
 
     for y in 0..grid_rows {
         out += "  ";

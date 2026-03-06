@@ -150,7 +150,7 @@ impl Zone {
                     let ek = enemy_pool[rng.gen_range(0..enemy_pool.len())].clone();
                     enemies.push((
                         Character::new_character(ek, enemy_level),
-                        Position::new(x, y, 0),
+                        Position::new(x, y),
                     ));
                 }
             }

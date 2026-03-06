@@ -505,13 +505,13 @@ fn seek_cover_action(world: &mut World, actor: Entity, turn: Turn, ap: i32) -> O
             .find(|&&(dist, _, _, _)| dist <= attack_budget)
     {
         return Some(Action::Move {
-            destination: Position::new(tx, ty, actor_pos.z),
+            destination: Position::new(tx, ty),
         });
     }
 
     // Phase 2: advance toward the best cover using all AP (no attack this turn).
     candidates.first().map(|&(_, tx, ty, _)| Action::Move {
-        destination: Position::new(tx, ty, actor_pos.z),
+        destination: Position::new(tx, ty),
     })
 }
 

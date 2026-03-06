@@ -28,7 +28,7 @@ pub struct NpcData {
 }
 
 pub struct ExplorationState {
-    pub player_pos: (i32, i32),
+    pub pos: Position,
     pub npcs: Vec<NpcData>,
     pub dialog: DialogEngine,
     pub zone: Zone,
@@ -55,7 +55,7 @@ impl ExplorationState {
         let zone = Zone::enter(ZoneKind::CommandDeck, 1, &mut rng);
 
         let mut state = Self {
-            player_pos: (0, 2),
+            pos: Position::new(0, 2),
             npcs: vec![NpcData {
                 pos: (5, 2),
                 name: "Orin",
@@ -140,16 +140,16 @@ impl ExplorationState {
         if self.in_dialog {
             return;
         }
-        let nx = (self.player_pos.0 + dx).clamp(0, self.zone.cols as i32 - 1);
-        let ny = (self.player_pos.1 + dy).clamp(0, self.zone.rows as i32 - 1);
+        let nx = (self.pos.x + dx).clamp(0, self.zone.cols as i32 - 1);
+        let ny = (self.pos.y + dy).clamp(0, self.zone.rows as i32 - 1);
         if self.zone.map.get(nx, ny) == Tile::Open && !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
-            self.player_pos = (nx, ny);
+            self.pos = Position::new(nx, ny);
         }
     }
 
     /// True when the player is adjacent (Manhattan distance 1) to any NPC.
     pub fn adjacent_to_npc(&self) -> bool {
-        let (px, py) = self.player_pos;
+        let (px, py) = (self.pos.x, self.pos.y);
         self.npcs.iter().any(|n| {
             let (nx, ny) = n.pos;
             (px - nx).abs() + (py - ny).abs() == 1
@@ -266,7 +266,7 @@ pub fn setup_battle(world: &mut World, zone: &Zone, party: &[Character]) {
             Health::new(hp),
             ActionPoints::new(4),
             Experience::new(),
-            Position::new(px, py, 0),
+            Position::new(px, py),
         ));
     }
 
@@ -278,7 +278,7 @@ pub fn setup_battle(world: &mut World, zone: &Zone, party: &[Character]) {
             stats,
             Health::new(hp),
             ActionPoints::new(4),
-            Position::new(pos.x, pos.y, 0),
+            Position::new(pos.x, pos.y),
         ));
     }
 

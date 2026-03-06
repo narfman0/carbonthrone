@@ -27,7 +27,7 @@ fn spawn_player(world: &mut World, pos: (i32, i32), attack: i32, defense: i32) -
                 speed: 10,
             },
             ActionPoints::new(4),
-            Position::new(pos.0, pos.1, 0),
+            Position::new(pos.0, pos.1),
         ))
         .id()
 }
@@ -45,7 +45,7 @@ fn spawn_enemy(world: &mut World, pos: (i32, i32), defense: i32) -> Entity {
                 speed: 5,
             },
             ActionPoints::new(4),
-            Position::new(pos.0, pos.1, 0),
+            Position::new(pos.0, pos.1),
         ))
         .id()
 }
@@ -197,7 +197,7 @@ fn no_attack_choices_when_ap_too_low() {
                 speed: 10,
             },
             ActionPoints::new(1),
-            Position::new(0, 0, 0),
+            Position::new(0, 0),
         ))
         .id();
     spawn_enemy(&mut world, (5, 0), 4);
@@ -309,7 +309,7 @@ fn player_choices_returns_options_on_player_turn() {
             speed: 10,
         },
         ActionPoints::new(4),
-        Position::new(0, 0, 0),
+        Position::new(0, 0),
     ));
     world.spawn((
         Character::new_character(CharacterKind::Scavenger, 1),
@@ -321,7 +321,7 @@ fn player_choices_returns_options_on_player_turn() {
             speed: 5,
         },
         ActionPoints::new(4),
-        Position::new(5, 0, 0),
+        Position::new(5, 0),
     ));
 
     let mut bs = BattleStep::new(&mut world);
@@ -353,7 +353,7 @@ fn step_player_action_pass_ends_turn() {
                 speed: 10,
             },
             ActionPoints::new(4),
-            Position::new(0, 0, 0),
+            Position::new(0, 0),
         ))
         .id();
     world.spawn((
@@ -366,7 +366,7 @@ fn step_player_action_pass_ends_turn() {
             speed: 5,
         },
         ActionPoints::new(4),
-        Position::new(5, 0, 0),
+        Position::new(5, 0),
     ));
 
     let mut bs = BattleStep::new(&mut world);
@@ -391,7 +391,7 @@ fn step_player_action_attack_deals_damage() {
             speed: 10,
         },
         ActionPoints::new(4),
-        Position::new(0, 0, 0),
+        Position::new(0, 0),
     ));
     let enemy = world
         .spawn((
@@ -404,7 +404,7 @@ fn step_player_action_attack_deals_damage() {
                 speed: 5,
             },
             ActionPoints::new(4),
-            Position::new(5, 0, 0),
+            Position::new(5, 0),
         ))
         .id();
 
@@ -437,7 +437,7 @@ fn step_player_action_outcome_set_on_victory() {
             speed: 10,
         },
         ActionPoints::new(4),
-        Position::new(0, 0, 0),
+        Position::new(0, 0),
     ));
     world.spawn((
         Character::new_character(CharacterKind::Scavenger, 1),
@@ -449,7 +449,7 @@ fn step_player_action_outcome_set_on_victory() {
             speed: 5,
         },
         ActionPoints::new(4),
-        Position::new(5, 0, 0),
+        Position::new(5, 0),
     ));
 
     let mut bs = BattleStep::new(&mut world);
