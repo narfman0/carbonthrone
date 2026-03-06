@@ -9,7 +9,7 @@ use crate::dialog::{DialogEngine, Trigger};
 use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
-use crate::terrain::{BattleRng, generate_map};
+use crate::terrain::{BattleRng, Tile};
 use crate::zone::{Zone, ZoneKind};
 
 // ── Game phase ────────────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ impl ExplorationState {
         }
         let nx = (self.player_pos.0 + dx).clamp(0, self.zone.cols as i32 - 1);
         let ny = (self.player_pos.1 + dy).clamp(0, self.zone.rows as i32 - 1);
-        if !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
+        if self.zone.map.get(nx, ny) == Tile::Open && !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
             self.player_pos = (nx, ny);
         }
     }
@@ -194,7 +194,7 @@ impl GameSession {
         else {
             unreachable!()
         };
-        setup_battle(&mut self.world, exploration.zone.kind);
+        setup_battle(&mut self.world, &exploration.zone);
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
         self.phase = GamePhase::Battle(exploration);
@@ -241,9 +241,20 @@ impl Default for GameSession {
 
 // ── World setup ───────────────────────────────────────────────────────────────
 
-pub fn setup_battle(world: &mut World, zone_kind: ZoneKind) {
-    let player_positions: &[(i32, i32)] = &[(0, 0), (0, 1)];
-    let enemy_positions: &[(i32, i32)] = &[(9, 0), (9, 1)];
+pub fn setup_battle(world: &mut World, zone: &Zone) {
+    // Find the first two open tiles not occupied by enemies for player spawn.
+    let enemy_coords: Vec<(i32, i32)> = zone.enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
+    let mut player_positions: Vec<(i32, i32)> = Vec::new();
+    'outer: for y in 0..zone.map.rows as i32 {
+        for x in 0..zone.map.cols as i32 {
+            if zone.map.get(x, y) == Tile::Open && !enemy_coords.contains(&(x, y)) {
+                player_positions.push((x, y));
+                if player_positions.len() == 2 {
+                    break 'outer;
+                }
+            }
+        }
+    }
 
     for (i, pc) in [CharacterKind::Doss, CharacterKind::Researcher]
         .into_iter()
@@ -263,30 +274,19 @@ pub fn setup_battle(world: &mut World, zone_kind: ZoneKind) {
         ));
     }
 
-    for (i, (kind, level)) in [
-        (CharacterKind::Scavenger, 1u32),
-        (CharacterKind::DrifterBoss, 2u32),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let ch = Character::new_character(kind, level);
-        let stats = ch.stats.clone();
-        let hp = ch.current_hp;
-        let (ex, ey) = enemy_positions[i];
+    for (character, pos) in &zone.enemies {
+        let stats = character.stats.clone();
+        let hp = character.current_hp;
         world.spawn((
-            ch,
+            character.clone(),
             stats,
             Health::new(hp),
             ActionPoints::new(4),
-            Position::new(ex, ey, 0),
+            Position::new(pos.x, pos.y, 0),
         ));
     }
 
-    let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-    let mut reserved: Vec<(i32, i32)> = player_positions.to_vec();
-    reserved.extend_from_slice(enemy_positions);
-    let map = generate_map(10, 10, zone_kind, &reserved, &mut rng);
-    world.insert_resource(map);
+    let rng = StdRng::seed_from_u64(rand::random::<u64>());
+    world.insert_resource(zone.map.clone());
     world.insert_resource(BattleRng(rng));
 }

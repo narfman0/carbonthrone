@@ -79,7 +79,7 @@ impl DirectionalCover {
 }
 
 /// The 2-D terrain grid for one level, including precomputed directional cover.
-#[derive(Debug, Resource)]
+#[derive(Debug, Clone, Resource)]
 pub struct LevelMap {
     pub cols: u32,
     pub rows: u32,
