@@ -31,7 +31,6 @@ pub struct ExplorationState {
     pub player_pos: (i32, i32),
     pub npcs: Vec<NpcData>,
     pub dialog: DialogEngine,
-    pub location: String,
     pub zone_kind: ZoneKind,
     /// Lines in the active scene as (speaker, text).
     pub scene_lines: Vec<(String, String)>,
@@ -61,7 +60,6 @@ impl ExplorationState {
                 glyph: 'N',
             }],
             dialog,
-            location: "command_deck".to_string(),
             zone_kind: ZoneKind::CommandDeck,
             scene_lines: Vec::new(),
             scene_choices: Vec::new(),
@@ -75,8 +73,7 @@ impl ExplorationState {
 
     /// Fire a trigger at the current location and load the resulting scene, if any.
     pub fn fire_trigger(&mut self, trigger: Trigger) {
-        let loc = self.location.clone();
-        if let Some(scene) = self.dialog.trigger(&trigger, &loc) {
+        if let Some(scene) = self.dialog.trigger(&trigger, self.zone_kind.location_id()) {
             self.scene_lines = scene
                 .lines
                 .iter()

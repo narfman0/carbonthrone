@@ -134,6 +134,20 @@ impl ZoneKind {
         }
     }
 
+    pub fn location_id(self) -> &'static str {
+        match self {
+            ZoneKind::ResearchWing => "research_wing",
+            ZoneKind::CommandDeck => "command_deck",
+            ZoneKind::MilitaryAnnex => "military_annex",
+            ZoneKind::SystemsCore => "systems_core",
+            ZoneKind::MedicalBay => "medical_bay",
+            ZoneKind::DockingBay => "docking_bay",
+            ZoneKind::StationExterior => "station_exterior",
+            ZoneKind::RelayArray => "relay_array",
+            ZoneKind::ExcavationSite => "excavation_site",
+        }
+    }
+
     pub fn display_name(self) -> &'static str {
         match self {
             ZoneKind::ResearchWing => "Research Wing",
