@@ -36,7 +36,7 @@ fn main() {
                 let frame = render_exploration(state);
                 write!(stdout, "{}", frame).unwrap();
             }
-            GamePhase::Battle => {
+            GamePhase::Battle(_) => {
                 let frame = render(
                     &mut session.world,
                     session.battle.as_ref().unwrap(),
@@ -132,7 +132,7 @@ fn main() {
                 }
 
                 // ── Battle input ──────────────────────────────────────────
-                GamePhase::Battle => {
+                GamePhase::Battle(_) => {
                     let battle_over = session.battle_over();
                     match k.code {
                         KeyCode::Char(' ') if !battle_over => {
@@ -140,8 +140,8 @@ fn main() {
                             break;
                         }
                         _ if battle_over => {
-                            terminal::disable_raw_mode().unwrap();
-                            return;
+                            session.transition_to_exploration();
+                            break;
                         }
                         _ => {}
                     }

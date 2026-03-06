@@ -16,7 +16,7 @@ use crate::zone::ZoneKind;
 
 pub enum GamePhase {
     Exploration(ExplorationState),
-    Battle,
+    Battle(ExplorationState),
 }
 
 // ── Exploration state ─────────────────────────────────────────────────────────
@@ -183,13 +183,18 @@ impl GameSession {
 
     /// Transition from exploration into a fresh battle.
     pub fn transition_to_battle(&mut self) {
-        let GamePhase::Exploration(state) = &self.phase else {
+        let GamePhase::Exploration(_) = &self.phase else {
             return;
         };
-        setup_battle(&mut self.world, state.zone_kind);
+        let GamePhase::Exploration(exploration) =
+            std::mem::replace(&mut self.phase, GamePhase::Battle(ExplorationState::new()))
+        else {
+            unreachable!()
+        };
+        setup_battle(&mut self.world, exploration.zone_kind);
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
-        self.phase = GamePhase::Battle;
+        self.phase = GamePhase::Battle(exploration);
     }
 
     /// Advance the battle by one step. Returns a reference to the new event.
@@ -197,6 +202,23 @@ impl GameSession {
         let event = self.battle.as_mut().unwrap().step(&mut self.world);
         self.last_event = Some(event);
         self.last_event.as_ref().unwrap()
+    }
+
+    /// Transition from battle back to exploration.
+    pub fn transition_to_exploration(&mut self) {
+        let GamePhase::Battle(_) = &self.phase else {
+            return;
+        };
+        let GamePhase::Battle(exploration) = std::mem::replace(
+            &mut self.phase,
+            GamePhase::Exploration(ExplorationState::new()),
+        ) else {
+            unreachable!()
+        };
+        self.world = World::new();
+        self.battle = None;
+        self.last_event = None;
+        self.phase = GamePhase::Exploration(exploration);
     }
 
     /// True when a battle outcome has been decided.
