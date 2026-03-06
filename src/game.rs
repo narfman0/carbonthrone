@@ -10,7 +10,7 @@ use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
 use crate::terrain::{BattleRng, generate_map};
-use crate::zone::ZoneKind;
+use crate::zone::{Zone, ZoneKind};
 
 // ── Game phase ────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ pub struct ExplorationState {
     pub player_pos: (i32, i32),
     pub npcs: Vec<NpcData>,
     pub dialog: DialogEngine,
-    pub zone_kind: ZoneKind,
+    pub zone: Zone,
     /// Lines in the active scene as (speaker, text).
     pub scene_lines: Vec<(String, String)>,
     /// Choice texts in the active scene (empty when no choices).
@@ -52,6 +52,9 @@ impl ExplorationState {
         dialog.set_companion("orin");
         dialog.set_flag("companion_orin");
 
+        let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
+        let zone = Zone::enter(ZoneKind::CommandDeck, 1, &mut rng);
+
         let mut state = Self {
             player_pos: (0, 2),
             npcs: vec![NpcData {
@@ -60,7 +63,7 @@ impl ExplorationState {
                 glyph: 'N',
             }],
             dialog,
-            zone_kind: ZoneKind::CommandDeck,
+            zone,
             scene_lines: Vec::new(),
             scene_choices: Vec::new(),
             line_index: 0,
@@ -73,7 +76,7 @@ impl ExplorationState {
 
     /// Fire a trigger at the current location and load the resulting scene, if any.
     pub fn fire_trigger(&mut self, trigger: Trigger) {
-        if let Some(scene) = self.dialog.trigger(&trigger, self.zone_kind.location_id()) {
+        if let Some(scene) = self.dialog.trigger(&trigger, self.zone.kind.location_id()) {
             self.scene_lines = scene
                 .lines
                 .iter()
@@ -137,8 +140,8 @@ impl ExplorationState {
         if self.in_dialog {
             return;
         }
-        let nx = (self.player_pos.0 + dx).clamp(0, 9);
-        let ny = (self.player_pos.1 + dy).clamp(0, 9);
+        let nx = (self.player_pos.0 + dx).clamp(0, self.zone.cols as i32 - 1);
+        let ny = (self.player_pos.1 + dy).clamp(0, self.zone.rows as i32 - 1);
         if !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
             self.player_pos = (nx, ny);
         }
@@ -191,7 +194,7 @@ impl GameSession {
         else {
             unreachable!()
         };
-        setup_battle(&mut self.world, exploration.zone_kind);
+        setup_battle(&mut self.world, exploration.zone.kind);
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
         self.phase = GamePhase::Battle(exploration);

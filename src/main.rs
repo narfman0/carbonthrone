@@ -164,12 +164,11 @@ fn render_exploration(state: &ExplorationState) -> String {
     out += &format!("{}\r\n", bar);
     out += "\r\n";
 
-    out += &format!("  Zone: {} \r\n", state.zone_kind.display_name());
+    out += &format!("  Zone: {}\r\n", state.zone.kind.display_name());
     out += "\r\n";
 
-    // Zone grid (10 x 6)
-    let grid_cols = 10i32;
-    let grid_rows = 6i32;
+    let grid_cols = state.zone.cols as i32;
+    let grid_rows = state.zone.rows as i32;
     let (px, py) = state.player_pos;
 
     for y in 0..grid_rows {
@@ -180,7 +179,7 @@ fn render_exploration(state: &ExplorationState) -> String {
             } else if let Some(npc) = state.npcs.iter().find(|n| n.pos == (x, y)) {
                 npc.glyph
             } else {
-                '.'
+                state.zone.map.display_glyph(x, y)
             };
             out += &format!("{} ", ch);
         }
