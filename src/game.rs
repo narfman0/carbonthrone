@@ -17,6 +17,8 @@ use crate::zone::{Zone, ZoneKind};
 pub enum GamePhase {
     Exploration(ExplorationState),
     Battle(ExplorationState),
+    /// Placeholder used only during phase transitions; never observed externally.
+    Transitioning,
 }
 
 // ── Exploration state ─────────────────────────────────────────────────────────
@@ -28,7 +30,8 @@ pub struct NpcData {
 }
 
 pub struct ExplorationState {
-    pub pos: Position,
+    /// Entity for the player-controlled Researcher in the ECS world.
+    pub player_entity: Entity,
     pub npcs: Vec<NpcData>,
     pub dialog: DialogEngine,
     pub zone: Zone,
@@ -46,33 +49,6 @@ pub struct ExplorationState {
 }
 
 impl ExplorationState {
-    pub fn new() -> Self {
-        let mut dialog = DialogEngine::new();
-        let yaml = include_str!("../data/loops/loop1.yaml");
-        dialog.load_script(yaml).expect("load loop1.yaml");
-
-        let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-        let zone = Zone::enter(ZoneKind::CommandDeck, 1, &mut rng);
-
-        let mut state = Self {
-            pos: Position::new(0, 2),
-            npcs: vec![NpcData {
-                pos: (5, 2),
-                name: "Orin",
-                glyph: 'N',
-            }],
-            dialog,
-            zone,
-            party: vec![Character::new_character(CharacterKind::Researcher, 1)],
-            scene_lines: Vec::new(),
-            scene_choices: Vec::new(),
-            line_index: 0,
-            choice_index: 0,
-            in_dialog: false,
-        };
-        state.fire_trigger(Trigger::OnEnter);
-        state
-    }
 
     /// Fire a trigger at the current location and load the resulting scene, if any.
     pub fn fire_trigger(&mut self, trigger: Trigger) {
@@ -136,30 +112,32 @@ impl ExplorationState {
     }
 
     /// Try to move the player by (dx, dy). Blocked by NPCs and map edges.
-    pub fn try_move(&mut self, dx: i32, dy: i32) {
+    pub fn try_move(&mut self, world: &mut World, dx: i32, dy: i32) {
         if self.in_dialog {
             return;
         }
-        let nx = (self.pos.x + dx).clamp(0, self.zone.cols as i32 - 1);
-        let ny = (self.pos.y + dy).clamp(0, self.zone.rows as i32 - 1);
+        let current = *world
+            .get::<Position>(self.player_entity)
+            .expect("player has Position");
+        let nx = (current.x + dx).clamp(0, self.zone.cols as i32 - 1);
+        let ny = (current.y + dy).clamp(0, self.zone.rows as i32 - 1);
         if self.zone.map.get(nx, ny) == Tile::Open && !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
-            self.pos = Position::new(nx, ny);
+            *world
+                .get_mut::<Position>(self.player_entity)
+                .expect("player has Position") = Position::new(nx, ny);
         }
     }
 
     /// True when the player is adjacent (Manhattan distance 1) to any NPC.
-    pub fn adjacent_to_npc(&self) -> bool {
-        let (px, py) = (self.pos.x, self.pos.y);
+    pub fn adjacent_to_npc(&self, world: &World) -> bool {
+        let pos = world
+            .get::<Position>(self.player_entity)
+            .expect("player has Position");
+        let (px, py) = (pos.x, pos.y);
         self.npcs.iter().any(|n| {
             let (nx, ny) = n.pos;
             (px - nx).abs() + (py - ny).abs() == 1
         })
-    }
-}
-
-impl Default for ExplorationState {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -176,9 +154,38 @@ pub struct GameSession {
 
 impl GameSession {
     pub fn new() -> Self {
+        let mut world = World::new();
+        let party = vec![Character::new_character(CharacterKind::Researcher, 1)];
+        let player_entity = setup_exploration(&mut world, &party);
+
+        let mut dialog = DialogEngine::new();
+        let yaml = include_str!("../data/loops/loop1.yaml");
+        dialog.load_script(yaml).expect("load loop1.yaml");
+
+        let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
+        let zone = Zone::enter(ZoneKind::CommandDeck, 1, &mut rng);
+
+        let mut exploration = ExplorationState {
+            player_entity,
+            npcs: vec![NpcData {
+                pos: (5, 2),
+                name: "Orin",
+                glyph: 'N',
+            }],
+            dialog,
+            zone,
+            party,
+            scene_lines: Vec::new(),
+            scene_choices: Vec::new(),
+            line_index: 0,
+            choice_index: 0,
+            in_dialog: false,
+        };
+        exploration.fire_trigger(Trigger::OnEnter);
+
         Self {
-            phase: GamePhase::Exploration(ExplorationState::new()),
-            world: World::new(),
+            phase: GamePhase::Exploration(exploration),
+            world,
             battle: None,
             last_event: None,
         }
@@ -190,11 +197,11 @@ impl GameSession {
             return;
         };
         let GamePhase::Exploration(exploration) =
-            std::mem::replace(&mut self.phase, GamePhase::Battle(ExplorationState::new()))
+            std::mem::replace(&mut self.phase, GamePhase::Transitioning)
         else {
             unreachable!()
         };
-        setup_battle(&mut self.world, &exploration.zone, &exploration.party);
+        setup_battle(&mut self.world, &exploration.zone);
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
         self.phase = GamePhase::Battle(exploration);
@@ -212,13 +219,14 @@ impl GameSession {
         let GamePhase::Battle(_) = &self.phase else {
             return;
         };
-        let GamePhase::Battle(exploration) = std::mem::replace(
-            &mut self.phase,
-            GamePhase::Exploration(ExplorationState::new()),
-        ) else {
+        let GamePhase::Battle(mut exploration) =
+            std::mem::replace(&mut self.phase, GamePhase::Transitioning)
+        else {
             unreachable!()
         };
         self.world = World::new();
+        let player_entity = setup_exploration(&mut self.world, &exploration.party);
+        exploration.player_entity = player_entity;
         self.battle = None;
         self.last_event = None;
         self.phase = GamePhase::Exploration(exploration);
@@ -241,35 +249,25 @@ impl Default for GameSession {
 
 // ── World setup ───────────────────────────────────────────────────────────────
 
-pub fn setup_battle(world: &mut World, zone: &Zone, party: &[Character]) {
-    // Find open tiles not occupied by enemies for player spawns.
-    let enemy_coords: Vec<(i32, i32)> = zone.enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
-    let mut player_positions: Vec<(i32, i32)> = Vec::new();
-    'outer: for y in 0..zone.map.rows as i32 {
-        for x in 0..zone.map.cols as i32 {
-            if zone.map.get(x, y) == Tile::Open && !enemy_coords.contains(&(x, y)) {
-                player_positions.push((x, y));
-                if player_positions.len() == party.len() {
-                    break 'outer;
-                }
-            }
-        }
-    }
-
-    for (i, ch) in party.iter().enumerate() {
-        let stats = ch.stats.clone();
-        let hp = ch.current_hp;
-        let (px, py) = player_positions[i];
-        world.spawn((
+/// Spawns the party into the exploration world. Returns the first party member's entity
+/// (the player-controlled Researcher).
+pub fn setup_exploration(world: &mut World, party: &[Character]) -> Entity {
+    let ch = &party[0];
+    world
+        .spawn((
             ch.clone(),
-            stats,
-            Health::new(hp),
+            ch.stats.clone(),
+            Health::new(ch.current_hp),
             ActionPoints::new(4),
             Experience::new(),
-            Position::new(px, py),
-        ));
-    }
+            Position::new(0, 2),
+        ))
+        .id()
+}
 
+/// Adds enemies and battle resources to the world. Party is already present from
+/// `setup_exploration`.
+pub fn setup_battle(world: &mut World, zone: &Zone) {
     for (character, pos) in &zone.enemies {
         let stats = character.stats.clone();
         let hp = character.current_hp;

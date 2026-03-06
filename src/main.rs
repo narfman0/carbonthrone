@@ -33,9 +33,10 @@ fn main() {
 
         match &session.phase {
             GamePhase::Exploration(state) => {
-                let frame = render_exploration(state);
+                let frame = render_exploration(state, &session.world);
                 write!(stdout, "{}", frame).unwrap();
             }
+            GamePhase::Transitioning => unreachable!(),
             GamePhase::Battle(_) => {
                 let frame = render(
                     &mut session.world,
@@ -100,24 +101,24 @@ fn main() {
                     } else {
                         match k.code {
                             KeyCode::Up | KeyCode::Char('w') => {
-                                state.try_move(0, -1);
+                                state.try_move(&mut session.world, 0, -1);
                                 break;
                             }
                             KeyCode::Down | KeyCode::Char('s') => {
-                                state.try_move(0, 1);
+                                state.try_move(&mut session.world, 0, 1);
                                 break;
                             }
                             KeyCode::Left | KeyCode::Char('a') => {
-                                state.try_move(-1, 0);
+                                state.try_move(&mut session.world, -1, 0);
                                 break;
                             }
                             KeyCode::Right | KeyCode::Char('d') => {
-                                state.try_move(1, 0);
+                                state.try_move(&mut session.world, 1, 0);
                                 break;
                             }
                             KeyCode::Char('e') => {
                                 use carbonthrone::dialog::Trigger;
-                                if state.adjacent_to_npc() {
+                                if state.adjacent_to_npc(&session.world) {
                                     state.fire_trigger(Trigger::OnInteract);
                                 }
                                 break;
@@ -132,6 +133,7 @@ fn main() {
                 }
 
                 // ── Battle input ──────────────────────────────────────────
+                GamePhase::Transitioning => unreachable!(),
                 GamePhase::Battle(_) => {
                     let battle_over = session.battle_over();
                     match k.code {
@@ -155,7 +157,7 @@ fn main() {
 
 const WIDTH: usize = 58;
 
-fn render_exploration(state: &ExplorationState) -> String {
+fn render_exploration(state: &ExplorationState, world: &World) -> String {
     let mut out = String::new();
     let bar = "=".repeat(WIDTH);
 
@@ -169,7 +171,10 @@ fn render_exploration(state: &ExplorationState) -> String {
 
     let grid_cols = state.zone.cols as i32;
     let grid_rows = state.zone.rows as i32;
-    let (px, py) = (state.pos.x, state.pos.y);
+    let player_pos = world
+        .get::<Position>(state.player_entity)
+        .expect("player has Position");
+    let (px, py) = (player_pos.x, player_pos.y);
 
     for y in 0..grid_rows {
         out += "  ";
@@ -220,7 +225,7 @@ fn render_exploration(state: &ExplorationState) -> String {
         } else {
             "[SPACE] continue"
         }
-    } else if state.adjacent_to_npc() {
+    } else if state.adjacent_to_npc(world) {
         "[WASD/Arrows] move  [E] talk  [B] battle  [Q] quit"
     } else {
         "[WASD/Arrows] move  [B] battle  [Q] quit"
