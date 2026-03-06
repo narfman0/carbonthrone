@@ -6,7 +6,6 @@ pub mod dialog;
 pub mod experience;
 pub mod game;
 pub mod health;
-pub mod party;
 pub mod player_input;
 pub mod position;
 pub mod stats;

@@ -32,6 +32,7 @@ pub struct ExplorationState {
     pub npcs: Vec<NpcData>,
     pub dialog: DialogEngine,
     pub zone: Zone,
+    pub party: Vec<Character>,
     /// Lines in the active scene as (speaker, text).
     pub scene_lines: Vec<(String, String)>,
     /// Choice texts in the active scene (empty when no choices).
@@ -49,8 +50,6 @@ impl ExplorationState {
         let mut dialog = DialogEngine::new();
         let yaml = include_str!("../data/loops/loop1.yaml");
         dialog.load_script(yaml).expect("load loop1.yaml");
-        dialog.set_companion("orin");
-        dialog.set_flag("companion_orin");
 
         let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
         let zone = Zone::enter(ZoneKind::CommandDeck, 1, &mut rng);
@@ -64,6 +63,7 @@ impl ExplorationState {
             }],
             dialog,
             zone,
+            party: vec![Character::new_character(CharacterKind::Researcher, 1)],
             scene_lines: Vec::new(),
             scene_choices: Vec::new(),
             line_index: 0,
@@ -194,7 +194,7 @@ impl GameSession {
         else {
             unreachable!()
         };
-        setup_battle(&mut self.world, &exploration.zone);
+        setup_battle(&mut self.world, &exploration.zone, &exploration.party);
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
         self.phase = GamePhase::Battle(exploration);
@@ -241,31 +241,27 @@ impl Default for GameSession {
 
 // ── World setup ───────────────────────────────────────────────────────────────
 
-pub fn setup_battle(world: &mut World, zone: &Zone) {
-    // Find the first two open tiles not occupied by enemies for player spawn.
+pub fn setup_battle(world: &mut World, zone: &Zone, party: &[Character]) {
+    // Find open tiles not occupied by enemies for player spawns.
     let enemy_coords: Vec<(i32, i32)> = zone.enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
     let mut player_positions: Vec<(i32, i32)> = Vec::new();
     'outer: for y in 0..zone.map.rows as i32 {
         for x in 0..zone.map.cols as i32 {
             if zone.map.get(x, y) == Tile::Open && !enemy_coords.contains(&(x, y)) {
                 player_positions.push((x, y));
-                if player_positions.len() == 2 {
+                if player_positions.len() == party.len() {
                     break 'outer;
                 }
             }
         }
     }
 
-    for (i, pc) in [CharacterKind::Doss, CharacterKind::Researcher]
-        .into_iter()
-        .enumerate()
-    {
-        let ch = Character::new_character(pc, 1);
+    for (i, ch) in party.iter().enumerate() {
         let stats = ch.stats.clone();
         let hp = ch.current_hp;
         let (px, py) = player_positions[i];
         world.spawn((
-            ch,
+            ch.clone(),
             stats,
             Health::new(hp),
             ActionPoints::new(4),
