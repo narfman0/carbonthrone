@@ -278,19 +278,20 @@ pub fn setup_exploration(world: &mut World, party: &[Character]) -> Entity {
 /// Adds enemies and battle resources to the world. Party is already present from
 /// `setup_exploration`.
 pub fn setup_battle(world: &mut World, zone: &Zone) {
-    for (character, pos) in &zone.enemies {
+    let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
+    for (character, pos) in zone.generate_enemies(&mut rng) {
         let stats = character.stats.clone();
         let hp = character.current_hp;
         world.spawn((
-            character.clone(),
+            character,
             stats,
             Health::new(hp),
             ActionPoints::new(4),
-            Position::new(pos.x, pos.y),
+            pos,
         ));
     }
 
-    let rng = StdRng::seed_from_u64(rand::random::<u64>());
+    let battle_rng = StdRng::seed_from_u64(rand::random::<u64>());
     world.insert_resource(zone.map.clone());
-    world.insert_resource(BattleRng(rng));
+    world.insert_resource(BattleRng(battle_rng));
 }

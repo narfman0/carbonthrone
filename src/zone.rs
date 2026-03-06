@@ -1,6 +1,6 @@
 use crate::character::{Character, CharacterKind};
 use crate::position::Position;
-use crate::terrain::{LevelMap, generate_map};
+use crate::terrain::{LevelMap, Tile, generate_map};
 use rand::Rng;
 use std::collections::HashSet;
 
@@ -98,6 +98,7 @@ pub enum SurpriseState {
 /// Call [`Zone::enter`] each time the player enters a zone to get a new random layout.
 /// Combat happens before exploration: if `has_encounter()` is true, the party must
 /// resolve that fight before NPCs phase-shift in. Use [`Zone::npcs_available`] to check.
+/// Use [`Zone::generate_enemies`] to spawn enemies on demand when entering battle.
 #[derive(Debug)]
 pub struct Zone {
     pub kind: ZoneKind,
@@ -107,11 +108,11 @@ pub struct Zone {
     pub cols: u32,
     /// Grid height (number of rows along the Y axis).
     pub rows: u32,
-    /// Enemies and their starting positions. Empty when there is no encounter.
-    pub enemies: Vec<(Character, Position)>,
     /// The terrain map for this zone.
     pub map: LevelMap,
     pub surprise: SurpriseState,
+    /// Whether this zone has a combat encounter when entered.
+    encounter: bool,
 }
 
 impl Zone {
@@ -136,28 +137,7 @@ impl Zone {
         let connections = zone_connections(kind);
         let cols: u32 = rng.gen_range(8..=16);
         let rows: u32 = rng.gen_range(8..=16);
-
-        let mut enemies = Vec::new();
-        if with_encounter {
-            let enemy_level = depth.max(1);
-            let enemy_pool = kind.enemy_pool();
-            let enemy_count: usize = rng.gen_range(1..=4);
-            let mut used: HashSet<(i32, i32)> = HashSet::new();
-            while enemies.len() < enemy_count {
-                let x = rng.gen_range(0..cols as i32);
-                let y = rng.gen_range(0..rows as i32);
-                if used.insert((x, y)) {
-                    let ek = enemy_pool[rng.gen_range(0..enemy_pool.len())].clone();
-                    enemies.push((
-                        Character::new_character(ek, enemy_level),
-                        Position::new(x, y),
-                    ));
-                }
-            }
-        }
-
-        let reserved: Vec<(i32, i32)> = enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
-        let map = generate_map(cols, rows, kind, &reserved, rng);
+        let map = generate_map(cols, rows, kind, &[], rng);
 
         let surprise = match rng.gen_range(0..4u32) {
             0 => SurpriseState::PartyAmbushed,
@@ -171,15 +151,40 @@ impl Zone {
             depth,
             cols,
             rows,
-            enemies,
             map,
             surprise,
+            encounter: with_encounter,
         }
     }
 
-    /// True when this zone has a combat encounter (enemies present).
+    /// True when this zone has a combat encounter.
     pub fn has_encounter(&self) -> bool {
-        !self.enemies.is_empty()
+        self.encounter
+    }
+
+    /// Generate enemies for this zone's encounter. Returns an empty vec if there is no encounter.
+    /// Call this when entering battle rather than storing enemies on the zone.
+    pub fn generate_enemies(&self, rng: &mut impl Rng) -> Vec<(Character, Position)> {
+        if !self.encounter {
+            return Vec::new();
+        }
+        let enemy_level = self.depth.max(1);
+        let enemy_pool = self.kind.enemy_pool();
+        let enemy_count: usize = rng.gen_range(1..=4);
+        let mut used: HashSet<(i32, i32)> = HashSet::new();
+        let mut enemies = Vec::new();
+        while enemies.len() < enemy_count {
+            let x = rng.gen_range(0..self.cols as i32);
+            let y = rng.gen_range(0..self.rows as i32);
+            if self.map.get(x, y) == Tile::Open && used.insert((x, y)) {
+                let ek = enemy_pool[rng.gen_range(0..enemy_pool.len())].clone();
+                enemies.push((
+                    Character::new_character(ek, enemy_level),
+                    Position::new(x, y),
+                ));
+            }
+        }
+        enemies
     }
 
     /// Returns `true` when NPCs may phase-shift into the zone.
