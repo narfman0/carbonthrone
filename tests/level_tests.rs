@@ -10,14 +10,14 @@ fn rng() -> StdRng {
 #[test]
 fn level_has_at_least_one_enemy() {
     let mut r = rng();
-    let zone = Zone::generate(1, &mut r);
+    let zone = Zone::generate(1, 1, &mut r);
     assert!(!zone.generate_enemies(&mut r).is_empty());
 }
 
 #[test]
 fn level_has_at_most_four_enemies() {
     let mut r = rng();
-    let zone = Zone::generate(1, &mut r);
+    let zone = Zone::generate(1, 1, &mut r);
     assert!(zone.generate_enemies(&mut r).len() <= 4);
 }
 
@@ -25,7 +25,7 @@ fn level_has_at_most_four_enemies() {
 fn enemy_level_matches_depth() {
     let depth = 5;
     let mut r = rng();
-    let zone = Zone::generate(depth, &mut r);
+    let zone = Zone::generate(depth, 1, &mut r);
     assert!(
         zone.generate_enemies(&mut r)
             .iter()
@@ -36,7 +36,7 @@ fn enemy_level_matches_depth() {
 #[test]
 fn depth_zero_clamps_enemy_level_to_one() {
     let mut r = rng();
-    let zone = Zone::generate(0, &mut r);
+    let zone = Zone::generate(0, 1, &mut r);
     assert!(
         zone.generate_enemies(&mut r)
             .iter()
@@ -47,7 +47,7 @@ fn depth_zero_clamps_enemy_level_to_one() {
 #[test]
 fn enemy_positions_are_within_grid() {
     let mut r = rng();
-    let zone = Zone::generate(1, &mut r);
+    let zone = Zone::generate(1, 1, &mut r);
     for (_, pos) in zone.generate_enemies(&mut r) {
         assert!(pos.x >= 0 && pos.x < zone.cols as i32);
         assert!(pos.y >= 0 && pos.y < zone.rows as i32);
@@ -57,7 +57,7 @@ fn enemy_positions_are_within_grid() {
 #[test]
 fn enemy_positions_are_unique() {
     let mut r = rng();
-    let zone = Zone::generate(1, &mut r);
+    let zone = Zone::generate(1, 1, &mut r);
     let enemies = zone.generate_enemies(&mut r);
     let positions: Vec<_> = enemies.iter().map(|(_, p)| (p.x, p.y)).collect();
     let unique: std::collections::HashSet<_> = positions.iter().collect();
@@ -79,7 +79,7 @@ fn surprise_states_all_occur_across_many_levels() {
     let mut saw_enemy_ambushed = false;
 
     for _ in 0..200 {
-        match Zone::generate(1, &mut rng).surprise {
+        match Zone::generate(1, 1, &mut rng).surprise {
             SurpriseState::Normal => saw_normal = true,
             SurpriseState::PartyAmbushed => saw_party_ambushed = true,
             SurpriseState::EnemyAmbushed => saw_enemy_ambushed = true,
@@ -94,11 +94,11 @@ fn surprise_states_all_occur_across_many_levels() {
 #[test]
 fn different_seeds_produce_different_levels() {
     let mut ra = StdRng::seed_from_u64(1);
-    let a = Zone::generate(3, &mut ra);
+    let a = Zone::generate(3, 1, &mut ra);
     let a_enemies = a.generate_enemies(&mut ra);
 
     let mut rb = StdRng::seed_from_u64(99);
-    let b = Zone::generate(3, &mut rb);
+    let b = Zone::generate(3, 1, &mut rb);
     let b_enemies = b.generate_enemies(&mut rb);
 
     let same = a_enemies.len() == b_enemies.len()
@@ -127,7 +127,7 @@ fn level_map_dimensions_match_cols_rows() {
 #[test]
 fn enemy_spawn_tiles_are_open() {
     let mut r = rng();
-    let zone = Zone::generate(1, &mut r);
+    let zone = Zone::generate(1, 1, &mut r);
     for (_, pos) in zone.generate_enemies(&mut r) {
         assert_eq!(
             zone.map.get(pos.x, pos.y),
@@ -145,7 +145,7 @@ fn all_zone_kind_variants_can_be_generated() {
     let mut saw = [false; 9];
 
     for _ in 0..500 {
-        let idx = match Zone::generate(1, &mut rng).kind {
+        let idx = match Zone::generate(1, 1, &mut rng).kind {
             ZoneKind::ResearchWing => 0,
             ZoneKind::CommandDeck => 1,
             ZoneKind::MilitaryAnnex => 2,

@@ -326,6 +326,64 @@ pub(crate) fn default_aggression(kind: &CharacterKind) -> Aggression {
     }
 }
 
+/// Returns the aggression state for a character kind at the given loop number.
+///
+/// Aggression evolves over loops as the station degrades and temporal instability peaks:
+/// - **Maintenance Drones**: Neutral loops 1–2; Aggressive loop 3+
+/// - **Station Guards**: Friendly loops 1–2; Neutral loop 3; Aggressive loops 4–5
+/// - **Salvage Operatives**: Friendly loops 1–2; Neutral loop 3; Aggressive loops 4–5
+/// - **Gun-for-Hire**: Neutral loops 1–4; Aggressive loop 5 (Doss turns them)
+/// - **Abyssal Fauna** (Moon Crawler, Void Spitter, Abyssal Brute): Aggressive loops 1–3;
+///   Lethargic loops 4–5 (temporal flux collapses their instincts)
+/// - All other kinds return their default aggression unchanged.
+pub fn loop_aggression(kind: &CharacterKind, loop_number: u32) -> Aggression {
+    match kind {
+        // Automata — Maintenance Drones go hostile as station degrades
+        CharacterKind::MaintenanceDrone => {
+            if loop_number >= 3 {
+                Aggression::Aggressive
+            } else {
+                Aggression::Neutral
+            }
+        }
+        // Station Personnel — flip from friendly to hostile over loops
+        CharacterKind::StationGuard => {
+            if loop_number <= 2 {
+                Aggression::Friendly
+            } else if loop_number == 3 {
+                Aggression::Neutral
+            } else {
+                Aggression::Aggressive
+            }
+        }
+        CharacterKind::SalvageOperative => {
+            if loop_number <= 2 {
+                Aggression::Friendly
+            } else if loop_number == 3 {
+                Aggression::Neutral
+            } else {
+                Aggression::Aggressive
+            }
+        }
+        CharacterKind::GunForHire => {
+            if loop_number >= 5 {
+                Aggression::Aggressive
+            } else {
+                Aggression::Neutral
+            }
+        }
+        // Abyssal Fauna — go Lethargic in loops 4–5 as temporal flux peaks
+        CharacterKind::MoonCrawler | CharacterKind::VoidSpitter | CharacterKind::AbyssalBrute => {
+            if loop_number >= 4 {
+                Aggression::Lethargic
+            } else {
+                Aggression::Aggressive
+            }
+        }
+        _ => default_aggression(kind),
+    }
+}
+
 /// Current disposition of this character toward the player party.
 #[derive(Debug, Clone, PartialEq, Component)]
 pub enum Aggression {
