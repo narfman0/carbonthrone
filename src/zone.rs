@@ -5,6 +5,7 @@ use rand::Rng;
 use std::collections::HashSet;
 
 /// One of the nine named zones in the Meridian station, as described in docs/world.md.
+/// `Hallway` is an anonymous connecting corridor used during zone travel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ZoneKind {
     // Interior zones
@@ -18,6 +19,8 @@ pub enum ZoneKind {
     StationExterior,
     RelayArray,
     ExcavationSite,
+    // Anonymous connecting corridor (used during travel between named zones)
+    Hallway,
 }
 
 /// Whether a zone is inside the station or on the moon surface.
@@ -133,6 +136,12 @@ impl Zone {
         Self::build(kind, depth, true, rng)
     }
 
+    /// Enter an anonymous hallway zone used during travel between named zones.
+    /// Rolls for an encounter like a normal zone entry.
+    pub fn enter_hallway(depth: u32, rng: &mut impl Rng) -> Self {
+        Self::enter(ZoneKind::Hallway, depth, rng)
+    }
+
     fn build(kind: ZoneKind, depth: u32, with_encounter: bool, rng: &mut impl Rng) -> Self {
         let connections = zone_connections(kind);
         let cols: u32 = rng.gen_range(8..=16);
@@ -217,6 +226,7 @@ impl ZoneKind {
             ZoneKind::StationExterior => "station_exterior",
             ZoneKind::RelayArray => "relay_array",
             ZoneKind::ExcavationSite => "excavation_site",
+            ZoneKind::Hallway => "hallway",
         }
     }
 
@@ -231,6 +241,7 @@ impl ZoneKind {
             ZoneKind::StationExterior => "Station Exterior",
             ZoneKind::RelayArray => "Relay Array",
             ZoneKind::ExcavationSite => "Excavation Site",
+            ZoneKind::Hallway => "Connecting Corridor",
         }
     }
 
@@ -259,6 +270,12 @@ impl ZoneKind {
                 CharacterKind::MoonCrawler,
                 CharacterKind::VoidSpitter,
                 CharacterKind::AbyssalBrute,
+            ],
+            ZoneKind::Hallway => &[
+                CharacterKind::Scavenger,
+                CharacterKind::MaintenanceDrone,
+                CharacterKind::MoonCrawler,
+                CharacterKind::VoidRaider,
             ],
         }
     }
@@ -313,10 +330,13 @@ pub fn zone_connections(kind: ZoneKind) -> ZoneConnections {
             east: Some(ZoneKind::StationExterior),
             ..Default::default()
         },
+        // Hallway connections are managed by TravelState, not statically defined.
+        ZoneKind::Hallway => ZoneConnections::default(),
     }
 }
 
 fn random_zone_kind(rng: &mut impl Rng) -> ZoneKind {
+    // Hallway is excluded — it is only created via Zone::enter_hallway.
     match rng.gen_range(0..9u32) {
         0 => ZoneKind::ResearchWing,
         1 => ZoneKind::CommandDeck,

@@ -10,6 +10,7 @@ pub mod player_input;
 pub mod position;
 pub mod stats;
 pub mod terrain;
+pub mod travel;
 pub mod turn;
 pub mod weapon;
 pub mod zone;

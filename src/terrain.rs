@@ -181,6 +181,7 @@ fn zone_density(zone_kind: ZoneKind) -> f32 {
         ZoneKind::StationExterior => 0.22,
         ZoneKind::RelayArray => 0.22,
         ZoneKind::ExcavationSite => 0.22,
+        ZoneKind::Hallway => 0.12,
     }
 }
 

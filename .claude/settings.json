@@ -9,7 +9,8 @@
       "Bash(cargo init:*)",
       "Bash(cargo run)",
       "Bash(cargo test --jobs 2)",
-      "Bash(grep -r *)"
+      "Bash(grep -r *)",
+      "Bash(xargs wc -l)"
     ]
   }
 }

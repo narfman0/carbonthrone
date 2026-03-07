@@ -10,6 +10,8 @@ use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
 use crate::terrain::{BattleRng, LevelMap, Tile};
+use crate::travel::TravelState;
+use crate::travel::arrival_chance;
 use crate::zone::{Zone, ZoneKind};
 
 // ── Game phase ────────────────────────────────────────────────────────────────
@@ -46,10 +48,11 @@ pub struct ExplorationState {
     pub choice_index: usize,
     /// Whether dialog is currently displayed.
     pub in_dialog: bool,
+    /// Set while the player is traveling between named zones via hallways.
+    pub travel: Option<TravelState>,
 }
 
 impl ExplorationState {
-
     /// Fire a trigger at the current location and load the resulting scene, if any.
     pub fn fire_trigger(&mut self, trigger: Trigger) {
         if let Some(scene) = self.dialog.trigger(&trigger, self.zone.kind.location_id()) {
@@ -150,6 +153,8 @@ pub struct GameSession {
     pub world: World,
     pub battle: Option<BattleStep>,
     pub last_event: Option<TurnEvent>,
+    /// Current loop number (1–5). Affects travel arrival probability.
+    pub loop_number: u32,
 }
 
 impl GameSession {
@@ -180,6 +185,7 @@ impl GameSession {
             line_index: 0,
             choice_index: 0,
             in_dialog: false,
+            travel: None,
         };
         exploration.fire_trigger(Trigger::OnEnter);
 
@@ -188,6 +194,7 @@ impl GameSession {
             world,
             battle: None,
             last_event: None,
+            loop_number: 1,
         }
     }
 
@@ -242,6 +249,65 @@ impl GameSession {
         self.phase = GamePhase::Exploration(exploration);
     }
 
+    /// Begin traveling toward `destination`. Replaces the current zone with an
+    /// anonymous hallway. Only callable during exploration when not already traveling.
+    pub fn initiate_travel(&mut self, destination: ZoneKind, rng: &mut impl rand::Rng) {
+        let GamePhase::Exploration(exploration) = &mut self.phase else {
+            return;
+        };
+        if exploration.travel.is_some() {
+            return;
+        }
+        let depth = exploration.zone.depth;
+        let player_entity = exploration.player_entity;
+        exploration.travel = Some(TravelState::new(destination));
+        exploration.zone = Zone::enter_hallway(depth, rng);
+        exploration.npcs.clear();
+        *self
+            .world
+            .get_mut::<Position>(player_entity)
+            .expect("player has Position") = Position::new(0, 0);
+    }
+
+    /// Attempt to exit the current hallway. Rolls against [`arrival_chance`] for
+    /// the current loop number.
+    ///
+    /// Returns `true` if the party arrived at the destination, `false` if they
+    /// entered another hallway.
+    pub fn exit_hallway(&mut self, rng: &mut impl rand::Rng) -> bool {
+        let GamePhase::Exploration(exploration) = &mut self.phase else {
+            return false;
+        };
+        if exploration.travel.is_none() {
+            return false;
+        }
+        let destination = exploration.travel.as_ref().unwrap().destination;
+        let depth = exploration.zone.depth;
+        let player_entity = exploration.player_entity;
+        let loop_number = self.loop_number;
+
+        if rng.r#gen::<f64>() < arrival_chance(loop_number) {
+            exploration.zone = Zone::enter(destination, depth, rng);
+            exploration.travel = None;
+            exploration.npcs.clear();
+            *self
+                .world
+                .get_mut::<Position>(player_entity)
+                .expect("player has Position") = Position::new(0, 0);
+            exploration.fire_trigger(Trigger::OnEnter);
+            true
+        } else {
+            exploration.travel.as_mut().unwrap().hallways_traversed += 1;
+            exploration.zone = Zone::enter_hallway(depth, rng);
+            exploration.npcs.clear();
+            *self
+                .world
+                .get_mut::<Position>(player_entity)
+                .expect("player has Position") = Position::new(0, 0);
+            false
+        }
+    }
+
     /// True when a battle outcome has been decided.
     pub fn battle_over(&self) -> bool {
         self.last_event
@@ -282,13 +348,7 @@ pub fn setup_battle(world: &mut World, zone: &Zone) {
     for (character, pos) in zone.generate_enemies(&mut rng) {
         let stats = character.stats.clone();
         let hp = character.current_hp;
-        world.spawn((
-            character,
-            stats,
-            Health::new(hp),
-            ActionPoints::new(4),
-            pos,
-        ));
+        world.spawn((character, stats, Health::new(hp), ActionPoints::new(4), pos));
     }
 
     let battle_rng = StdRng::seed_from_u64(rand::random::<u64>());

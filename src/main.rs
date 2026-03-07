@@ -9,6 +9,9 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+
 use carbonthrone::character::{Aggression, Character};
 use carbonthrone::combat::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::game::{ExplorationState, GamePhase, GameSession};
@@ -19,6 +22,7 @@ use carbonthrone::terrain::{CoverLevel, LevelMap};
 
 fn main() {
     let mut session = GameSession::new();
+    let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
 
     let mut stdout = io::stdout();
     terminal::enable_raw_mode().expect("enable raw mode");
@@ -127,6 +131,32 @@ fn main() {
                                 session.transition_to_battle();
                                 break;
                             }
+                            // Begin traveling to the first available adjacent zone.
+                            KeyCode::Char('t') => {
+                                let destination = if let GamePhase::Exploration(s) = &session.phase
+                                {
+                                    let c = &s.zone.connections;
+                                    c.north.or(c.south).or(c.east).or(c.west)
+                                } else {
+                                    None
+                                };
+                                if let Some(dest) = destination {
+                                    session.initiate_travel(dest, &mut rng);
+                                }
+                                break;
+                            }
+                            // Attempt to exit the current hallway.
+                            KeyCode::Char('x') => {
+                                let in_hallway = if let GamePhase::Exploration(s) = &session.phase {
+                                    s.travel.is_some()
+                                } else {
+                                    false
+                                };
+                                if in_hallway {
+                                    session.exit_hallway(&mut rng);
+                                }
+                                break;
+                            }
                             _ => {}
                         }
                     }
@@ -166,7 +196,16 @@ fn render_exploration(state: &ExplorationState, world: &World) -> String {
     out += &format!("{}\r\n", bar);
     out += "\r\n";
 
-    out += &format!("  Zone: {}\r\n", state.zone.kind.display_name());
+    if let Some(travel) = &state.travel {
+        out += &format!(
+            "  Zone: {}  |  Traveling to {} (corridor #{})\r\n",
+            state.zone.kind.display_name(),
+            travel.destination.display_name(),
+            travel.hallways_traversed + 1,
+        );
+    } else {
+        out += &format!("  Zone: {}\r\n", state.zone.kind.display_name());
+    }
     out += "\r\n";
 
     let grid_cols = state.zone.cols as i32;
@@ -225,10 +264,12 @@ fn render_exploration(state: &ExplorationState, world: &World) -> String {
         } else {
             "[SPACE] continue"
         }
+    } else if state.travel.is_some() {
+        "[WASD/Arrows] move  [X] exit corridor  [B] battle  [Q] quit"
     } else if state.adjacent_to_npc(world) {
-        "[WASD/Arrows] move  [E] talk  [B] battle  [Q] quit"
+        "[WASD/Arrows] move  [E] talk  [T] travel  [B] battle  [Q] quit"
     } else {
-        "[WASD/Arrows] move  [B] battle  [Q] quit"
+        "[WASD/Arrows] move  [T] travel  [B] battle  [Q] quit"
     };
     out += &format!("{controls_str}\r\n");
     out += &format!("{}\r\n", bar);

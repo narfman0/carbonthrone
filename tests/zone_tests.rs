@@ -155,7 +155,10 @@ fn zone_enter_encounter_has_enemies() {
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::DockingBay, 1, &mut r);
         if zone.has_encounter() {
-            assert!(!zone.generate_enemies(&mut r).is_empty(), "encounter had no enemies");
+            assert!(
+                !zone.generate_enemies(&mut r).is_empty(),
+                "encounter had no enemies"
+            );
             return;
         }
     }
@@ -203,7 +206,11 @@ fn enemy_level_matches_depth_in_zone() {
     for _ in 0..50 {
         let zone = Zone::enter(ZoneKind::MilitaryAnnex, depth, &mut r);
         if zone.has_encounter() {
-            assert!(zone.generate_enemies(&mut r).iter().all(|(e, _)| e.level == depth));
+            assert!(
+                zone.generate_enemies(&mut r)
+                    .iter()
+                    .all(|(e, _)| e.level == depth)
+            );
             return;
         }
     }

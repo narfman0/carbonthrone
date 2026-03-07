@@ -26,14 +26,22 @@ fn enemy_level_matches_depth() {
     let depth = 5;
     let mut r = rng();
     let zone = Zone::generate(depth, &mut r);
-    assert!(zone.generate_enemies(&mut r).iter().all(|(e, _)| e.level == depth));
+    assert!(
+        zone.generate_enemies(&mut r)
+            .iter()
+            .all(|(e, _)| e.level == depth)
+    );
 }
 
 #[test]
 fn depth_zero_clamps_enemy_level_to_one() {
     let mut r = rng();
     let zone = Zone::generate(0, &mut r);
-    assert!(zone.generate_enemies(&mut r).iter().all(|(e, _)| e.level == 1));
+    assert!(
+        zone.generate_enemies(&mut r)
+            .iter()
+            .all(|(e, _)| e.level == 1)
+    );
 }
 
 #[test]
@@ -147,6 +155,7 @@ fn all_zone_kind_variants_can_be_generated() {
             ZoneKind::StationExterior => 6,
             ZoneKind::RelayArray => 7,
             ZoneKind::ExcavationSite => 8,
+            ZoneKind::Hallway => unreachable!("Hallway is never returned by Zone::generate"),
         };
         saw[idx] = true;
     }
