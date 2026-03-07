@@ -11,7 +11,8 @@
       "Bash(cargo test --jobs 2)",
       "Bash(cargo test --jobs 2 --test *)",
       "Bash(grep -r *)",
-      "Bash(xargs wc -l)"
+      "Bash(xargs wc -l)",
+      "Bash(xargs grep -l *)"
     ]
   }
 }
