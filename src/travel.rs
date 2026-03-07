@@ -1,4 +1,4 @@
-use crate::zone::ZoneKind;
+use crate::zone::{CardinalDir, ZoneKind};
 
 /// Tracks an in-progress journey between two named zones.
 ///
@@ -15,14 +15,17 @@ pub struct TravelState {
     pub destination: ZoneKind,
     /// How many hallways have been traversed so far this journey.
     pub hallways_traversed: u32,
+    /// Cardinal direction of travel (exit door side in hallways).
+    pub travel_dir: CardinalDir,
 }
 
 impl TravelState {
-    pub fn new(origin: ZoneKind, destination: ZoneKind) -> Self {
+    pub fn new(origin: ZoneKind, destination: ZoneKind, travel_dir: CardinalDir) -> Self {
         Self {
             origin,
             destination,
             hallways_traversed: 0,
+            travel_dir,
         }
     }
 }

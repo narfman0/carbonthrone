@@ -128,23 +128,37 @@ impl Zone {
     /// after the encounter is resolved (or immediately when there is none).
     pub fn enter(kind: ZoneKind, depth: u32, rng: &mut impl Rng) -> Self {
         let with_encounter = rng.r#gen::<f64>() < ENCOUNTER_CHANCE;
-        Self::build(kind, depth, with_encounter, rng)
+        Self::build(kind, depth, with_encounter, None, rng)
     }
 
     /// Generate a zone with a guaranteed encounter, picking a random zone kind.
     /// Useful for testing and procedural content generation.
     pub fn generate(depth: u32, rng: &mut impl Rng) -> Self {
         let kind = random_zone_kind(rng);
-        Self::build(kind, depth, true, rng)
+        Self::build(kind, depth, true, None, rng)
     }
 
     /// Enter an anonymous hallway zone used during travel between named zones.
-    /// Rolls for an encounter like a normal zone entry.
-    pub fn enter_hallway(depth: u32, rng: &mut impl Rng) -> Self {
-        Self::enter(ZoneKind::Hallway, depth, rng)
+    /// `travel_dir` is the direction toward the destination (exit door side).
+    /// The opposite side gets a backtrack door leading back to the origin.
+    pub fn enter_hallway(depth: u32, travel_dir: CardinalDir, rng: &mut impl Rng) -> Self {
+        let with_encounter = rng.r#gen::<f64>() < ENCOUNTER_CHANCE;
+        Self::build(
+            ZoneKind::Hallway,
+            depth,
+            with_encounter,
+            Some(travel_dir),
+            rng,
+        )
     }
 
-    fn build(kind: ZoneKind, depth: u32, with_encounter: bool, rng: &mut impl Rng) -> Self {
+    fn build(
+        kind: ZoneKind,
+        depth: u32,
+        with_encounter: bool,
+        hallway_dir: Option<CardinalDir>,
+        rng: &mut impl Rng,
+    ) -> Self {
         let connections = zone_connections(kind);
         let cols: u32 = rng.gen_range(8..=16);
         let rows: u32 = rng.gen_range(8..=16);
@@ -152,9 +166,15 @@ impl Zone {
         // Compute door positions for each connected side (named zones) or exit (hallway).
         let mut doors: HashMap<(i32, i32), CardinalDir> = HashMap::new();
         if kind == ZoneKind::Hallway {
-            // Hallway exit door on the east side.
-            for pos in door_tiles(CardinalDir::East, cols, rows) {
-                doors.insert(pos, CardinalDir::East);
+            let travel_dir = hallway_dir.unwrap_or(CardinalDir::East);
+            // Exit door in the direction of travel.
+            for pos in door_tiles(travel_dir, cols, rows) {
+                doors.insert(pos, travel_dir);
+            }
+            // Backtrack door on the opposite side.
+            let back_dir = travel_dir.opposite();
+            for pos in door_tiles(back_dir, cols, rows) {
+                doors.insert(pos, back_dir);
             }
         } else {
             for dir in [

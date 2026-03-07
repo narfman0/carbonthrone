@@ -261,16 +261,30 @@ impl GameSession {
         if exploration.travel.is_some() {
             return;
         }
+        // Find which direction in the current zone leads to the destination.
+        let travel_dir = [
+            CardinalDir::North,
+            CardinalDir::South,
+            CardinalDir::East,
+            CardinalDir::West,
+        ]
+        .iter()
+        .copied()
+        .find(|&d| exploration.zone.connections.get(d) == Some(destination))
+        .unwrap_or(CardinalDir::South);
+
         let depth = exploration.zone.depth;
         let origin = exploration.zone.kind;
         let player_entity = exploration.player_entity;
-        exploration.travel = Some(TravelState::new(origin, destination));
-        exploration.zone = Zone::enter_hallway(depth, rng);
+        exploration.travel = Some(TravelState::new(origin, destination, travel_dir));
+        exploration.zone = Zone::enter_hallway(depth, travel_dir, rng);
         exploration.npcs.clear();
+        // Spawn 1 tile inward from the backtrack (entry) door.
+        let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
         *self
             .world
             .get_mut::<Position>(player_entity)
-            .expect("player has Position") = Position::new(0, 0);
+            .expect("player has Position") = Position::new(spawn.0, spawn.1);
     }
 
     /// Attempt to exit the current hallway. Rolls against [`arrival_chance`] for
@@ -286,6 +300,7 @@ impl GameSession {
             return false;
         }
         let destination = exploration.travel.as_ref().unwrap().destination;
+        let travel_dir = exploration.travel.as_ref().unwrap().travel_dir;
         let depth = exploration.zone.depth;
         let player_entity = exploration.player_entity;
         let loop_number = self.loop_number;
@@ -294,20 +309,24 @@ impl GameSession {
             exploration.zone = Zone::enter(destination, depth, rng);
             exploration.travel = None;
             exploration.npcs.clear();
+            // Spawn 1 tile inward from the entry door (faces back toward origin).
+            let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
             *self
                 .world
                 .get_mut::<Position>(player_entity)
-                .expect("player has Position") = Position::new(0, 0);
+                .expect("player has Position") = Position::new(spawn.0, spawn.1);
             exploration.fire_trigger(Trigger::OnEnter);
             true
         } else {
             exploration.travel.as_mut().unwrap().hallways_traversed += 1;
-            exploration.zone = Zone::enter_hallway(depth, rng);
+            exploration.zone = Zone::enter_hallway(depth, travel_dir, rng);
             exploration.npcs.clear();
+            // Spawn 1 tile inward from the backtrack door.
+            let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
             *self
                 .world
                 .get_mut::<Position>(player_entity)
-                .expect("player has Position") = Position::new(0, 0);
+                .expect("player has Position") = Position::new(spawn.0, spawn.1);
             false
         }
     }
@@ -316,8 +335,9 @@ impl GameSession {
     ///
     /// Delegates to [`ExplorationState::try_move`]. If the player lands on a
     /// door tile, travel is initiated automatically:
-    /// - In a hallway: calls [`Self::exit_hallway`].
-    /// - In a named zone: calls [`Self::initiate_travel`] toward the connected zone.
+    /// - Named zone door → [`Self::initiate_travel`] toward the connected zone.
+    /// - Hallway exit door (travel direction) → [`Self::exit_hallway`].
+    /// - Hallway backtrack door (opposite direction) → [`Self::backtrack_to_origin`].
     pub fn move_player(&mut self, dx: i32, dy: i32, rng: &mut impl rand::Rng) {
         let GamePhase::Exploration(exploration) = &mut self.phase else {
             return;
@@ -330,13 +350,43 @@ impl GameSession {
             return;
         };
         let is_hallway = exploration.zone.kind == ZoneKind::Hallway;
+        let travel_dir = exploration.travel.as_ref().map(|t| t.travel_dir);
         let destination = exploration.zone.connections.get(dir);
 
         if is_hallway {
-            self.exit_hallway(rng);
+            if Some(dir) == travel_dir {
+                self.exit_hallway(rng);
+            } else {
+                self.backtrack_to_origin(rng);
+            }
         } else if let Some(dest) = destination {
             self.initiate_travel(dest, rng);
         }
+    }
+
+    /// Cancel travel and return to the origin zone, spawning near the door
+    /// that faces the destination (so the player can re-enter the hallway).
+    pub fn backtrack_to_origin(&mut self, rng: &mut impl rand::Rng) {
+        let GamePhase::Exploration(exploration) = &mut self.phase else {
+            return;
+        };
+        if exploration.travel.is_none() {
+            return;
+        }
+        let origin = exploration.travel.as_ref().unwrap().origin;
+        let travel_dir = exploration.travel.as_ref().unwrap().travel_dir;
+        let depth = exploration.zone.depth;
+        let player_entity = exploration.player_entity;
+        exploration.zone = Zone::enter(origin, depth, rng);
+        exploration.travel = None;
+        exploration.npcs.clear();
+        // Spawn 1 tile inward from the door that leads toward the destination.
+        let spawn = spawn_pos_near_door(&exploration.zone, travel_dir);
+        *self
+            .world
+            .get_mut::<Position>(player_entity)
+            .expect("player has Position") = Position::new(spawn.0, spawn.1);
+        exploration.fire_trigger(Trigger::OnEnter);
     }
 
     /// True when a battle outcome has been decided.
@@ -385,4 +435,32 @@ pub fn setup_battle(world: &mut World, zone: &Zone) {
     let battle_rng = StdRng::seed_from_u64(rand::random::<u64>());
     world.insert_resource(zone.map.clone());
     world.insert_resource(BattleRng(battle_rng));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Returns the position 1 tile inward from the door on `door_dir` side of `zone`.
+/// Used to place the player just inside a zone after transitioning.
+fn spawn_pos_near_door(zone: &Zone, door_dir: CardinalDir) -> (i32, i32) {
+    let door_pos = zone
+        .doors
+        .iter()
+        .find(|entry| *entry.1 == door_dir)
+        .map(|entry| *entry.0);
+
+    let Some((x, y)) = door_pos else {
+        return (1, 1);
+    };
+
+    let nx = match door_dir {
+        CardinalDir::East => (x - 1).max(0),
+        CardinalDir::West => (x + 1).min(zone.cols as i32 - 1),
+        _ => x,
+    };
+    let ny = match door_dir {
+        CardinalDir::North => (y + 1).min(zone.rows as i32 - 1),
+        CardinalDir::South => (y - 1).max(0),
+        _ => y,
+    };
+    (nx, ny)
 }

@@ -1,7 +1,7 @@
 use carbonthrone::game::{GamePhase, GameSession};
 use carbonthrone::position::Position;
 use carbonthrone::travel::{TravelState, arrival_chance};
-use carbonthrone::zone::ZoneKind;
+use carbonthrone::zone::{CardinalDir, ZoneKind};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
@@ -26,10 +26,15 @@ fn arrival_chance_clamped_at_floor() {
 
 #[test]
 fn travel_state_initial_hallways_zero() {
-    let t = TravelState::new(ZoneKind::CommandDeck, ZoneKind::ResearchWing);
+    let t = TravelState::new(
+        ZoneKind::CommandDeck,
+        ZoneKind::ResearchWing,
+        CardinalDir::South,
+    );
     assert_eq!(t.origin, ZoneKind::CommandDeck);
     assert_eq!(t.destination, ZoneKind::ResearchWing);
     assert_eq!(t.hallways_traversed, 0);
+    assert_eq!(t.travel_dir, CardinalDir::South);
 }
 
 // ── initiate_travel ───────────────────────────────────────────────────────────
@@ -221,8 +226,8 @@ fn move_player_off_edge_no_op_when_no_connection() {
 
 #[test]
 fn move_player_off_hallway_edge_advances_travel() {
-    // Hallway exit door is on the east side. Place the player one step west of
-    // the door, then step east onto it to trigger exit_hallway.
+    // CommandDeck → ResearchWing = South direction.
+    // Hallway exit door is on the south side. Place player one step north of it.
     let mut session = GameSession::new();
     session.loop_number = 1;
     let mut rng = StdRng::seed_from_u64(7);
@@ -231,7 +236,7 @@ fn move_player_off_hallway_edge_advances_travel() {
 
     let mut arrived = false;
     for _ in 0..20 {
-        // Find the east door tile, place player one step west of it.
+        // Find the south (exit) door tile, place player one step north of it.
         let (player_entity, door_pos) = {
             let GamePhase::Exploration(s) = &session.phase else {
                 panic!()
@@ -240,17 +245,17 @@ fn move_player_off_hallway_edge_advances_travel() {
                 .zone
                 .doors
                 .iter()
-                .find(|&(_, &dir)| dir == CardinalDir::East)
-                .map(|(&pos, _)| pos)
-                .expect("hallway should have an east door");
+                .find(|entry| *entry.1 == CardinalDir::South)
+                .map(|entry| *entry.0)
+                .expect("hallway should have a south exit door");
             (s.player_entity, door)
         };
         *session
             .world
             .get_mut::<Position>(player_entity)
-            .expect("player has Position") = Position::new(door_pos.0 - 1, door_pos.1);
+            .expect("player has Position") = Position::new(door_pos.0, door_pos.1 - 1);
 
-        session.move_player(1, 0, &mut rng);
+        session.move_player(0, 1, &mut rng);
 
         let GamePhase::Exploration(s) = &session.phase else {
             panic!()
