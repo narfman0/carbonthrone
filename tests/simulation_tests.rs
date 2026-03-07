@@ -37,7 +37,8 @@ fn enemy(world: &mut World, hp: i32, attack: i32, defense: i32, speed: i32) -> E
                 speed,
             },
             ActionPoints::new(4),
-            Position::new(5, 0),
+            // Place adjacent to player at (0,0) so melee abilities are in range.
+            Position::new(1, 0),
         ))
         .id()
 }

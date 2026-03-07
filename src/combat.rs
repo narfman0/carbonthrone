@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::{
+    ability::{AbilityEffect, AbilityKind, character_abilities},
     action_points::ActionPoints,
     character::{Aggression, Character},
     health::Health,
@@ -11,7 +12,7 @@ use crate::{
     position::Position,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{ATTACK_AP_COST, Action, apply_action},
+    turn::{Action, apply_action},
 };
 
 pub use crate::turn::TurnAction;
@@ -383,36 +384,201 @@ fn all_enemies_defeated(world: &mut World) -> bool {
 
 // ── Smart AI ─────────────────────────────────────────────────────────────────
 
-/// AI entry point: seek cover first, then attack the best target.
+/// Returns the minimum AP cost of any offensive (Melee or Ranged damage) ability
+/// for the given actor. Falls back to 2 if no character or no abilities found.
+fn min_offensive_ap_cost(world: &mut World, actor: Entity) -> i32 {
+    let kind = match world.get::<Character>(actor) {
+        Some(c) => c.kind.clone(),
+        None => return 2,
+    };
+    character_abilities(&kind)
+        .iter()
+        .filter(|a| matches!(a.kind, AbilityKind::Melee | AbilityKind::Ranged))
+        .filter(|a| is_damage_ability(&a.effect))
+        .map(|a| a.ap_cost)
+        .min()
+        .unwrap_or(2)
+}
+
+/// Returns `true` if the ability effect deals direct damage.
+fn is_damage_ability(effect: &AbilityEffect) -> bool {
+    matches!(
+        effect,
+        AbilityEffect::BonusDamage { .. }
+            | AbilityEffect::ArmorPiercing { .. }
+            | AbilityEffect::ArmorPiercingStrike { .. }
+    )
+}
+
+/// Returns `true` for abilities that can be directed at an enemy to impair them
+/// (damage dealing or AP disruption).
+fn is_offensive_ability(effect: &AbilityEffect) -> bool {
+    matches!(
+        effect,
+        AbilityEffect::BonusDamage { .. }
+            | AbilityEffect::ArmorPiercing { .. }
+            | AbilityEffect::ArmorPiercingStrike { .. }
+            | AbilityEffect::DrainAP { .. }
+    )
+}
+
+/// AI entry point: seek cover first, then choose an ability.
 fn choose_action(world: &mut World, actor: Entity, turn: Turn) -> Option<Action> {
     let ap = world.get::<ActionPoints>(actor)?.current;
     if ap == 0 {
         return Some(Action::Pass);
     }
 
+    let min_cost = min_offensive_ap_cost(world, actor);
+
     // Phase 1: move to cover if not already well-covered from nearest enemy.
-    if let Some(mv) = seek_cover_action(world, actor, turn, ap) {
+    if let Some(mv) = seek_cover_action(world, actor, turn, ap, min_cost) {
         return Some(mv);
     }
 
-    // Phase 2: attack the target most likely to take significant damage.
-    if ap >= ATTACK_AP_COST
-        && let Some(target) = best_attack_target(world, actor, turn)
-    {
-        return Some(Action::Attack { target });
+    // Phase 2: use an offensive ability.
+    if let Some(ability_action) = choose_offensive_ability_action(world, actor, turn, ap) {
+        return Some(ability_action);
     }
 
     Some(Action::Pass)
 }
 
+/// Chooses an offensive ability and target for the actor.
+///
+/// Prefers ranged abilities (usable from any distance), then melee (adjacent only).
+/// Returns `None` if no valid target/ability combination is available.
+fn choose_offensive_ability_action(
+    world: &mut World,
+    actor: Entity,
+    turn: Turn,
+    ap: i32,
+) -> Option<Action> {
+    let (kind, level) = {
+        let c = world.get::<Character>(actor)?;
+        (c.kind.clone(), c.level)
+    };
+    let actor_pos = world.get::<Position>(actor).copied()?;
+
+    let abilities = character_abilities(&kind);
+    let available: Vec<_> = abilities
+        .iter()
+        .filter(|a| a.level_required <= level && a.ap_cost <= ap && is_offensive_ability(&a.effect))
+        .collect();
+
+    // Collect target positions for adjacency checks.
+    let target_positions: Vec<(Entity, i32, i32)> = {
+        let mut q = world.query::<(Entity, &Character, &Health, &Position)>();
+        q.iter(world)
+            .filter(|(_, c, h, _)| match turn {
+                Turn::Player => {
+                    !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
+                }
+                Turn::Enemy => c.kind.is_player() && h.is_alive(),
+            })
+            .map(|(e, _, _, pos)| (e, pos.x, pos.y))
+            .collect()
+    };
+
+    // Try ranged offensive abilities first.
+    if let Some(ability) = available.iter().find(|a| a.kind == AbilityKind::Ranged) {
+        if let Some(target) = best_attack_target(world, actor, turn) {
+            return Some(Action::UseAbility {
+                ability: (*ability).clone(),
+                target: Some(target),
+            });
+        }
+    }
+
+    // Try melee offensive abilities if an adjacent target exists.
+    if let Some(ability) = available.iter().find(|a| a.kind == AbilityKind::Melee) {
+        if let Some(target) = best_adjacent_target(&target_positions, actor_pos) {
+            return Some(Action::UseAbility {
+                ability: (*ability).clone(),
+                target: Some(target),
+            });
+        }
+    }
+
+    None
+}
+
+/// Returns the entity that gives the highest expected damage (hit_chance × damage),
+/// preferring closer targets on ties.
+fn best_attack_target(world: &mut World, actor: Entity, turn: Turn) -> Option<Entity> {
+    let actor_pos = world.get::<Position>(actor).copied()?;
+    let actor_attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
+
+    // Collect target data (drop query borrow before accessing resources).
+    let targets: Vec<(Entity, i32, i32, i32)> = match turn {
+        Turn::Player => {
+            let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
+            q.iter(world)
+                .filter(|(_, c, h, _, _)| {
+                    !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
+                })
+                .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
+                .collect()
+        }
+        Turn::Enemy => {
+            let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
+            q.iter(world)
+                .filter(|(_, c, h, _, _)| c.kind.is_player() && h.is_alive())
+                .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
+                .collect()
+        }
+    };
+
+    targets
+        .iter()
+        .map(|&(e, defense, tx, ty)| {
+            let dir = Direction::from_attack((actor_pos.x, actor_pos.y), (tx, ty));
+            let cover = world
+                .get_resource::<LevelMap>()
+                .map(|m| m.get_cover(tx, ty, dir))
+                .unwrap_or(CoverLevel::None);
+            let expected = calc_hit_chance(cover) * calc_damage(actor_attack, defense) as f32;
+            let dist = (tx - actor_pos.x).abs() + (ty - actor_pos.y).abs();
+            (e, expected, dist)
+        })
+        .max_by(|a, b| {
+            a.1.partial_cmp(&b.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(b.2.cmp(&a.2)) // prefer closer on tie
+        })
+        .map(|(e, _, _)| e)
+}
+
+/// Returns the best adjacent target (Chebyshev distance ≤ 1) for a melee attack.
+fn best_adjacent_target(targets: &[(Entity, i32, i32)], actor_pos: Position) -> Option<Entity> {
+    targets
+        .iter()
+        .filter(|&&(_, tx, ty)| {
+            let chebyshev = (actor_pos.x - tx).abs().max((actor_pos.y - ty).abs());
+            chebyshev <= 1 && chebyshev > 0
+        })
+        .map(|&(e, tx, ty)| {
+            let dist = (actor_pos.x - tx).abs() + (actor_pos.y - ty).abs();
+            (e, dist)
+        })
+        .min_by_key(|&(_, dist)| dist)
+        .map(|(e, _)| e)
+}
+
 /// Returns a `Move` action toward the best available cover tile.
 ///
-/// Phase 1 — reserve AP for attack: look for better cover within `ap - ATTACK_AP_COST` tiles.
+/// Phase 1 — reserve AP for attack: look for better cover within `ap - min_attack_cost` tiles.
 ///   If found, move there so the actor can still attack this turn.
 /// Phase 2 — advance toward cover: if no in-range cover exists, spend ALL AP to advance toward
 ///   the best reachable cover tile (skipping the attack this turn).
 /// Returns `None` only if already at Full cover or no better cover exists anywhere in range.
-fn seek_cover_action(world: &mut World, actor: Entity, turn: Turn, ap: i32) -> Option<Action> {
+fn seek_cover_action(
+    world: &mut World,
+    actor: Entity,
+    turn: Turn,
+    ap: i32,
+    min_attack_cost: i32,
+) -> Option<Action> {
     if ap == 0 {
         return None;
     }
@@ -498,7 +664,7 @@ fn seek_cover_action(world: &mut World, actor: Entity, turn: Turn, ap: i32) -> O
     candidates.sort_by(|a, b| b.3.cmp(&a.3).then(a.0.cmp(&b.0)));
 
     // Phase 1: prefer a tile reachable while keeping enough AP to attack after.
-    let attack_budget = ap - ATTACK_AP_COST;
+    let attack_budget = ap - min_attack_cost;
     if attack_budget > 0
         && let Some(&(_, tx, ty, _)) = candidates
             .iter()
@@ -513,50 +679,4 @@ fn seek_cover_action(world: &mut World, actor: Entity, turn: Turn, ap: i32) -> O
     candidates.first().map(|&(_, tx, ty, _)| Action::Move {
         destination: Position::new(tx, ty),
     })
-}
-
-/// Returns the entity that gives the highest expected damage (hit_chance × damage),
-/// preferring closer targets on ties.
-fn best_attack_target(world: &mut World, actor: Entity, turn: Turn) -> Option<Entity> {
-    let actor_pos = world.get::<Position>(actor).copied()?;
-    let actor_attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
-
-    // Collect target data (drop query borrow before accessing resources).
-    let targets: Vec<(Entity, i32, i32, i32)> = match turn {
-        Turn::Player => {
-            let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
-            q.iter(world)
-                .filter(|(_, c, h, _, _)| {
-                    !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
-                })
-                .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
-                .collect()
-        }
-        Turn::Enemy => {
-            let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
-            q.iter(world)
-                .filter(|(_, c, h, _, _)| c.kind.is_player() && h.is_alive())
-                .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
-                .collect()
-        }
-    };
-
-    targets
-        .iter()
-        .map(|&(e, defense, tx, ty)| {
-            let dir = Direction::from_attack((actor_pos.x, actor_pos.y), (tx, ty));
-            let cover = world
-                .get_resource::<LevelMap>()
-                .map(|m| m.get_cover(tx, ty, dir))
-                .unwrap_or(CoverLevel::None);
-            let expected = calc_hit_chance(cover) * calc_damage(actor_attack, defense) as f32;
-            let dist = (tx - actor_pos.x).abs() + (ty - actor_pos.y).abs();
-            (e, expected, dist)
-        })
-        .max_by(|a, b| {
-            a.1.partial_cmp(&b.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then(b.2.cmp(&a.2)) // prefer closer on tie
-        })
-        .map(|(e, _, _)| e)
 }
