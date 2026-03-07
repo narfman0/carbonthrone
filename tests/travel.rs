@@ -25,7 +25,8 @@ fn arrival_chance_clamped_at_floor() {
 
 #[test]
 fn travel_state_initial_hallways_zero() {
-    let t = TravelState::new(ZoneKind::ResearchWing);
+    let t = TravelState::new(ZoneKind::CommandDeck, ZoneKind::ResearchWing);
+    assert_eq!(t.origin, ZoneKind::CommandDeck);
     assert_eq!(t.destination, ZoneKind::ResearchWing);
     assert_eq!(t.hallways_traversed, 0);
 }

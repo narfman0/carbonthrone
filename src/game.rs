@@ -259,8 +259,9 @@ impl GameSession {
             return;
         }
         let depth = exploration.zone.depth;
+        let origin = exploration.zone.kind;
         let player_entity = exploration.player_entity;
-        exploration.travel = Some(TravelState::new(destination));
+        exploration.travel = Some(TravelState::new(origin, destination));
         exploration.zone = Zone::enter_hallway(depth, rng);
         exploration.npcs.clear();
         *self

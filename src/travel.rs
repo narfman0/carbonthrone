@@ -9,6 +9,8 @@ use crate::zone::ZoneKind;
 /// arrival chance, reflecting temporal disorientation.
 #[derive(Debug, Clone)]
 pub struct TravelState {
+    /// The named zone the player departed from.
+    pub origin: ZoneKind,
     /// The named zone the player is trying to reach.
     pub destination: ZoneKind,
     /// How many hallways have been traversed so far this journey.
@@ -16,8 +18,9 @@ pub struct TravelState {
 }
 
 impl TravelState {
-    pub fn new(destination: ZoneKind) -> Self {
+    pub fn new(origin: ZoneKind, destination: ZoneKind) -> Self {
         Self {
+            origin,
             destination,
             hallways_traversed: 0,
         }
