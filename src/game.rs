@@ -171,7 +171,7 @@ impl GameSession {
         dialog.load_script(yaml).expect("load loop1.yaml");
 
         let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-        let zone = Zone::enter(ZoneKind::CommandDeck, 1, &mut rng);
+        let zone = Zone::enter(ZoneKind::CommandDeck, 1, 1, &mut rng);
 
         let mut exploration = ExplorationState {
             player_entity,
@@ -274,10 +274,11 @@ impl GameSession {
         .unwrap_or(CardinalDir::South);
 
         let depth = exploration.zone.depth;
+        let loop_number = self.loop_number;
         let origin = exploration.zone.kind;
         let player_entity = exploration.player_entity;
         exploration.travel = Some(TravelState::new(origin, destination, travel_dir));
-        exploration.zone = Zone::enter_hallway(depth, travel_dir, rng);
+        exploration.zone = Zone::enter_hallway(depth, loop_number, travel_dir, rng);
         exploration.npcs.clear();
         // Spawn 1 tile inward from the backtrack (entry) door.
         let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
@@ -306,7 +307,7 @@ impl GameSession {
         let loop_number = self.loop_number;
 
         if rng.r#gen::<f64>() < arrival_chance(loop_number) {
-            exploration.zone = Zone::enter(destination, depth, rng);
+            exploration.zone = Zone::enter(destination, depth, loop_number, rng);
             exploration.travel = None;
             exploration.npcs.clear();
             // Spawn 1 tile inward from the entry door (faces back toward origin).
@@ -319,7 +320,7 @@ impl GameSession {
             true
         } else {
             exploration.travel.as_mut().unwrap().hallways_traversed += 1;
-            exploration.zone = Zone::enter_hallway(depth, travel_dir, rng);
+            exploration.zone = Zone::enter_hallway(depth, loop_number, travel_dir, rng);
             exploration.npcs.clear();
             // Spawn 1 tile inward from the backtrack door.
             let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
@@ -376,8 +377,9 @@ impl GameSession {
         let origin = exploration.travel.as_ref().unwrap().origin;
         let travel_dir = exploration.travel.as_ref().unwrap().travel_dir;
         let depth = exploration.zone.depth;
+        let loop_number = self.loop_number;
         let player_entity = exploration.player_entity;
-        exploration.zone = Zone::enter(origin, depth, rng);
+        exploration.zone = Zone::enter(origin, depth, loop_number, rng);
         exploration.travel = None;
         exploration.npcs.clear();
         // Spawn 1 tile inward from the door that leads toward the destination.
