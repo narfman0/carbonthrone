@@ -14,6 +14,8 @@ pub enum Tile {
     Open,
     /// Impassable solid structure — blocks movement and provides adjacent cover.
     Obstacle,
+    /// Door — passable threshold leading to the next zone.
+    Door,
 }
 
 impl Tile {
@@ -126,7 +128,7 @@ impl LevelMap {
         self.cover.clear();
         let passable: Vec<(i32, i32)> = (0..self.rows as i32)
             .flat_map(|y| (0..self.cols as i32).map(move |x| (x, y)))
-            .filter(|&(x, y)| self.get(x, y) == Tile::Open)
+            .filter(|&(x, y)| self.get(x, y).is_passable())
             .collect();
         for (x, y) in passable {
             let dc = compute_directional_cover(&self.tiles, x, y);
@@ -137,10 +139,12 @@ impl LevelMap {
     }
 
     /// Terminal character for rendering, including cover hints:
-    /// `'#'` obstacle, `'C'` full cover any direction, `'c'` partial, `'.'` open.
+    /// `'#'` obstacle, `'+'` door, `'C'` full cover any direction, `'c'` partial, `'.'` open.
     pub fn display_glyph(&self, x: i32, y: i32) -> char {
-        if self.get(x, y) == Tile::Obstacle {
-            return '#';
+        match self.get(x, y) {
+            Tile::Obstacle => return '#',
+            Tile::Door => return '+',
+            Tile::Open => {}
         }
         let dirs = [
             Direction::North,
@@ -197,11 +201,16 @@ pub fn generate_map(
     rows: u32,
     zone_kind: ZoneKind,
     reserved_open: &[(i32, i32)],
+    door_tiles: &[(i32, i32)],
     rng: &mut impl Rng,
 ) -> LevelMap {
     let mut map = LevelMap::new(cols, rows, zone_kind);
     let density = zone_density(zone_kind);
-    let reserved: HashSet<(i32, i32)> = reserved_open.iter().copied().collect();
+    let reserved: HashSet<(i32, i32)> = reserved_open
+        .iter()
+        .chain(door_tiles.iter())
+        .copied()
+        .collect();
 
     // Place obstacles.
     for y in 0..rows as i32 {
@@ -215,10 +224,15 @@ pub fn generate_map(
         }
     }
 
+    // Mark door tiles.
+    for &(x, y) in door_tiles {
+        map.tiles.insert((x, y), Tile::Door);
+    }
+
     // Compute directional cover for all passable tiles from obstacle adjacency.
     let passable: Vec<(i32, i32)> = (0..rows as i32)
         .flat_map(|y| (0..cols as i32).map(move |x| (x, y)))
-        .filter(|&(x, y)| map.get(x, y) == Tile::Open)
+        .filter(|&(x, y)| map.get(x, y).is_passable())
         .collect();
 
     for (x, y) in passable {

@@ -155,22 +155,30 @@ fn dismiss_dialog(session: &mut GameSession) {
 
 #[test]
 fn move_player_off_edge_initiates_travel_when_connection_exists() {
-    // CommandDeck's south connection is ResearchWing. Teleport to the last row
-    // and step south to trigger initiate_travel.
+    // CommandDeck's south connection is ResearchWing. Find the south door tile,
+    // place the player one step north of it, then step south onto it.
     let mut session = GameSession::new();
     let mut rng = StdRng::seed_from_u64(42);
     dismiss_dialog(&mut session);
 
-    let (player_entity, rows) = {
+    let (player_entity, door_pos) = {
         let GamePhase::Exploration(s) = &session.phase else {
             panic!()
         };
-        (s.player_entity, s.zone.rows)
+        let door = s
+            .zone
+            .doors
+            .iter()
+            .find(|&(_, &dir)| dir == CardinalDir::South)
+            .map(|(&pos, _)| pos)
+            .expect("CommandDeck should have a south door");
+        (s.player_entity, door)
     };
+    // Place player one tile north of the door, then step south onto it.
     *session
         .world
         .get_mut::<Position>(player_entity)
-        .expect("player has Position") = Position::new(0, rows as i32 - 1);
+        .expect("player has Position") = Position::new(door_pos.0, door_pos.1 - 1);
     session.move_player(0, 1, &mut rng);
 
     let GamePhase::Exploration(state) = &session.phase else {
@@ -178,7 +186,7 @@ fn move_player_off_edge_initiates_travel_when_connection_exists() {
     };
     assert!(
         state.travel.is_some() || state.zone.kind != ZoneKind::CommandDeck,
-        "stepping off south edge should initiate travel"
+        "stepping onto south door should initiate travel"
     );
 }
 
@@ -213,8 +221,8 @@ fn move_player_off_edge_no_op_when_no_connection() {
 
 #[test]
 fn move_player_off_hallway_edge_advances_travel() {
-    // Place the player directly on the last row, then step south. This avoids
-    // the map-obstacle problem of trying to walk through a random hallway.
+    // Hallway exit door is on the east side. Place the player one step west of
+    // the door, then step east onto it to trigger exit_hallway.
     let mut session = GameSession::new();
     session.loop_number = 1;
     let mut rng = StdRng::seed_from_u64(7);
@@ -223,19 +231,26 @@ fn move_player_off_hallway_edge_advances_travel() {
 
     let mut arrived = false;
     for _ in 0..20 {
-        // Teleport to the bottom-left corner so the next south step exits.
-        let (player_entity, rows) = {
+        // Find the east door tile, place player one step west of it.
+        let (player_entity, door_pos) = {
             let GamePhase::Exploration(s) = &session.phase else {
                 panic!()
             };
-            (s.player_entity, s.zone.rows)
+            let door = s
+                .zone
+                .doors
+                .iter()
+                .find(|&(_, &dir)| dir == CardinalDir::East)
+                .map(|(&pos, _)| pos)
+                .expect("hallway should have an east door");
+            (s.player_entity, door)
         };
         *session
             .world
             .get_mut::<Position>(player_entity)
-            .expect("player has Position") = Position::new(0, rows as i32 - 1);
+            .expect("player has Position") = Position::new(door_pos.0 - 1, door_pos.1);
 
-        session.move_player(0, 1, &mut rng);
+        session.move_player(1, 0, &mut rng);
 
         let GamePhase::Exploration(s) = &session.phase else {
             panic!()

@@ -2,7 +2,7 @@ use crate::character::{Character, CharacterKind};
 use crate::position::Position;
 use crate::terrain::{LevelMap, Tile, generate_map};
 use rand::Rng;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// One of the nine named zones in the Meridian station, as described in docs/world.md.
 /// `Hallway` is an anonymous connecting corridor used during zone travel.
@@ -116,6 +116,8 @@ pub struct Zone {
     pub surprise: SurpriseState,
     /// Whether this zone has a combat encounter when entered.
     encounter: bool,
+    /// Door tile positions mapped to the cardinal direction they lead toward.
+    pub doors: HashMap<(i32, i32), CardinalDir>,
 }
 
 impl Zone {
@@ -146,7 +148,37 @@ impl Zone {
         let connections = zone_connections(kind);
         let cols: u32 = rng.gen_range(8..=16);
         let rows: u32 = rng.gen_range(8..=16);
-        let map = generate_map(cols, rows, kind, &[], rng);
+
+        // Compute door positions for each connected side (named zones) or exit (hallway).
+        let mut doors: HashMap<(i32, i32), CardinalDir> = HashMap::new();
+        if kind == ZoneKind::Hallway {
+            // Hallway exit door on the east side.
+            for pos in door_tiles(CardinalDir::East, cols, rows) {
+                doors.insert(pos, CardinalDir::East);
+            }
+        } else {
+            for dir in [
+                CardinalDir::North,
+                CardinalDir::South,
+                CardinalDir::East,
+                CardinalDir::West,
+            ] {
+                if connections.get(dir).is_some() {
+                    for pos in door_tiles(dir, cols, rows) {
+                        doors.insert(pos, dir);
+                    }
+                }
+            }
+        }
+
+        let all_door_positions: Vec<(i32, i32)> = doors.keys().copied().collect();
+        let mut map = generate_map(cols, rows, kind, &[], &all_door_positions, rng);
+
+        // Ensure door tiles are set in the map (generate_map already does this,
+        // but we set them here too in case of any overlap).
+        for &pos in doors.keys() {
+            map.set(pos.0, pos.1, Tile::Door);
+        }
 
         let surprise = match rng.gen_range(0..4u32) {
             0 => SurpriseState::PartyAmbushed,
@@ -163,6 +195,7 @@ impl Zone {
             map,
             surprise,
             encounter: with_encounter,
+            doors,
         }
     }
 
@@ -332,6 +365,39 @@ pub fn zone_connections(kind: ZoneKind) -> ZoneConnections {
         },
         // Hallway connections are managed by TravelState, not statically defined.
         ZoneKind::Hallway => ZoneConnections::default(),
+    }
+}
+
+/// Returns the 4 tile positions that form a door on the given side of a grid.
+/// Tiles are centered on the side, clamped to valid bounds.
+fn door_tiles(dir: CardinalDir, cols: u32, rows: u32) -> Vec<(i32, i32)> {
+    match dir {
+        CardinalDir::North => {
+            let mid = cols as i32 / 2;
+            (mid - 2..mid + 2)
+                .map(|x| (x.clamp(0, cols as i32 - 1), 0))
+                .collect()
+        }
+        CardinalDir::South => {
+            let mid = cols as i32 / 2;
+            let y = rows as i32 - 1;
+            (mid - 2..mid + 2)
+                .map(|x| (x.clamp(0, cols as i32 - 1), y))
+                .collect()
+        }
+        CardinalDir::East => {
+            let mid = rows as i32 / 2;
+            let x = cols as i32 - 1;
+            (mid - 2..mid + 2)
+                .map(|y| (x, y.clamp(0, rows as i32 - 1)))
+                .collect()
+        }
+        CardinalDir::West => {
+            let mid = rows as i32 / 2;
+            (mid - 2..mid + 2)
+                .map(|y| (0, y.clamp(0, rows as i32 - 1)))
+                .collect()
+        }
     }
 }
 

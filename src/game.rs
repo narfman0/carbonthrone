@@ -9,7 +9,7 @@ use crate::dialog::{DialogEngine, Trigger};
 use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
-use crate::terrain::{BattleRng, LevelMap, Tile};
+use crate::terrain::{BattleRng, LevelMap};
 use crate::travel::TravelState;
 use crate::travel::arrival_chance;
 use crate::zone::{CardinalDir, Zone, ZoneKind};
@@ -115,20 +115,23 @@ impl ExplorationState {
     }
 
     /// Try to move the player by (dx, dy). Blocked by NPCs and map edges.
-    pub fn try_move(&mut self, world: &mut World, dx: i32, dy: i32) {
+    /// Returns the `CardinalDir` of a door tile if the player moved onto one.
+    pub fn try_move(&mut self, world: &mut World, dx: i32, dy: i32) -> Option<CardinalDir> {
         if self.in_dialog {
-            return;
+            return None;
         }
         let current = *world
             .get::<Position>(self.player_entity)
             .expect("player has Position");
         let nx = (current.x + dx).clamp(0, self.zone.cols as i32 - 1);
         let ny = (current.y + dy).clamp(0, self.zone.rows as i32 - 1);
-        if self.zone.map.get(nx, ny) == Tile::Open && !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
+        if self.zone.map.get(nx, ny).is_passable() && !self.npcs.iter().any(|n| n.pos == (nx, ny)) {
             *world
                 .get_mut::<Position>(self.player_entity)
                 .expect("player has Position") = Position::new(nx, ny);
+            return self.zone.doors.get(&(nx, ny)).copied();
         }
+        None
     }
 
     /// True when the player is adjacent (Manhattan distance 1) to any NPC.
@@ -311,56 +314,29 @@ impl GameSession {
 
     /// Move the player by (dx, dy) during exploration.
     ///
-    /// Normal movement delegates to [`ExplorationState::try_move`]. When the
-    /// requested step would leave the map bounds the direction is resolved to a
-    /// [`CardinalDir`] and:
-    /// - If already in a hallway, calls [`Self::exit_hallway`] to advance travel.
-    /// - Otherwise checks the current zone's connections; if a neighbour exists
-    ///   in that direction, calls [`Self::initiate_travel`] toward it.
-    /// - If there is no connection, the move is silently ignored.
+    /// Delegates to [`ExplorationState::try_move`]. If the player lands on a
+    /// door tile, travel is initiated automatically:
+    /// - In a hallway: calls [`Self::exit_hallway`].
+    /// - In a named zone: calls [`Self::initiate_travel`] toward the connected zone.
     pub fn move_player(&mut self, dx: i32, dy: i32, rng: &mut impl rand::Rng) {
-        let (tx, ty, cols, rows, is_traveling, connection) = {
-            let GamePhase::Exploration(exploration) = &self.phase else {
-                return;
-            };
-            if exploration.in_dialog {
-                return;
-            }
-            let current = *self
-                .world
-                .get::<Position>(exploration.player_entity)
-                .expect("player has Position");
-            let tx = current.x + dx;
-            let ty = current.y + dy;
-            let cols = exploration.zone.cols as i32;
-            let rows = exploration.zone.rows as i32;
-            let is_traveling = exploration.travel.is_some();
-            let dir = if dx > 0 {
-                CardinalDir::East
-            } else if dx < 0 {
-                CardinalDir::West
-            } else if dy < 0 {
-                CardinalDir::North
-            } else {
-                CardinalDir::South
-            };
-            let connection = exploration.zone.connections.get(dir);
-            (tx, ty, cols, rows, is_traveling, connection)
-        };
-
-        if tx < 0 || tx >= cols || ty < 0 || ty >= rows {
-            if is_traveling {
-                self.exit_hallway(rng);
-            } else if let Some(destination) = connection {
-                self.initiate_travel(destination, rng);
-            }
-            return;
-        }
-
         let GamePhase::Exploration(exploration) = &mut self.phase else {
             return;
         };
-        exploration.try_move(&mut self.world, dx, dy);
+        let door_dir = exploration.try_move(&mut self.world, dx, dy);
+        let Some(dir) = door_dir else { return };
+
+        // Player stepped on a door — trigger travel.
+        let GamePhase::Exploration(exploration) = &self.phase else {
+            return;
+        };
+        let is_hallway = exploration.zone.kind == ZoneKind::Hallway;
+        let destination = exploration.zone.connections.get(dir);
+
+        if is_hallway {
+            self.exit_hallway(rng);
+        } else if let Some(dest) = destination {
+            self.initiate_travel(dest, rng);
+        }
     }
 
     /// True when a battle outcome has been decided.

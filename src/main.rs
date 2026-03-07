@@ -105,19 +105,19 @@ fn main() {
                     } else {
                         match k.code {
                             KeyCode::Up | KeyCode::Char('w') => {
-                                state.try_move(&mut session.world, 0, -1);
+                                session.move_player(0, -1, &mut rng);
                                 break;
                             }
                             KeyCode::Down | KeyCode::Char('s') => {
-                                state.try_move(&mut session.world, 0, 1);
+                                session.move_player(0, 1, &mut rng);
                                 break;
                             }
                             KeyCode::Left | KeyCode::Char('a') => {
-                                state.try_move(&mut session.world, -1, 0);
+                                session.move_player(-1, 0, &mut rng);
                                 break;
                             }
                             KeyCode::Right | KeyCode::Char('d') => {
-                                state.try_move(&mut session.world, 1, 0);
+                                session.move_player(1, 0, &mut rng);
                                 break;
                             }
                             KeyCode::Char('e') => {
@@ -129,32 +129,6 @@ fn main() {
                             }
                             KeyCode::Char('b') => {
                                 session.transition_to_battle();
-                                break;
-                            }
-                            // Begin traveling to the first available adjacent zone.
-                            KeyCode::Char('t') => {
-                                let destination = if let GamePhase::Exploration(s) = &session.phase
-                                {
-                                    let c = &s.zone.connections;
-                                    c.north.or(c.south).or(c.east).or(c.west)
-                                } else {
-                                    None
-                                };
-                                if let Some(dest) = destination {
-                                    session.initiate_travel(dest, &mut rng);
-                                }
-                                break;
-                            }
-                            // Attempt to exit the current hallway.
-                            KeyCode::Char('x') => {
-                                let in_hallway = if let GamePhase::Exploration(s) = &session.phase {
-                                    s.travel.is_some()
-                                } else {
-                                    false
-                                };
-                                if in_hallway {
-                                    session.exit_hallway(&mut rng);
-                                }
                                 break;
                             }
                             _ => {}
@@ -264,12 +238,10 @@ fn render_exploration(state: &ExplorationState, world: &World) -> String {
         } else {
             "[SPACE] continue"
         }
-    } else if state.travel.is_some() {
-        "[WASD/Arrows] move  [X] exit corridor  [B] battle  [Q] quit"
     } else if state.adjacent_to_npc(world) {
-        "[WASD/Arrows] move  [E] talk  [T] travel  [B] battle  [Q] quit"
+        "[WASD/Arrows] move  [E] talk  [B] battle  [Q] quit"
     } else {
-        "[WASD/Arrows] move  [T] travel  [B] battle  [Q] quit"
+        "[WASD/Arrows] move  [B] battle  [Q] quit"
     };
     out += &format!("{controls_str}\r\n");
     out += &format!("{}\r\n", bar);
