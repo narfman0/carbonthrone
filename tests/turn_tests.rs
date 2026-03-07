@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 use carbonthrone::{
+    ability::available_abilities,
     action_points::ActionPoints,
+    character::CharacterKind,
     health::Health,
     position::Position,
     stats::Stats,
     terrain::{BattleRng, LevelMap, Tile},
-    turn::{ATTACK_AP_COST, Action, MOVE_AP_COST, TurnAction, apply_action},
+    turn::{Action, MOVE_AP_COST, TurnAction, apply_action},
     zone::ZoneKind,
 };
 use rand::SeedableRng;
@@ -20,32 +22,59 @@ fn stats(attack: i32, defense: i32) -> Stats {
     }
 }
 
-// ── Existing action tests (updated for Option<TurnAction> return) ──────────
+// ── UseAbility action tests ────────────────────────────────────────────────
 
 #[test]
-fn attack_reduces_target_hp_and_spends_ap() {
+fn ranged_ability_reduces_target_hp_and_spends_ap() {
     let mut world = World::new();
+    // Aimed Shot: Ranged, ap_cost 2, BonusDamage { bonus: 5 }
+    let ability = available_abilities(&CharacterKind::Kaleo, 1)
+        .into_iter()
+        .find(|a| a.name == "Aimed Shot")
+        .unwrap();
+    assert_eq!(ability.ap_cost, 2);
+
+    // No BattleRng → always hits. calc_damage(10, 4) + 5 = 13.
     let attacker = world.spawn((stats(10, 5), ActionPoints::new(4))).id();
-    // No BattleRng → always hits. calc_damage(10, 4) = 8.
     let target = world.spawn((stats(5, 4), Health::new(50))).id();
 
-    let result = apply_action(&mut world, attacker, &Action::Attack { target });
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability: ability.clone(),
+            target: Some(target),
+        },
+    );
 
     assert!(result.is_some());
-    assert_eq!(world.get::<Health>(target).unwrap().current, 42);
+    assert_eq!(world.get::<Health>(target).unwrap().current, 37); // 50 - 13
     assert_eq!(
         world.get::<ActionPoints>(attacker).unwrap().current,
-        4 - ATTACK_AP_COST
+        4 - ability.ap_cost
     );
 }
 
 #[test]
-fn attack_fails_without_enough_ap() {
+fn ability_fails_without_enough_ap() {
     let mut world = World::new();
-    let attacker = world.spawn((stats(10, 5), ActionPoints::new(1))).id();
+    let ability = available_abilities(&CharacterKind::Kaleo, 1)
+        .into_iter()
+        .find(|a| a.name == "Aimed Shot")
+        .unwrap();
+    assert_eq!(ability.ap_cost, 2);
+
+    let attacker = world.spawn((stats(10, 5), ActionPoints::new(1))).id(); // only 1 AP
     let target = world.spawn((stats(5, 4), Health::new(50))).id();
 
-    let result = apply_action(&mut world, attacker, &Action::Attack { target });
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
 
     assert!(result.is_none());
     assert_eq!(world.get::<Health>(target).unwrap().current, 50);
@@ -53,16 +82,153 @@ fn attack_fails_without_enough_ap() {
 }
 
 #[test]
-fn attack_on_dead_target_fails() {
+fn ability_on_dead_target_fails() {
     let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Kaleo, 1)
+        .into_iter()
+        .find(|a| a.name == "Aimed Shot")
+        .unwrap();
+
     let attacker = world.spawn((stats(10, 5), ActionPoints::new(4))).id();
     let mut target_hp = Health::new(50);
     target_hp.take_damage(50); // kill it
     let target = world.spawn((stats(5, 4), target_hp)).id();
 
-    let result = apply_action(&mut world, attacker, &Action::Attack { target });
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
 
     assert!(result.is_none());
+}
+
+#[test]
+fn melee_ability_blocked_when_target_not_adjacent() {
+    let mut world = World::new();
+    // Power Strike: Melee, ap_cost 3
+    let ability = available_abilities(&CharacterKind::Doss, 1)
+        .into_iter()
+        .find(|a| a.name == "Power Strike")
+        .unwrap();
+
+    // Chebyshev distance = 5 → not adjacent → should fail.
+    let attacker = world
+        .spawn((stats(10, 5), ActionPoints::new(4), Position::new(0, 0)))
+        .id();
+    let target = world
+        .spawn((stats(5, 4), Health::new(50), Position::new(5, 0)))
+        .id();
+
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
+
+    assert!(
+        result.is_none(),
+        "melee ability should fail when not adjacent"
+    );
+    assert_eq!(world.get::<Health>(target).unwrap().current, 50);
+    assert_eq!(world.get::<ActionPoints>(attacker).unwrap().current, 4);
+}
+
+#[test]
+fn melee_ability_succeeds_when_adjacent() {
+    let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Doss, 1)
+        .into_iter()
+        .find(|a| a.name == "Power Strike")
+        .unwrap();
+
+    // Chebyshev distance = 1 → adjacent → should succeed.
+    let attacker = world
+        .spawn((stats(10, 5), ActionPoints::new(4), Position::new(0, 0)))
+        .id();
+    let target = world
+        .spawn((stats(5, 4), Health::new(50), Position::new(1, 0)))
+        .id();
+
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
+
+    assert!(
+        result.is_some(),
+        "melee ability should succeed when adjacent"
+    );
+    assert!(world.get::<Health>(target).unwrap().current < 50);
+}
+
+#[test]
+fn melee_ability_succeeds_on_diagonal() {
+    let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Doss, 1)
+        .into_iter()
+        .find(|a| a.name == "Power Strike")
+        .unwrap();
+
+    // Diagonal adjacency: Chebyshev distance = max(1,1) = 1.
+    let attacker = world
+        .spawn((stats(10, 5), ActionPoints::new(4), Position::new(0, 0)))
+        .id();
+    let target = world
+        .spawn((stats(5, 4), Health::new(50), Position::new(1, 1)))
+        .id();
+
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
+
+    assert!(
+        result.is_some(),
+        "melee ability should allow diagonal adjacency"
+    );
+    assert!(world.get::<Health>(target).unwrap().current < 50);
+}
+
+#[test]
+fn ranged_ability_works_without_positions() {
+    // Ranged abilities have no positional restriction; no Position components needed.
+    let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Kaleo, 1)
+        .into_iter()
+        .find(|a| a.name == "Aimed Shot")
+        .unwrap();
+
+    let attacker = world.spawn((stats(10, 5), ActionPoints::new(4))).id();
+    let target = world.spawn((stats(5, 4), Health::new(50))).id();
+
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
+
+    assert!(
+        result.is_some(),
+        "ranged ability should work without Position components"
+    );
 }
 
 #[test]
@@ -151,7 +317,6 @@ fn move_to_obstacle_is_blocked() {
 
     assert!(result.is_none());
     assert_eq!(world.get::<Position>(mover).unwrap().x, 0); // unchanged
-    // AP should NOT have been spent
     assert_eq!(world.get::<ActionPoints>(mover).unwrap().current, 4);
 }
 
@@ -161,6 +326,7 @@ fn move_to_obstacle_is_blocked() {
 /// Attacker at (5,0) → attack direction North → obstacle at (5,4) provides Full cover.
 fn seeded_world_with_full_cover(seed: u64) -> (World, Entity, Entity) {
     let mut world = World::new();
+    // Use Aimed Shot (Ranged) so no adjacency requirement.
     let attacker = world
         .spawn((stats(10, 0), ActionPoints::new(4), Position::new(5, 0)))
         .id();
@@ -178,41 +344,61 @@ fn seeded_world_with_full_cover(seed: u64) -> (World, Entity, Entity) {
 }
 
 #[test]
-fn attack_hit_on_open_tile_deals_damage() {
+fn ability_hit_on_open_tile_deals_damage() {
     // No LevelMap → CoverLevel::None by default → 90% hit chance.
-    // seed 0 with StdRng will almost certainly hit.
     let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Kaleo, 1)
+        .into_iter()
+        .find(|a| a.name == "Aimed Shot")
+        .unwrap();
+
     let attacker = world.spawn((stats(10, 0), ActionPoints::new(4))).id();
     let target = world
         .spawn((stats(0, 0), Health::new(100), Position::new(5, 5)))
         .id();
     world.insert_resource(BattleRng(StdRng::seed_from_u64(0)));
 
-    let result = apply_action(&mut world, attacker, &Action::Attack { target });
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
 
     match result.unwrap() {
-        TurnAction::Attack { hit, damage, .. } => {
+        TurnAction::UseAbility { hit, value, .. } => {
             if hit {
-                assert!(damage > 0);
+                assert!(value > 0);
                 assert!(world.get::<Health>(target).unwrap().current < 100);
             }
-            // If miss (unlikely with 90% chance on seed 0), just verify no damage dealt
         }
-        _ => panic!("expected Attack result"),
+        _ => panic!("expected UseAbility result"),
     }
 }
 
 #[test]
-fn attack_miss_does_not_deal_damage() {
+fn ability_miss_does_not_deal_damage() {
     // Full cover → 35% hit chance; scan seeds until we find a miss.
+    let ability = available_abilities(&CharacterKind::Kaleo, 1)
+        .into_iter()
+        .find(|a| a.name == "Aimed Shot")
+        .unwrap();
+
     let mut saw_miss = false;
     for seed in 0..200u64 {
         let (mut world, attacker, target) = seeded_world_with_full_cover(seed);
         let hp_before = world.get::<Health>(target).unwrap().current;
 
-        if let Some(TurnAction::Attack { hit, .. }) =
-            apply_action(&mut world, attacker, &Action::Attack { target })
-        {
+        if let Some(TurnAction::UseAbility { hit, .. }) = apply_action(
+            &mut world,
+            attacker,
+            &Action::UseAbility {
+                ability: ability.clone(),
+                target: Some(target),
+            },
+        ) {
             if !hit {
                 saw_miss = true;
                 let hp_after = world.get::<Health>(target).unwrap().current;
@@ -230,16 +416,27 @@ fn attack_miss_does_not_deal_damage() {
 #[test]
 fn ap_spent_on_miss() {
     // Full cover; confirm AP is still spent even on a miss.
+    let ability = available_abilities(&CharacterKind::Kaleo, 1)
+        .into_iter()
+        .find(|a| a.name == "Aimed Shot")
+        .unwrap();
+    let ap_cost = ability.ap_cost;
+
     for seed in 0..200u64 {
         let (mut world, attacker, target) = seeded_world_with_full_cover(seed);
 
-        if let Some(TurnAction::Attack { hit, .. }) =
-            apply_action(&mut world, attacker, &Action::Attack { target })
-        {
+        if let Some(TurnAction::UseAbility { hit, .. }) = apply_action(
+            &mut world,
+            attacker,
+            &Action::UseAbility {
+                ability: ability.clone(),
+                target: Some(target),
+            },
+        ) {
             if !hit {
                 assert_eq!(
                     world.get::<ActionPoints>(attacker).unwrap().current,
-                    4 - ATTACK_AP_COST
+                    4 - ap_cost
                 );
                 return;
             }

@@ -1,14 +1,37 @@
 use bevy::prelude::*;
 use carbonthrone::{
-    ability::{AbilityEffect, CharacterAbilities, available_abilities, character_abilities},
+    ability::{
+        AbilityEffect, AbilityKind, CharacterAbilities, available_abilities, character_abilities,
+    },
     action_points::ActionPoints,
     character::CharacterKind,
     health::Health,
+    position::Position,
     stats::Stats,
     turn::{Action, TurnAction, apply_action},
 };
 
 // ── Ability table tests ───────────────────────────────────────────────────────
+
+const ALL_NPC_KINDS: &[CharacterKind] = &[
+    CharacterKind::Zealot,
+    CharacterKind::Preacher,
+    CharacterKind::Purifier,
+    CharacterKind::Archon,
+    CharacterKind::Scavenger,
+    CharacterKind::VoidRaider,
+    CharacterKind::DrifterBoss,
+    CharacterKind::MaintenanceDrone,
+    CharacterKind::SecurityUnit,
+    CharacterKind::CombatFrame,
+    CharacterKind::MoonCrawler,
+    CharacterKind::VoidSpitter,
+    CharacterKind::AbyssalBrute,
+    CharacterKind::SalvageOperative,
+    CharacterKind::GunForHire,
+    CharacterKind::StationGuard,
+    CharacterKind::ShockTrooper,
+];
 
 #[test]
 fn each_character_has_three_abilities() {
@@ -376,4 +399,232 @@ fn greater_heal_restores_more_than_basic_heal() {
         _ => 0,
     };
     assert!(greater_amount > basic_amount);
+}
+
+// ── NPC ability coverage ──────────────────────────────────────────────────────
+
+#[test]
+fn all_npcs_have_at_least_one_ability() {
+    for kind in ALL_NPC_KINDS {
+        let abilities = character_abilities(kind);
+        assert!(
+            !abilities.is_empty(),
+            "{kind:?} should have at least one ability"
+        );
+    }
+}
+
+#[test]
+fn player_chars_have_at_most_one_melee_attack_and_one_ranged_weapon() {
+    for character in [
+        CharacterKind::Researcher,
+        CharacterKind::Orin,
+        CharacterKind::Doss,
+        CharacterKind::Kaleo,
+    ] {
+        let abilities = character_abilities(&character);
+        let melee_attacks = abilities
+            .iter()
+            .filter(|a| {
+                a.kind == AbilityKind::Melee
+                    && matches!(
+                        a.effect,
+                        AbilityEffect::BonusDamage { .. }
+                            | AbilityEffect::ArmorPiercing { .. }
+                            | AbilityEffect::ArmorPiercingStrike { .. }
+                    )
+            })
+            .count();
+        let ranged_weapons = abilities
+            .iter()
+            .filter(|a| {
+                a.kind == AbilityKind::Ranged
+                    && matches!(
+                        a.effect,
+                        AbilityEffect::BonusDamage { .. }
+                            | AbilityEffect::ArmorPiercing { .. }
+                            | AbilityEffect::ArmorPiercingStrike { .. }
+                    )
+            })
+            .count();
+        assert!(
+            melee_attacks <= 1,
+            "{character:?} has {melee_attacks} melee attacks (max 1)"
+        );
+        assert!(
+            ranged_weapons <= 1,
+            "{character:?} has {ranged_weapons} ranged weapons (max 1)"
+        );
+    }
+}
+
+#[test]
+fn npc_chars_have_at_most_one_melee_attack_and_one_ranged_weapon() {
+    for kind in ALL_NPC_KINDS {
+        let abilities = character_abilities(kind);
+        let melee_attacks = abilities
+            .iter()
+            .filter(|a| {
+                a.kind == AbilityKind::Melee
+                    && matches!(
+                        a.effect,
+                        AbilityEffect::BonusDamage { .. }
+                            | AbilityEffect::ArmorPiercing { .. }
+                            | AbilityEffect::ArmorPiercingStrike { .. }
+                    )
+            })
+            .count();
+        let ranged_weapons = abilities
+            .iter()
+            .filter(|a| {
+                a.kind == AbilityKind::Ranged
+                    && matches!(
+                        a.effect,
+                        AbilityEffect::BonusDamage { .. }
+                            | AbilityEffect::ArmorPiercing { .. }
+                            | AbilityEffect::ArmorPiercingStrike { .. }
+                    )
+            })
+            .count();
+        assert!(
+            melee_attacks <= 1,
+            "{kind:?} has {melee_attacks} melee attacks (max 1)"
+        );
+        assert!(
+            ranged_weapons <= 1,
+            "{kind:?} has {ranged_weapons} ranged weapons (max 1)"
+        );
+    }
+}
+
+// ── AbilityKind field tests ───────────────────────────────────────────────────
+
+#[test]
+fn all_abilities_have_kind_field() {
+    for character in [
+        CharacterKind::Researcher,
+        CharacterKind::Orin,
+        CharacterKind::Doss,
+        CharacterKind::Kaleo,
+    ] {
+        for ability in character_abilities(&character) {
+            // Just accessing .kind confirms the field exists and is set.
+            let _ = &ability.kind;
+        }
+    }
+}
+
+// ── Melee range enforcement ───────────────────────────────────────────────────
+
+#[test]
+fn melee_ability_blocked_when_not_adjacent() {
+    let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Doss, 1)
+        .into_iter()
+        .find(|a| a.name == "Power Strike")
+        .unwrap();
+    assert_eq!(ability.kind, AbilityKind::Melee);
+
+    let attacker = world
+        .spawn((stats(10, 5), ActionPoints::new(4), Position::new(0, 0)))
+        .id();
+    let target = world
+        .spawn((stats(5, 0), Health::new(100), Position::new(5, 0)))
+        .id();
+
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
+    assert!(
+        result.is_none(),
+        "melee must fail when Chebyshev distance > 1"
+    );
+    assert_eq!(world.get::<Health>(target).unwrap().current, 100);
+}
+
+#[test]
+fn melee_ability_succeeds_adjacent_orthogonal() {
+    let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Doss, 1)
+        .into_iter()
+        .find(|a| a.name == "Power Strike")
+        .unwrap();
+
+    let attacker = world
+        .spawn((stats(10, 5), ActionPoints::new(4), Position::new(0, 0)))
+        .id();
+    let target = world
+        .spawn((stats(5, 0), Health::new(100), Position::new(1, 0)))
+        .id();
+
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
+    assert!(
+        result.is_some(),
+        "melee must succeed at orthogonal distance 1"
+    );
+}
+
+#[test]
+fn melee_ability_succeeds_adjacent_diagonal() {
+    let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Doss, 1)
+        .into_iter()
+        .find(|a| a.name == "Power Strike")
+        .unwrap();
+
+    let attacker = world
+        .spawn((stats(10, 5), ActionPoints::new(4), Position::new(0, 0)))
+        .id();
+    let target = world
+        .spawn((stats(5, 0), Health::new(100), Position::new(1, 1)))
+        .id();
+
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
+    assert!(result.is_some(), "melee must allow diagonal adjacency");
+}
+
+#[test]
+fn ranged_ability_succeeds_at_any_range() {
+    let mut world = World::new();
+    let ability = available_abilities(&CharacterKind::Kaleo, 1)
+        .into_iter()
+        .find(|a| a.name == "Aimed Shot")
+        .unwrap();
+    assert_eq!(ability.kind, AbilityKind::Ranged);
+
+    let attacker = world
+        .spawn((stats(10, 5), ActionPoints::new(4), Position::new(0, 0)))
+        .id();
+    let target = world
+        .spawn((stats(5, 0), Health::new(100), Position::new(50, 50)))
+        .id();
+
+    let result = apply_action(
+        &mut world,
+        attacker,
+        &Action::UseAbility {
+            ability,
+            target: Some(target),
+        },
+    );
+    assert!(result.is_some(), "ranged ability must work at any range");
 }

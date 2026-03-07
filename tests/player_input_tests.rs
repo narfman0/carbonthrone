@@ -14,8 +14,9 @@ use carbonthrone::{
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+/// Spawns a Kaleo player (ranged abilities → no adjacency requirement for attack tests).
 fn spawn_player(world: &mut World, pos: (i32, i32), attack: i32, defense: i32) -> Entity {
-    let ch = Character::new_character(CharacterKind::Doss, 1);
+    let ch = Character::new_character(CharacterKind::Kaleo, 1);
     world
         .spawn((
             ch,
@@ -61,35 +62,50 @@ fn always_ends_with_pass() {
 }
 
 #[test]
-fn attack_choice_listed_for_each_living_enemy() {
+fn ability_choice_listed_for_each_living_enemy() {
     let mut world = World::new();
     let actor = spawn_player(&mut world, (0, 0), 10, 5);
     spawn_enemy(&mut world, (5, 0), 4);
     spawn_enemy(&mut world, (0, 5), 2);
 
     let choices = available_player_actions(&mut world, actor);
-    let attacks: Vec<_> = choices
+    // Kaleo at level 1 has one ranged ability (Aimed Shot): one UseAbility per enemy.
+    let ability_choices: Vec<_> = choices
         .iter()
-        .filter(|c| matches!(c, PlayerActionChoice::Attack { .. }))
+        .filter(|c| {
+            matches!(
+                c,
+                PlayerActionChoice::UseAbility {
+                    target: Some(_),
+                    ..
+                }
+            )
+        })
         .collect();
-    assert_eq!(attacks.len(), 2, "one attack choice per living enemy");
+    assert_eq!(
+        ability_choices.len(),
+        2,
+        "one ability choice per living enemy"
+    );
 }
 
 #[test]
-fn attack_choice_has_correct_hit_chance_no_cover() {
+fn ability_choice_has_correct_hit_chance_no_cover() {
     let mut world = World::new();
     let actor = spawn_player(&mut world, (0, 0), 10, 5);
     spawn_enemy(&mut world, (5, 0), 4);
 
     let choices = available_player_actions(&mut world, actor);
     for choice in &choices {
-        if let PlayerActionChoice::Attack {
-            hit_chance, cover, ..
+        if let PlayerActionChoice::UseAbility {
+            hit_chance: Some(hc),
+            cover: Some(cover),
+            ..
         } = choice
         {
             assert_eq!(*cover, CoverLevel::None);
             assert!(
-                (hit_chance - BASE_HIT_CHANCE).abs() < 0.001,
+                (hc - BASE_HIT_CHANCE).abs() < 0.001,
                 "no-cover hit chance should be {BASE_HIT_CHANCE}"
             );
         }
@@ -97,30 +113,31 @@ fn attack_choice_has_correct_hit_chance_no_cover() {
 }
 
 #[test]
-fn attack_choice_reflects_partial_cover() {
+fn ability_choice_reflects_partial_cover() {
     // Target at (5,5); obstacle diagonally from North-West → partial cover from West.
     let mut world = World::new();
     let actor = spawn_player(&mut world, (0, 5), 10, 5); // attacker approaches from West
     spawn_enemy(&mut world, (5, 5), 4);
 
     let mut map = LevelMap::new(10, 10, ZoneKind::CommandDeck);
-    // Obstacle at (4,4) — diagonal neighbor of (5,5) from the west direction.
     map.set(4, 4, Tile::Obstacle);
     map.recompute_cover();
     world.insert_resource(map);
 
     let choices = available_player_actions(&mut world, actor);
-    let attack_opt = choices.iter().find_map(|c| {
-        if let PlayerActionChoice::Attack {
-            hit_chance, cover, ..
+    let ability_opt = choices.iter().find_map(|c| {
+        if let PlayerActionChoice::UseAbility {
+            hit_chance: Some(hc),
+            cover: Some(cover),
+            ..
         } = c
         {
-            Some((*hit_chance, *cover))
+            Some((*hc, *cover))
         } else {
             None
         }
     });
-    let (hit_chance, cover) = attack_opt.expect("expected an attack choice");
+    let (hit_chance, cover) = ability_opt.expect("expected an ability choice with cover info");
     assert_eq!(cover, CoverLevel::Partial);
     assert!(
         (hit_chance - 0.65).abs() < 0.001,
@@ -129,7 +146,7 @@ fn attack_choice_reflects_partial_cover() {
 }
 
 #[test]
-fn attack_choice_reflects_full_cover() {
+fn ability_choice_reflects_full_cover() {
     // Target at (5,5); obstacle directly north at (5,4) — Full cover from North.
     let mut world = World::new();
     let actor = spawn_player(&mut world, (5, 0), 10, 5); // approaches from North
@@ -144,16 +161,18 @@ fn attack_choice_reflects_full_cover() {
     let (hit_chance, cover) = choices
         .iter()
         .find_map(|c| {
-            if let PlayerActionChoice::Attack {
-                hit_chance, cover, ..
+            if let PlayerActionChoice::UseAbility {
+                hit_chance: Some(hc),
+                cover: Some(cover),
+                ..
             } = c
             {
-                Some((*hit_chance, *cover))
+                Some((*hc, *cover))
             } else {
                 None
             }
         })
-        .expect("expected an attack choice");
+        .expect("expected an ability choice with cover info");
 
     assert_eq!(cover, CoverLevel::Full);
     assert!(
@@ -163,8 +182,8 @@ fn attack_choice_reflects_full_cover() {
 }
 
 #[test]
-fn attack_choice_reflects_correct_damage() {
-    // calc_damage(attack=10, defense=4) = 10 - 4/2 = 8
+fn ability_choice_reflects_correct_damage() {
+    // Kaleo Aimed Shot: calc_damage(attack=10, defense=4) + bonus 5 = 8 + 5 = 13
     let mut world = World::new();
     let actor = spawn_player(&mut world, (0, 0), 10, 5);
     spawn_enemy(&mut world, (5, 0), 4);
@@ -173,20 +192,23 @@ fn attack_choice_reflects_correct_damage() {
     let damage = choices
         .iter()
         .find_map(|c| {
-            if let PlayerActionChoice::Attack { damage, .. } = c {
-                Some(*damage)
+            if let PlayerActionChoice::UseAbility {
+                damage: Some(dmg), ..
+            } = c
+            {
+                Some(*dmg)
             } else {
                 None
             }
         })
-        .expect("expected attack choice");
-    assert_eq!(damage, 8);
+        .expect("expected ability choice with damage");
+    assert_eq!(damage, 13); // calc_damage(10,4)=8, +5 bonus = 13
 }
 
 #[test]
-fn no_attack_choices_when_ap_too_low() {
+fn no_ability_choices_when_no_character_component() {
     let mut world = World::new();
-    // Actor with only 1 AP — ATTACK_AP_COST is 2, so no attacks should appear.
+    // Actor without a Character component → no abilities offered.
     let actor = world
         .spawn((
             Health::new(100),
@@ -206,7 +228,130 @@ fn no_attack_choices_when_ap_too_low() {
     assert!(
         !choices
             .iter()
-            .any(|c| matches!(c, PlayerActionChoice::Attack { .. }))
+            .any(|c| matches!(c, PlayerActionChoice::UseAbility { .. }))
+    );
+}
+
+#[test]
+fn melee_ability_not_offered_when_target_not_adjacent() {
+    // Doss has melee abilities only; enemy is far away → no offensive UseAbility choices.
+    let mut world = World::new();
+    let ch = Character::new_character(CharacterKind::Doss, 1);
+    let actor = world
+        .spawn((
+            ch,
+            Health::new(100),
+            Stats {
+                max_hp: 100,
+                attack: 10,
+                defense: 5,
+                speed: 10,
+            },
+            ActionPoints::new(4),
+            Position::new(0, 0),
+        ))
+        .id();
+    spawn_enemy(&mut world, (5, 0), 4); // not adjacent
+
+    let choices = available_player_actions(&mut world, actor);
+    let offensive: Vec<_> = choices
+        .iter()
+        .filter(|c| {
+            matches!(
+                c,
+                PlayerActionChoice::UseAbility {
+                    target: Some(_),
+                    damage: Some(_),
+                    ..
+                }
+            )
+        })
+        .collect();
+    assert!(
+        offensive.is_empty(),
+        "melee abilities should not be offered for non-adjacent targets"
+    );
+}
+
+#[test]
+fn melee_ability_offered_when_target_adjacent() {
+    // Doss has melee abilities; enemy is adjacent (distance 1) → UseAbility offered.
+    let mut world = World::new();
+    let ch = Character::new_character(CharacterKind::Doss, 1);
+    let actor = world
+        .spawn((
+            ch,
+            Health::new(100),
+            Stats {
+                max_hp: 100,
+                attack: 10,
+                defense: 5,
+                speed: 10,
+            },
+            ActionPoints::new(4),
+            Position::new(0, 0),
+        ))
+        .id();
+    spawn_enemy(&mut world, (1, 0), 4); // adjacent
+
+    let choices = available_player_actions(&mut world, actor);
+    let offensive: Vec<_> = choices
+        .iter()
+        .filter(|c| {
+            matches!(
+                c,
+                PlayerActionChoice::UseAbility {
+                    target: Some(_),
+                    damage: Some(_),
+                    ..
+                }
+            )
+        })
+        .collect();
+    assert!(
+        !offensive.is_empty(),
+        "melee abilities should be offered for adjacent targets"
+    );
+}
+
+#[test]
+fn melee_ability_offered_for_diagonal_adjacency() {
+    // Diagonal adjacency: Chebyshev distance = max(1,1) = 1.
+    let mut world = World::new();
+    let ch = Character::new_character(CharacterKind::Doss, 1);
+    let actor = world
+        .spawn((
+            ch,
+            Health::new(100),
+            Stats {
+                max_hp: 100,
+                attack: 10,
+                defense: 5,
+                speed: 10,
+            },
+            ActionPoints::new(4),
+            Position::new(0, 0),
+        ))
+        .id();
+    spawn_enemy(&mut world, (1, 1), 4); // diagonal
+
+    let choices = available_player_actions(&mut world, actor);
+    let offensive: Vec<_> = choices
+        .iter()
+        .filter(|c| {
+            matches!(
+                c,
+                PlayerActionChoice::UseAbility {
+                    target: Some(_),
+                    damage: Some(_),
+                    ..
+                }
+            )
+        })
+        .collect();
+    assert!(
+        !offensive.is_empty(),
+        "melee abilities should allow diagonal adjacency"
     );
 }
 
@@ -300,7 +445,7 @@ fn display_strings_are_non_empty() {
 fn player_choices_returns_options_on_player_turn() {
     let mut world = World::new();
     world.spawn((
-        Character::new_character(CharacterKind::Doss, 1),
+        Character::new_character(CharacterKind::Kaleo, 1),
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -330,7 +475,7 @@ fn player_choices_returns_options_on_player_turn() {
     assert!(
         choices
             .iter()
-            .any(|c| matches!(c, PlayerActionChoice::Attack { .. }))
+            .any(|c| matches!(c, PlayerActionChoice::UseAbility { .. }))
     );
     assert!(
         choices
@@ -344,7 +489,7 @@ fn step_player_action_pass_ends_turn() {
     let mut world = World::new();
     let player = world
         .spawn((
-            Character::new_character(CharacterKind::Doss, 1),
+            Character::new_character(CharacterKind::Kaleo, 1),
             Health::new(100),
             Stats {
                 max_hp: 100,
@@ -379,10 +524,10 @@ fn step_player_action_pass_ends_turn() {
 }
 
 #[test]
-fn step_player_action_attack_deals_damage() {
+fn step_player_action_ability_deals_damage() {
     let mut world = World::new();
     world.spawn((
-        Character::new_character(CharacterKind::Doss, 1),
+        Character::new_character(CharacterKind::Kaleo, 1),
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -411,15 +556,21 @@ fn step_player_action_attack_deals_damage() {
     let mut bs = BattleStep::new(&mut world);
     let choices = bs.player_choices(&mut world);
 
-    // Pick the attack choice targeting the enemy.
-    let attack_choice = choices
+    let ability_choice = choices
         .iter()
-        .find(|c| matches!(c, PlayerActionChoice::Attack { .. }))
-        .expect("expected an attack choice");
+        .find(|c| {
+            matches!(
+                c,
+                PlayerActionChoice::UseAbility {
+                    target: Some(_),
+                    ..
+                }
+            )
+        })
+        .expect("expected a UseAbility choice");
 
-    bs.step_player_action(&mut world, attack_choice);
+    bs.step_player_action(&mut world, ability_choice);
 
-    // Enemy should have taken damage (no BattleRng → always hits).
     let hp = world.get::<Health>(enemy).unwrap().current;
     assert!(hp < 50, "enemy should have taken damage");
 }
@@ -428,7 +579,7 @@ fn step_player_action_attack_deals_damage() {
 fn step_player_action_outcome_set_on_victory() {
     let mut world = World::new();
     world.spawn((
-        Character::new_character(CharacterKind::Doss, 1),
+        Character::new_character(CharacterKind::Kaleo, 1),
         Health::new(100),
         Stats {
             max_hp: 100,
@@ -454,11 +605,19 @@ fn step_player_action_outcome_set_on_victory() {
 
     let mut bs = BattleStep::new(&mut world);
     let choices = bs.player_choices(&mut world);
-    let attack = choices
+    let ability_choice = choices
         .iter()
-        .find(|c| matches!(c, PlayerActionChoice::Attack { .. }))
+        .find(|c| {
+            matches!(
+                c,
+                PlayerActionChoice::UseAbility {
+                    target: Some(_),
+                    ..
+                }
+            )
+        })
         .unwrap();
 
-    let result = bs.step_player_action(&mut world, attack);
+    let result = bs.step_player_action(&mut world, ability_choice);
     assert_eq!(result.outcome, Some(BattleOutcome::PlayerVictory));
 }

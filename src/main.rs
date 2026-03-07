@@ -346,30 +346,6 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
                 }
                 for action in &event.actions {
                     match action {
-                        TurnAction::Attack {
-                            target,
-                            damage,
-                            hit,
-                            cover,
-                        } => {
-                            let tname = entity_name(world, *target);
-                            let cover_str = match cover {
-                                CoverLevel::None => "",
-                                CoverLevel::Partial => " [partial cover]",
-                                CoverLevel::Full => " [full cover]",
-                            };
-                            if *hit {
-                                out += &format!(
-                                    "  > {} attacks {} for {} dmg{}\r\n",
-                                    name, tname, damage, cover_str
-                                );
-                            } else {
-                                out += &format!(
-                                    "  > {} attacks {} -- MISS{}\r\n",
-                                    name, tname, cover_str
-                                );
-                            }
-                        }
                         TurnAction::Move { to } => {
                             out += &format!("  > {} moves to ({}, {})\r\n", name, to.x, to.y);
                         }

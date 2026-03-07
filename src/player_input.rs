@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 
 use crate::{
+    ability::{Ability, AbilityEffect, AbilityKind, available_abilities},
     action_points::ActionPoints,
     character::{Aggression, Character},
     combat::{calc_damage, calc_hit_chance},
@@ -10,21 +11,22 @@ use crate::{
     position::Position,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{ATTACK_AP_COST, Action, MOVE_AP_COST},
+    turn::{Action, MOVE_AP_COST},
 };
 
 /// A fully-described action a player can choose for one of their combatants.
 #[derive(Debug, Clone)]
 pub enum PlayerActionChoice {
-    /// Attack a living enemy.
-    Attack {
-        target: Entity,
-        /// Probability of hitting, 0.0–1.0 (multiply by 100 for a percentage).
-        hit_chance: f32,
-        /// Damage dealt on a successful hit.
-        damage: i32,
-        /// Defender's cover level from this attack's direction.
-        cover: CoverLevel,
+    /// Use an ability — either offensive (targeting a living enemy) or utility (self/no target).
+    UseAbility {
+        ability: Ability,
+        target: Option<Entity>,
+        /// Pre-computed hit chance for offensive abilities; `None` for utility abilities.
+        hit_chance: Option<f32>,
+        /// Pre-computed damage for damage-dealing abilities; `None` for utility/disruption.
+        damage: Option<i32>,
+        /// Defender's cover level from this attack direction; `None` for utility or no-cover info.
+        cover: Option<CoverLevel>,
     },
     /// Move toward a tile offering better cover than the current position.
     MoveToCover {
@@ -42,7 +44,12 @@ impl PlayerActionChoice {
     /// Convert to the low-level [`Action`] consumed by [`crate::turn::apply_action`].
     pub fn to_action(&self) -> Action {
         match self {
-            Self::Attack { target, .. } => Action::Attack { target: *target },
+            Self::UseAbility {
+                ability, target, ..
+            } => Action::UseAbility {
+                ability: ability.clone(),
+                target: *target,
+            },
             Self::MoveToCover { destination, .. } => Action::Move {
                 destination: *destination,
             },
@@ -53,23 +60,38 @@ impl PlayerActionChoice {
     /// Short human-readable label suitable for a menu entry.
     pub fn display(&self) -> String {
         match self {
-            Self::Attack {
+            Self::UseAbility {
+                ability,
                 hit_chance,
                 damage,
                 cover,
                 ..
-            } => {
-                let pct = (hit_chance * 100.0).round() as i32;
-                match cover {
-                    CoverLevel::None => format!("Attack — {}% hit, {} dmg", pct, damage),
-                    CoverLevel::Partial => {
-                        format!("Attack — {}% hit, {} dmg (partial cover)", pct, damage)
-                    }
-                    CoverLevel::Full => {
-                        format!("Attack — {}% hit, {} dmg (full cover)", pct, damage)
+            } => match (hit_chance, damage) {
+                (Some(hc), Some(dmg)) => {
+                    let pct = (hc * 100.0).round() as i32;
+                    match cover.unwrap_or(CoverLevel::None) {
+                        CoverLevel::None => {
+                            format!(
+                                "{} — {}% hit, {} dmg ({}AP)",
+                                ability.name, pct, dmg, ability.ap_cost
+                            )
+                        }
+                        CoverLevel::Partial => {
+                            format!(
+                                "{} — {}% hit, {} dmg, partial cover ({}AP)",
+                                ability.name, pct, dmg, ability.ap_cost
+                            )
+                        }
+                        CoverLevel::Full => {
+                            format!(
+                                "{} — {}% hit, {} dmg, full cover ({}AP)",
+                                ability.name, pct, dmg, ability.ap_cost
+                            )
+                        }
                     }
                 }
-            }
+                _ => format!("{} ({}AP)", ability.name, ability.ap_cost),
+            },
             Self::MoveToCover { cover, ap_cost, .. } => {
                 let label = match cover {
                     CoverLevel::None => "open ground",
@@ -85,12 +107,14 @@ impl PlayerActionChoice {
 
 /// Returns all valid actions available to `actor` this turn given their remaining AP.
 ///
-/// Choices are grouped as follows:
-/// 1. One [`PlayerActionChoice::Attack`] per living enemy, each annotated with hit
-///    probability and expected damage (accounting for the defender's cover level).
-/// 2. Up to one [`PlayerActionChoice::MoveToCover`] per reachable cover level that
-///    is better than the actor's current cover, closest tile chosen for each level.
-/// 3. [`PlayerActionChoice::Pass`] (always present as the last entry).
+/// Choices are:
+/// 1. [`PlayerActionChoice::UseAbility`] for each offensive ability × each valid target:
+///    - Ranged abilities: one entry per living enemy.
+///    - Melee abilities: one entry per adjacent living enemy (Chebyshev distance ≤ 1,
+///      diagonals included).
+/// 2. [`PlayerActionChoice::UseAbility`] for each utility ability (self-targeted, once each).
+/// 3. Up to one [`PlayerActionChoice::MoveToCover`] per reachable cover level better than current.
+/// 4. [`PlayerActionChoice::Pass`] (always last).
 pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerActionChoice> {
     let mut choices = Vec::new();
 
@@ -102,13 +126,16 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
         Some(p) => p,
         None => return choices,
     };
-    let actor_attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
 
-    // ── Attack options ─────────────────────────────────────────────────────────
-    if ap >= ATTACK_AP_COST {
-        // Collect target data before borrowing resources.
+    // ── Ability options ────────────────────────────────────────────────────────
+    if let Some(ch) = world.get::<Character>(actor) {
+        let level = ch.level;
+        let kind = ch.kind.clone();
+        let abilities = available_abilities(&kind, level);
+
+        // Collect living enemy data before further borrows.
         let mut q = world.query::<(Entity, &Character, &Health, &Stats, &Position)>();
-        let targets: Vec<(Entity, i32, i32, i32)> = q
+        let enemies: Vec<(Entity, i32, i32, i32)> = q
             .iter(world)
             .filter(|(_, c, h, _, _)| {
                 !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
@@ -116,20 +143,66 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
             .map(|(e, _, _, stats, pos)| (e, stats.defense, pos.x, pos.y))
             .collect();
 
-        for (target_entity, defense, tx, ty) in targets {
-            let dir = Direction::from_attack((actor_pos.x, actor_pos.y), (tx, ty));
-            let cover = world
-                .get_resource::<LevelMap>()
-                .map(|m| m.get_cover(tx, ty, dir))
-                .unwrap_or(CoverLevel::None);
-            let hit_chance = calc_hit_chance(cover);
-            let damage = calc_damage(actor_attack, defense);
-            choices.push(PlayerActionChoice::Attack {
-                target: target_entity,
-                hit_chance,
-                damage,
-                cover,
-            });
+        let actor_attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
+
+        for ability in &abilities {
+            if ability.ap_cost > ap {
+                continue;
+            }
+            match &ability.kind {
+                AbilityKind::Ranged => {
+                    for &(target_entity, defense, tx, ty) in &enemies {
+                        let dir = Direction::from_attack((actor_pos.x, actor_pos.y), (tx, ty));
+                        let cover = world
+                            .get_resource::<LevelMap>()
+                            .map(|m| m.get_cover(tx, ty, dir))
+                            .unwrap_or(CoverLevel::None);
+                        let hit_chance = Some(calc_hit_chance(cover));
+                        let (damage, cover_opt) =
+                            offensive_damage(ability, actor_attack, defense, cover);
+                        choices.push(PlayerActionChoice::UseAbility {
+                            ability: ability.clone(),
+                            target: Some(target_entity),
+                            hit_chance,
+                            damage,
+                            cover: cover_opt,
+                        });
+                    }
+                }
+                AbilityKind::Melee => {
+                    // Only offer for adjacent targets (Chebyshev ≤ 1, diagonals included).
+                    for &(target_entity, defense, tx, ty) in &enemies {
+                        let chebyshev = (actor_pos.x - tx).abs().max((actor_pos.y - ty).abs());
+                        if chebyshev > 1 {
+                            continue;
+                        }
+                        let dir = Direction::from_attack((actor_pos.x, actor_pos.y), (tx, ty));
+                        let cover = world
+                            .get_resource::<LevelMap>()
+                            .map(|m| m.get_cover(tx, ty, dir))
+                            .unwrap_or(CoverLevel::None);
+                        let hit_chance = Some(calc_hit_chance(cover));
+                        let (damage, cover_opt) =
+                            offensive_damage(ability, actor_attack, defense, cover);
+                        choices.push(PlayerActionChoice::UseAbility {
+                            ability: ability.clone(),
+                            target: Some(target_entity),
+                            hit_chance,
+                            damage,
+                            cover: cover_opt,
+                        });
+                    }
+                }
+                AbilityKind::Utility => {
+                    choices.push(PlayerActionChoice::UseAbility {
+                        ability: ability.clone(),
+                        target: None,
+                        hit_chance: None,
+                        damage: None,
+                        cover: None,
+                    });
+                }
+            }
         }
     }
 
@@ -159,7 +232,6 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                 .map(|m| m.get_cover(actor_pos.x, actor_pos.y, attack_dir))
                 .unwrap_or(CoverLevel::None);
 
-            // Collect candidate cover tiles within AP budget.
             let mut candidates: Vec<(CoverLevel, i32, i32, i32)> = Vec::new();
             if let Some(map) = world.get_resource::<LevelMap>() {
                 for dy in -ap..=ap {
@@ -185,7 +257,6 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                 }
             }
 
-            // Best cover first, then closest. Emit one entry per cover level.
             candidates.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
             let mut seen: HashSet<u8> = HashSet::new();
             for (tile_cover, dist, tx, ty) in candidates {
@@ -202,4 +273,32 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
 
     choices.push(PlayerActionChoice::Pass);
     choices
+}
+
+/// Computes the pre-displayed damage and cover for an offensive ability choice.
+/// Returns `(damage, cover_opt)` — damage is `None` for non-damage effects.
+fn offensive_damage(
+    ability: &Ability,
+    actor_attack: i32,
+    defense: i32,
+    cover: CoverLevel,
+) -> (Option<i32>, Option<CoverLevel>) {
+    let cover_opt = Some(cover);
+    match &ability.effect {
+        AbilityEffect::BonusDamage { bonus } => {
+            (Some(calc_damage(actor_attack, defense) + bonus), cover_opt)
+        }
+        AbilityEffect::ArmorPiercing { pierce_fraction } => {
+            let eff = (defense as f32 * (1.0 - pierce_fraction)) as i32;
+            (Some(calc_damage(actor_attack, eff)), cover_opt)
+        }
+        AbilityEffect::ArmorPiercingStrike {
+            pierce_fraction,
+            bonus,
+        } => {
+            let eff = (defense as f32 * (1.0 - pierce_fraction)) as i32;
+            (Some(calc_damage(actor_attack, eff) + bonus), cover_opt)
+        }
+        _ => (None, None),
+    }
 }
