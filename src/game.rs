@@ -12,7 +12,7 @@ use crate::position::Position;
 use crate::terrain::{BattleRng, LevelMap, Tile};
 use crate::travel::TravelState;
 use crate::travel::arrival_chance;
-use crate::zone::{Zone, ZoneKind};
+use crate::zone::{CardinalDir, Zone, ZoneKind};
 
 // ── Game phase ────────────────────────────────────────────────────────────────
 
@@ -307,6 +307,60 @@ impl GameSession {
                 .expect("player has Position") = Position::new(0, 0);
             false
         }
+    }
+
+    /// Move the player by (dx, dy) during exploration.
+    ///
+    /// Normal movement delegates to [`ExplorationState::try_move`]. When the
+    /// requested step would leave the map bounds the direction is resolved to a
+    /// [`CardinalDir`] and:
+    /// - If already in a hallway, calls [`Self::exit_hallway`] to advance travel.
+    /// - Otherwise checks the current zone's connections; if a neighbour exists
+    ///   in that direction, calls [`Self::initiate_travel`] toward it.
+    /// - If there is no connection, the move is silently ignored.
+    pub fn move_player(&mut self, dx: i32, dy: i32, rng: &mut impl rand::Rng) {
+        let (tx, ty, cols, rows, is_traveling, connection) = {
+            let GamePhase::Exploration(exploration) = &self.phase else {
+                return;
+            };
+            if exploration.in_dialog {
+                return;
+            }
+            let current = *self
+                .world
+                .get::<Position>(exploration.player_entity)
+                .expect("player has Position");
+            let tx = current.x + dx;
+            let ty = current.y + dy;
+            let cols = exploration.zone.cols as i32;
+            let rows = exploration.zone.rows as i32;
+            let is_traveling = exploration.travel.is_some();
+            let dir = if dx > 0 {
+                CardinalDir::East
+            } else if dx < 0 {
+                CardinalDir::West
+            } else if dy < 0 {
+                CardinalDir::North
+            } else {
+                CardinalDir::South
+            };
+            let connection = exploration.zone.connections.get(dir);
+            (tx, ty, cols, rows, is_traveling, connection)
+        };
+
+        if tx < 0 || tx >= cols || ty < 0 || ty >= rows {
+            if is_traveling {
+                self.exit_hallway(rng);
+            } else if let Some(destination) = connection {
+                self.initiate_travel(destination, rng);
+            }
+            return;
+        }
+
+        let GamePhase::Exploration(exploration) = &mut self.phase else {
+            return;
+        };
+        exploration.try_move(&mut self.world, dx, dy);
     }
 
     /// True when a battle outcome has been decided.

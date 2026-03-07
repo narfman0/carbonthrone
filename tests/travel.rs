@@ -1,4 +1,5 @@
 use carbonthrone::game::{GamePhase, GameSession};
+use carbonthrone::position::Position;
 use carbonthrone::travel::{TravelState, arrival_chance};
 use carbonthrone::zone::ZoneKind;
 use rand::SeedableRng;
@@ -135,6 +136,119 @@ fn exit_hallway_increments_hallways_traversed_on_miss() {
         }
     }
     panic!("no seed produced a miss in 1000 tries at loop 5");
+}
+
+// ── move_player edge-exit ─────────────────────────────────────────────────────
+
+/// Dismiss any active dialog so movement is unblocked.
+fn dismiss_dialog(session: &mut GameSession) {
+    loop {
+        let GamePhase::Exploration(s) = &mut session.phase else {
+            break;
+        };
+        if !s.in_dialog {
+            break;
+        }
+        s.advance_dialog();
+    }
+}
+
+#[test]
+fn move_player_off_edge_initiates_travel_when_connection_exists() {
+    // CommandDeck's south connection is ResearchWing. Teleport to the last row
+    // and step south to trigger initiate_travel.
+    let mut session = GameSession::new();
+    let mut rng = StdRng::seed_from_u64(42);
+    dismiss_dialog(&mut session);
+
+    let (player_entity, rows) = {
+        let GamePhase::Exploration(s) = &session.phase else {
+            panic!()
+        };
+        (s.player_entity, s.zone.rows)
+    };
+    *session
+        .world
+        .get_mut::<Position>(player_entity)
+        .expect("player has Position") = Position::new(0, rows as i32 - 1);
+    session.move_player(0, 1, &mut rng);
+
+    let GamePhase::Exploration(state) = &session.phase else {
+        panic!("expected Exploration");
+    };
+    assert!(
+        state.travel.is_some() || state.zone.kind != ZoneKind::CommandDeck,
+        "stepping off south edge should initiate travel"
+    );
+}
+
+#[test]
+fn move_player_off_edge_no_op_when_no_connection() {
+    // CommandDeck has no west connection. Teleport to x=0 and step west.
+    let mut session = GameSession::new();
+    let mut rng = StdRng::seed_from_u64(1);
+    dismiss_dialog(&mut session);
+
+    let player_entity = {
+        let GamePhase::Exploration(s) = &session.phase else {
+            panic!()
+        };
+        s.player_entity
+    };
+    *session
+        .world
+        .get_mut::<Position>(player_entity)
+        .expect("player has Position") = Position::new(0, 0);
+    session.move_player(-1, 0, &mut rng);
+
+    let GamePhase::Exploration(state) = &session.phase else {
+        panic!("expected Exploration");
+    };
+    assert!(
+        state.travel.is_none(),
+        "no west connection — travel should not start"
+    );
+    assert_eq!(state.zone.kind, ZoneKind::CommandDeck);
+}
+
+#[test]
+fn move_player_off_hallway_edge_advances_travel() {
+    // Place the player directly on the last row, then step south. This avoids
+    // the map-obstacle problem of trying to walk through a random hallway.
+    let mut session = GameSession::new();
+    session.loop_number = 1;
+    let mut rng = StdRng::seed_from_u64(7);
+    dismiss_dialog(&mut session);
+    session.initiate_travel(ZoneKind::ResearchWing, &mut rng);
+
+    let mut arrived = false;
+    for _ in 0..20 {
+        // Teleport to the bottom-left corner so the next south step exits.
+        let (player_entity, rows) = {
+            let GamePhase::Exploration(s) = &session.phase else {
+                panic!()
+            };
+            (s.player_entity, s.zone.rows)
+        };
+        *session
+            .world
+            .get_mut::<Position>(player_entity)
+            .expect("player has Position") = Position::new(0, rows as i32 - 1);
+
+        session.move_player(0, 1, &mut rng);
+
+        let GamePhase::Exploration(s) = &session.phase else {
+            panic!()
+        };
+        if s.travel.is_none() {
+            arrived = true;
+            break;
+        }
+    }
+    assert!(
+        arrived,
+        "should arrive within 20 hallway exits at loop 1 (80% chance)"
+    );
 }
 
 // ── ZoneKind::Hallway ─────────────────────────────────────────────────────────
