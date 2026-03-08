@@ -43,20 +43,6 @@ fn spawn_camera(mut commands: Commands) {
     ));
 }
 
-/// Reposition the camera to look at the center of a new zone.
-pub fn reposition_camera(
-    mut camera_q: Query<&mut Transform, With<IsometricCamera>>,
-    cols: u32,
-    rows: u32,
-) {
-    let center = map_center(cols, rows);
-    let offset = Vec3::new(18.0, 18.0, 18.0);
-    let cam_pos = center + offset;
-    if let Ok(mut transform) = camera_q.single_mut() {
-        *transform = Transform::from_translation(cam_pos).looking_at(center, Vec3::Y);
-    }
-}
-
 fn scroll_zoom_system(
     scroll: Res<AccumulatedMouseScroll>,
     mut camera_q: Query<&mut Projection, With<IsometricCamera>>,

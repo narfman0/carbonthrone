@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use carbonthrone::{
     character::Character,
     combat::{BattleOutcome, Turn},
-    game::GamePhase,
     health::Health,
 };
 
@@ -30,9 +29,6 @@ impl Plugin for CombatUiPlugin {
 }
 
 // ── Component markers ─────────────────────────────────────────────────────────
-
-#[derive(Component)]
-struct CombatUiRoot;
 
 #[derive(Component)]
 struct CombatantListPanel;

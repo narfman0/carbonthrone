@@ -119,12 +119,8 @@ fn left_click_npc(
         .copied()
         .unwrap_or(carbonthrone::position::Position::new(0, 0));
 
-    // Extract what we need then drop immutable borrows before mutating.
     let should_interact = state.npcs.iter().any(|n| n.pos == (gx, gy))
         && (gx - player_pos.x).abs() + (gy - player_pos.y).abs() <= 1;
-    drop(player_pos);
-    drop(world);
-    drop(state);
 
     if should_interact {
         if let GamePhase::Exploration(e) = &mut session.0.phase {

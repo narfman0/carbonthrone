@@ -7,10 +7,7 @@ use super::state::AppState;
 
 /// Marker component for visual tile entities — cleared on zone change.
 #[derive(Component)]
-pub struct TileVisual {
-    pub gx: i32,
-    pub gy: i32,
-}
+pub struct TileVisual;
 
 pub struct TilePlugin;
 
@@ -39,7 +36,6 @@ fn spawn_exploration_tiles(
     let tiles: Vec<((i32, i32), Tile)> = (0..rows as i32)
         .flat_map(|gy| (0..cols as i32).map(move |gx| ((gx, gy), zone_map.get(gx, gy))))
         .collect();
-    drop(zone_map);
     spawn_tiles(
         &mut commands,
         &mut meshes,
@@ -62,7 +58,6 @@ fn spawn_battle_tiles(
     let tiles: Vec<((i32, i32), Tile)> = (0..rows as i32)
         .flat_map(|gy| (0..cols as i32).map(move |gx| ((gx, gy), map.get(gx, gy))))
         .collect();
-    drop(map);
     spawn_tiles(
         &mut commands,
         &mut meshes,
@@ -86,7 +81,7 @@ fn spawn_tiles(
         });
         let world_pos = grid_to_world(gx, gy) + Vec3::Y * (height * 0.5);
         commands.spawn((
-            TileVisual { gx, gy },
+            TileVisual,
             Mesh3d(mesh),
             MeshMaterial3d(mat),
             Transform::from_translation(world_pos),

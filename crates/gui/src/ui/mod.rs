@@ -24,21 +24,8 @@ impl Plugin for UiPlugin {
 #[derive(Component)]
 pub struct StateUiRoot;
 
-/// Common semi-transparent dark panel style.
-pub fn dark_panel() -> Node {
-    Node {
-        position_type: PositionType::Absolute,
-        padding: UiRect::all(Val::Px(8.0)),
-        ..default()
-    }
-}
-
 pub fn panel_bg() -> BackgroundColor {
     BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.88))
-}
-
-pub fn label_text(text: impl Into<String>, size: f32) -> Text {
-    Text::new(text)
 }
 
 pub fn text_font(size: f32) -> TextFont {
@@ -46,10 +33,6 @@ pub fn text_font(size: f32) -> TextFont {
         font_size: size,
         ..default()
     }
-}
-
-pub fn text_color(color: Color) -> TextColor {
-    TextColor(color)
 }
 
 pub fn white_text() -> TextColor {

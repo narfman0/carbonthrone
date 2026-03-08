@@ -28,22 +28,6 @@ impl GameSessionRes {
         }
     }
 
-    /// Convenience: get zone kind if in Exploration phase.
-    pub fn exploration_zone_kind(&self) -> Option<ZoneKind> {
-        match &self.0.phase {
-            GamePhase::Exploration(e) => Some(e.zone.kind),
-            _ => None,
-        }
-    }
-
-    /// Returns the battle-phase LevelMap resource if in Battle phase.
-    pub fn battle_map(&self) -> Option<&LevelMap> {
-        match &self.0.phase {
-            GamePhase::Battle(_) => self.0.world.get_resource::<LevelMap>(),
-            _ => None,
-        }
-    }
-
     /// Returns the zone kind in either Exploration or Battle phase.
     pub fn current_zone_kind(&self) -> Option<ZoneKind> {
         match &self.0.phase {
