@@ -1,4 +1,4 @@
-use bevy::input::mouse::MouseWheel;
+use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 
 use super::grid::map_center;
@@ -58,10 +58,10 @@ pub fn reposition_camera(
 }
 
 fn scroll_zoom_system(
-    mut scroll: EventReader<MouseWheel>,
+    scroll: Res<AccumulatedMouseScroll>,
     mut camera_q: Query<&mut Projection, With<IsometricCamera>>,
 ) {
-    let total: f32 = scroll.read().map(|e| e.y).sum();
+    let total = scroll.delta.y;
     if total == 0.0 {
         return;
     }

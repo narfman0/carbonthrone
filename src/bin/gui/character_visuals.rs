@@ -197,9 +197,9 @@ fn spawn_battle_chars(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    session: Res<GameSessionRes>,
+    mut session: ResMut<GameSessionRes>,
 ) {
-    let world = &session.0.world;
+    let world = &mut session.0.world;
     let mut q = world.query::<(
         bevy::ecs::entity::Entity,
         &Character,

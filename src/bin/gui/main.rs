@@ -28,7 +28,7 @@ fn main() {
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Carbonthrone".into(),
-                    resolution: bevy::window::WindowResolution::new(1280.0, 720.0),
+                    resolution: bevy::window::WindowResolution::new(1280_u32, 720_u32),
                     ..default()
                 }),
                 ..default()

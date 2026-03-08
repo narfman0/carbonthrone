@@ -121,10 +121,10 @@ fn update_dialog_text(
 
     // Update speaker + text.
     if let Some((speaker, text)) = state.scene_lines.get(state.line_index) {
-        if let Ok(mut t) = speaker_q.get_single_mut() {
+        if let Ok(mut t) = speaker_q.single_mut() {
             *t = Text::new(speaker.clone());
         }
-        if let Ok(mut t) = text_q.get_single_mut() {
+        if let Ok(mut t) = text_q.single_mut() {
             *t = Text::new(text.clone());
         }
     }
@@ -132,7 +132,7 @@ fn update_dialog_text(
     let at_choices = state.at_choice_screen();
 
     // Toggle continue button.
-    if let Ok(mut vis) = continue_q.get_single_mut() {
+    if let Ok(mut vis) = continue_q.single_mut() {
         *vis = if at_choices {
             Visibility::Hidden
         } else {
@@ -141,8 +141,8 @@ fn update_dialog_text(
     }
 
     // Rebuild choice buttons.
-    if let Ok(container_entity) = choices_container_q.get_single() {
-        commands.entity(container_entity).despawn_descendants();
+    if let Ok(container_entity) = choices_container_q.single() {
+        commands.entity(container_entity).despawn_related::<Children>();
         if at_choices {
             commands
                 .entity(container_entity)
@@ -185,7 +185,7 @@ fn handle_choice_buttons(
         }
     }
 
-    if let Ok(interaction) = continue_q.get_single() {
+    if let Ok(interaction) = continue_q.single() {
         if *interaction == Interaction::Pressed {
             session.0.advance_dialog();
         }
@@ -194,6 +194,6 @@ fn handle_choice_buttons(
 
 fn despawn_dialog_panel(mut commands: Commands, q: Query<Entity, With<StateUiRoot>>) {
     for e in &q {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
 }

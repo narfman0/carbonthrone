@@ -80,14 +80,14 @@ fn update_hud(
         return;
     };
 
-    if let Ok(mut t) = zone_q.get_single_mut() {
+    if let Ok(mut t) = zone_q.single_mut() {
         let zone_name = format!("{:?}", state.zone.kind);
         *t = Text::new(format!("Zone: {}", zone_name));
     }
-    if let Ok(mut t) = loop_q.get_single_mut() {
+    if let Ok(mut t) = loop_q.single_mut() {
         *t = Text::new(format!("Loop {}", session.0.loop_number));
     }
-    if let Ok(mut t) = party_q.get_single_mut() {
+    if let Ok(mut t) = party_q.single_mut() {
         let party_str = state
             .party
             .iter()
@@ -103,6 +103,6 @@ fn despawn_state_ui<S: States>(
     q: Query<Entity, With<StateUiRoot>>,
 ) {
     for e in &q {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
 }

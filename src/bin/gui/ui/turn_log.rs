@@ -132,13 +132,13 @@ fn update_turn_log_display(
     if !log.is_changed() {
         return;
     }
-    if let Ok(mut text) = text_q.get_single_mut() {
+    if let Ok(mut text) = text_q.single_mut() {
         *text = Text::new(log.lines.join("\n"));
     }
 }
 
 fn despawn_turn_log(mut commands: Commands, q: Query<Entity, With<TurnLogPanel>>) {
     for e in &q {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
 }

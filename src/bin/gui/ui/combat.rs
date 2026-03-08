@@ -85,23 +85,22 @@ fn spawn_combat_ui(mut commands: Commands) {
         });
 
     // Action panel — bottom.
-    commands
-        .spawn((
-            StateUiRoot,
-            ActionPanel,
-            Node {
-                position_type: PositionType::Absolute,
-                bottom: Val::Px(0.0),
-                left: Val::Px(0.0),
-                right: Val::Px(0.0),
-                min_height: Val::Px(80.0),
-                flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(10.0)),
-                row_gap: Val::Px(4.0),
-                ..default()
-            },
-            panel_bg(),
-        ));
+    commands.spawn((
+        StateUiRoot,
+        ActionPanel,
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(0.0),
+            left: Val::Px(0.0),
+            right: Val::Px(0.0),
+            min_height: Val::Px(80.0),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Val::Px(10.0)),
+            row_gap: Val::Px(4.0),
+            ..default()
+        },
+        panel_bg(),
+    ));
 
     // Outcome panel — hidden by default.
     commands
@@ -123,12 +122,7 @@ fn spawn_combat_ui(mut commands: Commands) {
             panel_bg(),
         ))
         .with_children(|parent| {
-            parent.spawn((
-                OutcomeLabel,
-                Text::new(""),
-                text_font(20.0),
-                accent_text(),
-            ));
+            parent.spawn((OutcomeLabel, Text::new(""), text_font(20.0), accent_text()));
             parent
                 .spawn((
                     OutcomeContinueButton,
@@ -140,11 +134,7 @@ fn spawn_combat_ui(mut commands: Commands) {
                     BackgroundColor(Color::srgb(0.2, 0.4, 0.6)),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((
-                        Text::new("Continue"),
-                        text_font(14.0),
-                        white_text(),
-                    ));
+                    parent.spawn((Text::new("Continue"), text_font(14.0), white_text()));
                 });
         });
 }
@@ -152,7 +142,7 @@ fn spawn_combat_ui(mut commands: Commands) {
 // ── Update: combatant list ────────────────────────────────────────────────────
 
 fn update_combatant_list(
-    session: Res<GameSessionRes>,
+    mut session: ResMut<GameSessionRes>,
     panel_q: Query<Entity, With<CombatantListPanel>>,
     mut turn_q: Query<&mut Text, With<TurnLabel>>,
     mut commands: Commands,
@@ -161,7 +151,7 @@ fn update_combatant_list(
         return;
     }
 
-    let world = &session.0.world;
+    let world = &mut session.0.world;
     let mut char_q = world.query::<(bevy::ecs::entity::Entity, &Character, &Health)>();
     let all_chars: Vec<_> = char_q
         .iter(world)
@@ -170,7 +160,7 @@ fn update_combatant_list(
 
     // Update turn label.
     if let Some(battle) = &session.0.battle {
-        if let Ok(mut t) = turn_q.get_single_mut() {
+        if let Ok(mut t) = turn_q.single_mut() {
             let label = match battle.turn {
                 Turn::Player => "Player Turn",
                 Turn::Enemy => "Enemy Turn",
@@ -180,11 +170,11 @@ fn update_combatant_list(
     }
 
     // Rebuild combatant rows.
-    let Ok(panel_entity) = panel_q.get_single() else {
+    let Ok(panel_entity) = panel_q.single() else {
         return;
     };
     // Remove old combatant rows (keep turn label).
-    commands.entity(panel_entity).despawn_descendants();
+    commands.entity(panel_entity).despawn_related::<Children>();
     commands.entity(panel_entity).with_children(|parent| {
         // Re-add turn label.
         parent.spawn((
@@ -214,7 +204,11 @@ fn update_combatant_list(
             parent.spawn((
                 Text::new(format!("{} {} {}/{}", name, bar, hp, max_hp)),
                 text_font(11.0),
-                if *hp > 0 { white_text() } else { TextColor(Color::srgb(0.5, 0.5, 0.5)) },
+                if *hp > 0 {
+                    white_text()
+                } else {
+                    TextColor(Color::srgb(0.5, 0.5, 0.5))
+                },
             ));
         }
 
@@ -258,10 +252,10 @@ fn update_action_panel(
     if !choices.is_changed() {
         return;
     }
-    let Ok(panel_entity) = action_panel_q.get_single() else {
+    let Ok(panel_entity) = action_panel_q.single() else {
         return;
     };
-    commands.entity(panel_entity).despawn_descendants();
+    commands.entity(panel_entity).despawn_related::<Children>();
 
     if choices.choices.is_empty() {
         commands.entity(panel_entity).with_children(|parent| {
@@ -274,35 +268,25 @@ fn update_action_panel(
         return;
     }
 
-    commands
-        .entity(panel_entity)
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new("Choose action:"),
-                text_font(12.0),
-                accent_text(),
-            ));
-            for (i, choice) in choices.choices.iter().enumerate() {
-                parent
-                    .spawn((
-                        AbilityButton(i),
-                        Button,
-                        Node {
-                            padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
-                            margin: UiRect::bottom(Val::Px(2.0)),
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgb(0.15, 0.25, 0.45)),
-                    ))
-                    .with_children(|parent| {
-                        parent.spawn((
-                            Text::new(choice.display()),
-                            text_font(12.0),
-                            white_text(),
-                        ));
-                    });
-            }
-        });
+    commands.entity(panel_entity).with_children(|parent| {
+        parent.spawn((Text::new("Choose action:"), text_font(12.0), accent_text()));
+        for (i, choice) in choices.choices.iter().enumerate() {
+            parent
+                .spawn((
+                    AbilityButton(i),
+                    Button,
+                    Node {
+                        padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                        margin: UiRect::bottom(Val::Px(2.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.15, 0.25, 0.45)),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((Text::new(choice.display()), text_font(12.0), white_text()));
+                });
+        }
+    });
 }
 
 fn handle_ability_buttons(
@@ -333,7 +317,7 @@ fn update_battle_outcome(
             .as_ref()
             .and_then(|e| e.outcome.as_ref())
         {
-            if let Ok(mut vis) = outcome_panel_q.get_single_mut() {
+            if let Ok(mut vis) = outcome_panel_q.single_mut() {
                 *vis = Visibility::Inherited;
             }
             let msg = match outcome {
@@ -341,14 +325,14 @@ fn update_battle_outcome(
                 BattleOutcome::PlayerDefeated => "Defeated...",
                 BattleOutcome::Draw => "Draw",
             };
-            if let Ok(mut t) = outcome_label_q.get_single_mut() {
+            if let Ok(mut t) = outcome_label_q.single_mut() {
                 *t = Text::new(msg);
             }
         }
     }
 
     // Continue button: transition back to exploration.
-    if let Ok(interaction) = continue_q.get_single() {
+    if let Ok(interaction) = continue_q.single() {
         if *interaction == Interaction::Pressed {
             session_res.0.transition_to_exploration();
         }
@@ -359,6 +343,6 @@ fn update_battle_outcome(
 
 fn despawn_combat_ui(mut commands: Commands, q: Query<Entity, With<StateUiRoot>>) {
     for e in &q {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
 }
