@@ -54,6 +54,9 @@ pub struct ExplorationState {
     pub in_dialog: bool,
     /// Set while the player is traveling between named zones via hallways.
     pub travel: Option<TravelState>,
+    /// A combat encounter is waiting to start (set on zone entry when the zone
+    /// rolled an encounter). Cleared when `maybe_start_battle` fires.
+    pub pending_battle: bool,
 }
 
 impl ExplorationState {
@@ -205,16 +208,20 @@ impl GameSession {
             choice_index: 0,
             in_dialog: false,
             travel: None,
+            pending_battle: false,
         };
         exploration.fire_trigger(Trigger::OnEnter);
+        exploration.pending_battle = exploration.zone.has_encounter();
 
-        Self {
+        let mut session = Self {
             phase: GamePhase::Exploration(exploration),
             world,
             battle: None,
             last_event: None,
             loop_number: 1,
-        }
+        };
+        session.maybe_start_battle();
+        session
     }
 
     /// Transition from exploration into a fresh battle.
@@ -236,6 +243,52 @@ impl GameSession {
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
         self.phase = GamePhase::Battle(exploration);
+    }
+
+    /// If a battle is pending and no dialog is currently active, start it now.
+    fn maybe_start_battle(&mut self) {
+        let should = match &self.phase {
+            GamePhase::Exploration(e) => e.pending_battle && !e.in_dialog,
+            _ => false,
+        };
+        if should {
+            if let GamePhase::Exploration(e) = &mut self.phase {
+                e.pending_battle = false;
+            }
+            self.transition_to_battle();
+        }
+    }
+
+    /// Advance one line of active dialog. Returns `true` when the dialog
+    /// window closes. If a battle was pending and the dialog just closed,
+    /// the battle starts automatically.
+    pub fn advance_dialog(&mut self) -> bool {
+        let closed = {
+            let GamePhase::Exploration(e) = &mut self.phase else {
+                return false;
+            };
+            e.advance_dialog()
+        };
+        if closed {
+            self.maybe_start_battle();
+        }
+        closed
+    }
+
+    /// Confirm the highlighted choice. If this choice closes the dialog and
+    /// a battle was pending, the battle starts automatically.
+    pub fn select_choice(&mut self) {
+        let dialog_closed = {
+            let GamePhase::Exploration(e) = &mut self.phase else {
+                return;
+            };
+            let was_in = e.in_dialog;
+            e.select_choice();
+            was_in && !e.in_dialog
+        };
+        if dialog_closed {
+            self.maybe_start_battle();
+        }
     }
 
     /// Advance the battle by one step. Returns a reference to the new event.
@@ -325,43 +378,60 @@ impl GameSession {
     /// Returns `true` if the party arrived at the destination, `false` if they
     /// entered another hallway.
     pub fn exit_hallway(&mut self, rng: &mut impl rand::Rng) -> bool {
-        let GamePhase::Exploration(exploration) = &mut self.phase else {
-            return false;
+        // Extract scalars in a short immutable-borrow block so the borrow is
+        // dropped before we need split-field borrows below.
+        let (destination, travel_dir, depth, player_entity) = {
+            let GamePhase::Exploration(e) = &self.phase else {
+                return false;
+            };
+            if e.travel.is_none() {
+                return false;
+            }
+            let t = e.travel.as_ref().unwrap();
+            (t.destination, t.travel_dir, e.zone.depth, e.player_entity)
         };
-        if exploration.travel.is_none() {
-            return false;
-        }
-        let destination = exploration.travel.as_ref().unwrap().destination;
-        let travel_dir = exploration.travel.as_ref().unwrap().travel_dir;
-        let depth = exploration.zone.depth;
-        let player_entity = exploration.player_entity;
         let loop_number = self.loop_number;
 
         if rng.r#gen::<f64>() < arrival_chance(loop_number) {
-            exploration.zone = Zone::enter(destination, depth, loop_number, rng);
-            exploration.travel = None;
-            exploration.npcs = zone_npcs(
-                exploration.zone.kind,
-                exploration.zone.cols,
-                exploration.zone.rows,
-                loop_number,
-                exploration.dialog.flags(),
-            );
-            sync_companion(&mut exploration.dialog);
-            // Spawn 1 tile inward from the entry door (faces back toward origin).
-            let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
+            // All zone-setup and dialog happen inside a scoped block so the
+            // borrow on self.phase is released before we call maybe_start_battle.
+            let spawn = {
+                let GamePhase::Exploration(e) = &mut self.phase else {
+                    unreachable!()
+                };
+                e.zone = Zone::enter(destination, depth, loop_number, rng);
+                e.travel = None;
+                e.npcs = zone_npcs(
+                    e.zone.kind,
+                    e.zone.cols,
+                    e.zone.rows,
+                    loop_number,
+                    e.dialog.flags(),
+                );
+                sync_companion(&mut e.dialog);
+                // Spawn 1 tile inward from the entry door (faces back toward origin).
+                let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
+                e.fire_trigger(Trigger::OnEnter);
+                e.pending_battle = e.zone.has_encounter();
+                spawn
+            }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
                 .expect("player has Position") = Position::new(spawn.0, spawn.1);
-            exploration.fire_trigger(Trigger::OnEnter);
+            self.maybe_start_battle();
             true
         } else {
-            exploration.travel.as_mut().unwrap().hallways_traversed += 1;
-            exploration.zone = Zone::enter_hallway(depth, loop_number, travel_dir, rng);
-            exploration.npcs.clear();
-            // Spawn 1 tile inward from the backtrack door.
-            let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
+            let spawn = {
+                let GamePhase::Exploration(e) = &mut self.phase else {
+                    unreachable!()
+                };
+                e.travel.as_mut().unwrap().hallways_traversed += 1;
+                e.zone = Zone::enter_hallway(depth, loop_number, travel_dir, rng);
+                e.npcs.clear();
+                // Spawn 1 tile inward from the backtrack door.
+                spawn_pos_near_door(&e.zone, travel_dir.opposite())
+            }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
@@ -406,34 +476,42 @@ impl GameSession {
     /// Cancel travel and return to the origin zone, spawning near the door
     /// that faces the destination (so the player can re-enter the hallway).
     pub fn backtrack_to_origin(&mut self, rng: &mut impl rand::Rng) {
-        let GamePhase::Exploration(exploration) = &mut self.phase else {
-            return;
+        let (origin, travel_dir, depth, player_entity) = {
+            let GamePhase::Exploration(e) = &self.phase else {
+                return;
+            };
+            if e.travel.is_none() {
+                return;
+            }
+            let t = e.travel.as_ref().unwrap();
+            (t.origin, t.travel_dir, e.zone.depth, e.player_entity)
         };
-        if exploration.travel.is_none() {
-            return;
-        }
-        let origin = exploration.travel.as_ref().unwrap().origin;
-        let travel_dir = exploration.travel.as_ref().unwrap().travel_dir;
-        let depth = exploration.zone.depth;
         let loop_number = self.loop_number;
-        let player_entity = exploration.player_entity;
-        exploration.zone = Zone::enter(origin, depth, loop_number, rng);
-        exploration.travel = None;
-        exploration.npcs = zone_npcs(
-            exploration.zone.kind,
-            exploration.zone.cols,
-            exploration.zone.rows,
-            loop_number,
-            exploration.dialog.flags(),
-        );
-        sync_companion(&mut exploration.dialog);
-        // Spawn 1 tile inward from the door that leads toward the destination.
-        let spawn = spawn_pos_near_door(&exploration.zone, travel_dir);
+        let spawn = {
+            let GamePhase::Exploration(e) = &mut self.phase else {
+                unreachable!()
+            };
+            e.zone = Zone::enter(origin, depth, loop_number, rng);
+            e.travel = None;
+            e.npcs = zone_npcs(
+                e.zone.kind,
+                e.zone.cols,
+                e.zone.rows,
+                loop_number,
+                e.dialog.flags(),
+            );
+            sync_companion(&mut e.dialog);
+            // Spawn 1 tile inward from the door that leads toward the destination.
+            let spawn = spawn_pos_near_door(&e.zone, travel_dir);
+            e.fire_trigger(Trigger::OnEnter);
+            e.pending_battle = e.zone.has_encounter();
+            spawn
+        }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(spawn.0, spawn.1);
-        exploration.fire_trigger(Trigger::OnEnter);
+        self.maybe_start_battle();
     }
 
     /// True when a battle outcome has been decided.
@@ -456,34 +534,34 @@ impl GameSession {
             h.current = h.max;
         }
 
-        let GamePhase::Exploration(ref mut exploration) = self.phase else {
-            return;
-        };
-        // Reload scenes for the new loop; flags are preserved.
-        exploration.dialog.clear_scenes();
-        exploration
-            .dialog
-            .load_script(loop_yaml(loop_number))
-            .expect("load loop yaml");
-        let player_entity = exploration.player_entity;
-        exploration.zone = Zone::enter(ZoneKind::ResearchWing, 1, loop_number, rng);
-        exploration.travel = None;
-        exploration.npcs = zone_npcs(
-            exploration.zone.kind,
-            exploration.zone.cols,
-            exploration.zone.rows,
-            loop_number,
-            exploration.dialog.flags(),
-        );
-        sync_companion(&mut exploration.dialog);
+        let player_entity = {
+            let GamePhase::Exploration(e) = &mut self.phase else {
+                return;
+            };
+            // Reload scenes for the new loop; flags are preserved.
+            e.dialog.clear_scenes();
+            e.dialog
+                .load_script(loop_yaml(loop_number))
+                .expect("load loop yaml");
+            e.zone = Zone::enter(ZoneKind::ResearchWing, 1, loop_number, rng);
+            e.travel = None;
+            e.npcs = zone_npcs(
+                e.zone.kind,
+                e.zone.cols,
+                e.zone.rows,
+                loop_number,
+                e.dialog.flags(),
+            );
+            sync_companion(&mut e.dialog);
+            e.fire_trigger(Trigger::OnEnter);
+            e.pending_battle = e.zone.has_encounter();
+            e.player_entity
+        }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(1, 1);
-        let GamePhase::Exploration(ref mut exploration) = self.phase else {
-            unreachable!()
-        };
-        exploration.fire_trigger(Trigger::OnEnter);
+        self.maybe_start_battle();
     }
 
     /// Capture the minimal state needed to reconstruct this session later.
@@ -562,16 +640,20 @@ impl GameSession {
             choice_index: 0,
             in_dialog: false,
             travel: None,
+            pending_battle: false,
         };
         exploration.fire_trigger(Trigger::OnEnter);
+        exploration.pending_battle = exploration.zone.has_encounter();
 
-        Self {
+        let mut session = Self {
             phase: GamePhase::Exploration(exploration),
             world,
             battle: None,
             last_event: None,
             loop_number,
-        }
+        };
+        session.maybe_start_battle();
+        session
     }
 }
 
