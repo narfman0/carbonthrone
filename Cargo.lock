@@ -1816,11 +1816,29 @@ name = "carbonthrone"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "crossterm",
  "indexmap",
  "rand 0.8.5",
  "serde",
  "serde_yaml",
+]
+
+[[package]]
+name = "carbonthrone-cli"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "carbonthrone",
+ "crossterm",
+ "rand 0.8.5",
+]
+
+[[package]]
+name = "carbonthrone-gui"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "carbonthrone",
+ "rand 0.8.5",
 ]
 
 [[package]]

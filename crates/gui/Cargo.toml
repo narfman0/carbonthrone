@@ -1,0 +1,13 @@
+[package]
+name = "carbonthrone-gui"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "carbonthrone_gui"
+path = "src/main.rs"
+
+[dependencies]
+carbonthrone = { path = "../core" }
+bevy = "0.18.1"
+rand = "0.8"
