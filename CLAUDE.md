@@ -19,17 +19,35 @@ cargo fmt            # format (run on any modified .rs files after changes)
 
 ## Architecture
 
-All gameplay logic lives in `src/` as library modules, declared in `main.rs`:
+All gameplay logic lives in `src/` as library modules. The engine uses **Bevy ECS** (`World`, `Entity`, `Component`, `Resource`) for all runtime state. `src/lib.rs` owns the module tree; `src/main.rs` is the binary entry point. Tests live in `tests/` as integration tests (one file per module).
 
-- **`stats.rs`** — `Stats` struct (max_hp, attack, defense, speed, magic) with per-class base values and per-level growth. `CharacterClass` is imported here to drive class-specific values.
-- **`character.rs`** — `Character` (name, class, level, stats, current_hp, xp) with damage/heal/xp methods and automatic level-up.
-- **`party.rs`** — `Party` holds up to `MAX_PARTY_SIZE` (5) `Character`s; enforces the cap; tracks wipe state.
-- **`combat.rs`** — Pure functions for damage math (`calc_damage`, `calc_magic_damage`) and speed-based turn ordering (`turn_order`).
-- **`enemy.rs`** — `EnemyKind` enum (Goblin, Skeleton, Orc, Troll, DarkMage, Dragon), `Enemy` struct with level-scaled stats and xp reward. `Enemy::new(kind, level)` applies base stats plus per-level growth.
+### Core entity components (Bevy `Component`)
 
-After modifying any `.rs` files, run `cargo fmt` on them before finishing.
+- **`stats.rs`** — `Stats` (max_hp, attack, defense, speed, magic) with per-`CharacterKind` base values and `level_up()` growth.
+- **`character.rs`** — `Character` (kind, level, current_hp, aggression) + `CharacterKind` enum covering all 4 player characters and 16 NPC/enemy types grouped by faction (The Constancy, Drifters, Automata, Abyssal Fauna, Station Personnel). `Aggression` controls whether a `CharacterKind` fights or is friendly. `Character::new_character(kind, level)` builds a fully-statted entity.
+- **`health.rs`** — `Health` component (current/max HP) with `take_damage`, `heal`, `is_alive`.
+- **`action_points.rs`** — `ActionPoints` component (current/max AP); `refresh_ap_system` Bevy system restores AP to max at turn start.
+- **`experience.rs`** — `Experience` component; `level_up_system` Bevy system applies pending level-ups and syncs `Stats`/`Health`.
+- **`position.rs`** — `Position` component (integer x/y grid coords).
 
-Tests live in `tests/` as integration tests (one file per module). `src/lib.rs` owns the module tree and makes them importable; `src/main.rs` is the binary entry point.
+### Combat
+
+- **`combat.rs`** — Pure math (`calc_damage`, `calc_hit_chance`, `roll_hit`, `turn_order`), `BattleStep` state machine that drives full combat rounds, and `TurnEvent` log entries. References `turn.rs` and `player_input.rs` for action execution.
+- **`turn.rs`** — `Action` enum (Move, UseAbility, Pass) and `apply_action` function that executes one action on the Bevy `World`. Enforces AP cost, melee range (Chebyshev ≤ 1), and obstacle blocking.
+- **`player_input.rs`** — `PlayerActionChoice` (richer wrapper with hit%, damage preview, cover info) and `available_player_actions` which enumerates all valid moves for a player combatant given current AP, terrain, and enemy positions.
+- **`ability.rs`** — `Ability` struct, `AbilityKind` (Melee/Ranged/Utility), `AbilityEffect` (BonusDamage, ArmorPiercing, ArmorPiercingStrike, Heal, DrainAP, GrantAP). Per-character ability tables via `character_abilities(kind)` and `available_abilities(kind, level)`. `CharacterAbilities` is a Bevy component pairing an entity to its ability set.
+
+### World & traversal
+
+- **`terrain.rs`** — `Tile` (Open/Obstacle/Door), `CoverLevel` (None/Partial/Full), `LevelMap` (Bevy `Resource`; 2-D grid with precomputed directional cover), `BattleRng` resource, and `generate_map` procedural generator.
+- **`zone.rs`** — `ZoneKind` (9 named zones + Hallway), `Zone` (generated terrain map + door positions + encounter roll), `CardinalDir`, `ZoneConnections`, `SurpriseState`. `Zone::enter` and `Zone::enter_hallway` produce randomised layouts. `ZoneKind::combat_enemy_pool(loop_number)` returns the loop-filtered enemy roster.
+- **`travel.rs`** — `TravelState` (origin, destination, travel_dir, hallways_traversed) and `arrival_chance(loop_number)` — probability of reaching a destination when exiting a hallway (decreases each loop).
+
+### Game session & persistence
+
+- **`game.rs`** — `GameSession` (top-level owner of `World`, `GamePhase`, `BattleStep`) and `ExplorationState` (player entity, NPC list, dialog engine, current zone, travel state, scene display state). Drives phase transitions (`transition_to_battle`, `transition_to_exploration`), `move_player`, `initiate_travel`, `exit_hallway`, `backtrack_to_origin`, `reset_loop`, and save/load. `zone_npcs` and `sync_companion` are helpers here.
+- **`dialog.rs`** — `DialogEngine` (YAML-driven scene state machine), `Scene`, `DialogLine`, `Choice`, `Trigger` (OnEnter/OnCombatEnd/OnInteract/OnChoice). Loads per-loop YAML from `data/loops/`; evaluates companion + flag requirements; exposes flag import/export for saves.
+- **`save.rs`** — `SaveData` struct (loop_number, flags, active_companion, current_zone, party_kinds, party_hp); `save_game`/`load_game` serialize to `save.yaml`.
 
 ## Design Documents
 
