@@ -66,7 +66,7 @@ fn enemy_positions_are_unique() {
 
 #[test]
 fn level_grid_has_minimum_dimensions() {
-    let zone = Zone::generate(1, &mut rng());
+    let zone = Zone::generate(1, 1, &mut rng());
     assert!(zone.cols >= 8);
     assert!(zone.rows >= 8);
 }
@@ -113,13 +113,13 @@ fn different_seeds_produce_different_levels() {
 
 #[test]
 fn level_has_a_zone_kind() {
-    let zone = Zone::generate(1, &mut rng());
+    let zone = Zone::generate(1, 1, &mut rng());
     let _ = zone.kind;
 }
 
 #[test]
 fn level_map_dimensions_match_cols_rows() {
-    let zone = Zone::generate(1, &mut rng());
+    let zone = Zone::generate(1, 1, &mut rng());
     assert_eq!(zone.map.cols, zone.cols);
     assert_eq!(zone.map.rows, zone.rows);
 }

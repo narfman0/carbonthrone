@@ -8,12 +8,12 @@ loop: 2
 scenes:
 
   - id: loop2_opening
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_enter
     requires:
       companion: any
       flags_set: []
-      flags_unset: []
+      flags_unset: [loop2_opened]
     lines:
       - speaker: narrator
         text: "You come to on the floor. Ears ringing. Emergency lighting. Again."
@@ -34,14 +34,14 @@ scenes:
         text: "I am calculating optimal engagement zones."
         emotion: neutral
     choices: ~
-    sets_flag: ~
+    sets_flag: loop2_opened
 
   - id: loop2_split
-    location: research_wing_corridor
+    location: research_wing
     trigger: on_enter
     requires:
       companion: any
-      flags_set: []
+      flags_set: [loop2_opened]
       flags_unset: []
     lines:
       - speaker: orin
@@ -174,7 +174,7 @@ scenes:
     sets_flag: ~
 
   - id: loop2_doss_armor
-    location: military_annex_armory
+    location: military_annex
     trigger: on_interact
     requires:
       companion: any
@@ -195,7 +195,7 @@ scenes:
     sets_flag: doss_armor_noticed
 
   - id: loop2_doss_armor_question
-    location: military_annex_armory
+    location: military_annex
     trigger: on_choice
     requires:
       companion: any
@@ -212,7 +212,7 @@ scenes:
     sets_flag: ~
 
   - id: loop2_constancy_literature
-    location: research_wing_corridor
+    location: research_wing
     trigger: on_interact
     requires:
       companion: any

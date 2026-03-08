@@ -7,12 +7,12 @@ loop: 1
 scenes:
 
   - id: loop1_opening
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_enter
     requires:
       companion: any
       flags_set: []
-      flags_unset: []
+      flags_unset: [loop1_opened]
     lines:
       - speaker: narrator
         text: "You come to on the floor. Ears ringing. Emergency lighting."
@@ -30,10 +30,10 @@ scenes:
         text: "I am calculating optimal engagement zones."
         emotion: neutral
     choices: ~
-    sets_flag: ~
+    sets_flag: loop1_opened
 
   - id: loop1_tutorial_end
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_combat_end
     requires:
       companion: any
@@ -59,11 +59,11 @@ scenes:
     sets_flag: ~
 
   - id: loop1_split
-    location: research_wing_corridor
+    location: research_wing
     trigger: on_enter
     requires:
       companion: any
-      flags_set: []
+      flags_set: [loop1_opened]
       flags_unset: []
     lines:
       - speaker: orin
@@ -113,7 +113,7 @@ scenes:
     requires:
       companion: doss
       flags_set: [companion_doss]
-      flags_unset: []
+      flags_unset: [doss_arrived_annex]
     lines:
       - speaker: doss
         text: "Armory first. You're not going anywhere with just a sidearm."
@@ -122,7 +122,7 @@ scenes:
         text: "Orin will run her mission. We'll run ours."
         emotion: flat
     choices: ~
-    sets_flag: ~
+    sets_flag: doss_arrived_annex
 
   - id: loop1_orin_briefing
     location: command_deck
@@ -177,11 +177,11 @@ scenes:
     sets_flag: ~
 
   - id: loop1_doss_armory
-    location: military_annex_armory
+    location: military_annex
     trigger: on_enter
     requires:
       companion: doss
-      flags_set: [companion_doss]
+      flags_set: [companion_doss, doss_arrived_annex]
       flags_unset: []
     lines:
       - speaker: doss
@@ -195,7 +195,7 @@ scenes:
     sets_flag: ~
 
   - id: loop1_doss_constancy
-    location: military_annex_armory
+    location: military_annex
     trigger: on_choice
     requires:
       companion: doss

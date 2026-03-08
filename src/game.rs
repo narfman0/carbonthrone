@@ -9,6 +9,7 @@ use crate::dialog::{DialogEngine, Trigger};
 use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
+use crate::save::SaveData;
 use crate::terrain::{BattleRng, LevelMap};
 use crate::travel::TravelState;
 use crate::travel::arrival_chance;
@@ -147,6 +148,19 @@ impl ExplorationState {
     }
 }
 
+// ── Helper functions ─────────────────────────────────────────────────────────
+
+/// Return the embedded YAML source for the given loop number (1–5).
+pub fn loop_yaml(loop_number: u32) -> &'static str {
+    match loop_number {
+        1 => include_str!("../data/loops/loop1.yaml"),
+        2 => include_str!("../data/loops/loop2.yaml"),
+        3 => include_str!("../data/loops/loop3.yaml"),
+        4 => include_str!("../data/loops/loop4.yaml"),
+        _ => include_str!("../data/loops/loop5.yaml"),
+    }
+}
+
 // ── Game session ──────────────────────────────────────────────────────────────
 
 /// Owns all mutable game state. Drive it by calling methods; render from the
@@ -167,19 +181,18 @@ impl GameSession {
         let player_entity = setup_exploration(&mut world, &party);
 
         let mut dialog = DialogEngine::new();
-        let yaml = include_str!("../data/loops/loop1.yaml");
-        dialog.load_script(yaml).expect("load loop1.yaml");
+        let loop_number = 1u32;
+        dialog
+            .load_script(loop_yaml(loop_number))
+            .expect("load loop yaml");
 
         let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-        let zone = Zone::enter(ZoneKind::CommandDeck, 1, 1, &mut rng);
+        let zone = Zone::enter(ZoneKind::ResearchWing, 1, loop_number, &mut rng);
+        let npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, dialog.flags());
 
         let mut exploration = ExplorationState {
             player_entity,
-            npcs: vec![NpcData {
-                pos: (5, 2),
-                name: "Orin",
-                glyph: 'N',
-            }],
+            npcs,
             dialog,
             zone,
             party,
@@ -229,7 +242,7 @@ impl GameSession {
         let GamePhase::Battle(_) = &self.phase else {
             return;
         };
-        let GamePhase::Battle(exploration) =
+        let GamePhase::Battle(mut exploration) =
             std::mem::replace(&mut self.phase, GamePhase::Transitioning)
         else {
             unreachable!()
@@ -249,6 +262,7 @@ impl GameSession {
         self.world.remove_resource::<BattleRng>();
         self.battle = None;
         self.last_event = None;
+        exploration.fire_trigger(Trigger::OnCombatEnd);
         self.phase = GamePhase::Exploration(exploration);
     }
 
@@ -309,7 +323,9 @@ impl GameSession {
         if rng.r#gen::<f64>() < arrival_chance(loop_number) {
             exploration.zone = Zone::enter(destination, depth, loop_number, rng);
             exploration.travel = None;
-            exploration.npcs.clear();
+            exploration.npcs =
+                zone_npcs(exploration.zone.kind, exploration.zone.cols, exploration.zone.rows, loop_number, exploration.dialog.flags());
+            sync_companion(&mut exploration.dialog);
             // Spawn 1 tile inward from the entry door (faces back toward origin).
             let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
             *self
@@ -381,7 +397,9 @@ impl GameSession {
         let player_entity = exploration.player_entity;
         exploration.zone = Zone::enter(origin, depth, loop_number, rng);
         exploration.travel = None;
-        exploration.npcs.clear();
+        exploration.npcs =
+            zone_npcs(exploration.zone.kind, exploration.zone.cols, exploration.zone.rows, loop_number, exploration.dialog.flags());
+        sync_companion(&mut exploration.dialog);
         // Spawn 1 tile inward from the door that leads toward the destination.
         let spawn = spawn_pos_near_door(&exploration.zone, travel_dir);
         *self
@@ -397,6 +415,131 @@ impl GameSession {
             .as_ref()
             .and_then(|e| e.outcome.as_ref())
             .is_some()
+    }
+
+    /// Advance to the next loop: increment loop_number, restore party HP, and
+    /// restart the player in ResearchWing with the appropriate opening scene.
+    pub fn reset_loop(&mut self, rng: &mut impl rand::Rng) {
+        self.loop_number = (self.loop_number + 1).min(5);
+        let loop_number = self.loop_number;
+
+        // Restore party HP to max.
+        let mut q = self.world.query::<&mut crate::health::Health>();
+        for mut h in q.iter_mut(&mut self.world) {
+            h.current = h.max;
+        }
+
+        let GamePhase::Exploration(ref mut exploration) = self.phase else {
+            return;
+        };
+        // Reload scenes for the new loop; flags are preserved.
+        exploration.dialog.clear_scenes();
+        exploration
+            .dialog
+            .load_script(loop_yaml(loop_number))
+            .expect("load loop yaml");
+        let player_entity = exploration.player_entity;
+        exploration.zone = Zone::enter(ZoneKind::ResearchWing, 1, loop_number, rng);
+        exploration.travel = None;
+        exploration.npcs =
+            zone_npcs(exploration.zone.kind, exploration.zone.cols, exploration.zone.rows, loop_number, exploration.dialog.flags());
+        sync_companion(&mut exploration.dialog);
+        *self
+            .world
+            .get_mut::<Position>(player_entity)
+            .expect("player has Position") = Position::new(1, 1);
+        let GamePhase::Exploration(ref mut exploration) = self.phase else {
+            unreachable!()
+        };
+        exploration.fire_trigger(Trigger::OnEnter);
+    }
+
+    /// Capture the minimal state needed to reconstruct this session later.
+    pub fn to_save_data(&self) -> SaveData {
+        let GamePhase::Exploration(exploration) = &self.phase else {
+            // Fall back to defaults if called mid-battle (shouldn't happen via UI).
+            return SaveData {
+                loop_number: self.loop_number,
+                flags: vec![],
+                active_companion: None,
+                current_zone: ZoneKind::ResearchWing,
+                party_kinds: vec![CharacterKind::Researcher],
+                party_hp: vec![],
+            };
+        };
+        let flags = exploration.dialog.export_flags();
+        let active_companion = exploration.dialog.active_companion().map(str::to_string);
+        let current_zone = exploration.zone.kind;
+        let party_kinds = exploration.party.iter().map(|c| c.kind.clone()).collect();
+        let party_hp = exploration.party.iter().map(|c| c.current_hp).collect();
+        SaveData {
+            loop_number: self.loop_number,
+            flags,
+            active_companion,
+            current_zone,
+            party_kinds,
+            party_hp,
+        }
+    }
+
+    /// Reconstruct a game session from previously saved data.
+    pub fn from_save_data(data: SaveData, rng: &mut impl rand::Rng) -> Self {
+        let party: Vec<Character> = data
+            .party_kinds
+            .iter()
+            .zip(data.party_hp.iter().chain(std::iter::repeat(&i32::MAX)))
+            .map(|(kind, &hp)| {
+                let mut ch = Character::new_character(kind.clone(), 1);
+                if hp != i32::MAX {
+                    ch.current_hp = hp;
+                }
+                ch
+            })
+            .collect();
+        let party = if party.is_empty() {
+            vec![Character::new_character(CharacterKind::Researcher, 1)]
+        } else {
+            party
+        };
+
+        let mut world = World::new();
+        let player_entity = setup_exploration(&mut world, &party);
+
+        let mut dialog = DialogEngine::new();
+        let loop_number = data.loop_number;
+        dialog
+            .load_script(loop_yaml(loop_number))
+            .expect("load loop yaml");
+        dialog.import_flags(data.flags);
+        if let Some(companion) = data.active_companion {
+            dialog.set_companion(companion);
+        }
+
+        let zone = Zone::enter(data.current_zone, 1, loop_number, rng);
+        let npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, dialog.flags());
+
+        let mut exploration = ExplorationState {
+            player_entity,
+            npcs,
+            dialog,
+            zone,
+            party,
+            scene_lines: Vec::new(),
+            scene_choices: Vec::new(),
+            line_index: 0,
+            choice_index: 0,
+            in_dialog: false,
+            travel: None,
+        };
+        exploration.fire_trigger(Trigger::OnEnter);
+
+        Self {
+            phase: GamePhase::Exploration(exploration),
+            world,
+            battle: None,
+            last_event: None,
+            loop_number,
+        }
     }
 }
 
@@ -466,3 +609,51 @@ fn spawn_pos_near_door(zone: &Zone, door_dir: CardinalDir) -> (i32, i32) {
     };
     (nx, ny)
 }
+
+/// Return the NPCs that should populate `kind` given the current `loop_number` and flag state.
+pub fn zone_npcs(
+    kind: ZoneKind,
+    cols: u32,
+    rows: u32,
+    loop_number: u32,
+    flags: &std::collections::HashSet<String>,
+) -> Vec<NpcData> {
+    let cx = (cols as i32 / 2).max(1);
+    let cy = (rows as i32 / 3).max(1);
+    match kind {
+        ZoneKind::CommandDeck if !flags.contains("companion_orin") => vec![NpcData {
+            pos: (cx, cy),
+            name: "Orin",
+            glyph: 'O',
+        }],
+        ZoneKind::MilitaryAnnex if !flags.contains("companion_doss") => vec![NpcData {
+            pos: (cx, cy),
+            name: "Doss",
+            glyph: 'D',
+        }],
+        ZoneKind::SystemsCore if loop_number >= 2 => vec![NpcData {
+            pos: (cx, cy),
+            name: "Kaleo",
+            glyph: 'K',
+        }],
+        ZoneKind::DockingBay if loop_number <= 3 => vec![NpcData {
+            pos: (cx, cy),
+            name: "Gun-for-Hire",
+            glyph: 'H',
+        }],
+        _ => vec![],
+    }
+}
+
+/// Sync the dialog engine's active companion from the flag state.
+/// Should be called whenever the player arrives in a new zone.
+pub fn sync_companion(dialog: &mut DialogEngine) {
+    if dialog.is_flag_set("companion_orin") {
+        dialog.set_companion("orin");
+    } else if dialog.is_flag_set("companion_doss") {
+        dialog.set_companion("doss");
+    } else if dialog.is_flag_set("kaleo_recruited") {
+        dialog.set_companion("kaleo");
+    }
+}
+

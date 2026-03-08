@@ -10,7 +10,7 @@ loop: 5
 scenes:
 
   - id: loop5_opening
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_enter
     requires:
       companion: any
@@ -161,12 +161,12 @@ scenes:
     sets_flag: orin_told_doss_truth
 
   - id: loop5_doss_after_fight
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_combat_end
     requires:
       companion: any
       flags_set: []
-      flags_unset: []
+      flags_unset: [doss_war_full]
     lines:
       - speaker: doss
         text: "You talked to her."
@@ -182,7 +182,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_doss_confirm_talk
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_choice
     requires:
       companion: any
@@ -200,7 +200,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_doss_heard_not_believed
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_choice
     requires:
       companion: any
@@ -223,7 +223,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_doss_did_not_listen
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_choice
     requires:
       companion: any
@@ -240,7 +240,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_doss_no_answer
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_choice
     requires:
       companion: any
@@ -257,7 +257,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_doss_already_knows
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_combat_end
     requires:
       companion: any
@@ -274,7 +274,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_kaleo_convergence_confirm
-    location: systems_core_kaleo_terminal_hub
+    location: systems_core
     trigger: on_interact
     requires:
       companion: any
@@ -310,7 +310,7 @@ scenes:
     sets_flag: kaleo_plan_confirmed
 
   - id: loop5_kaleo_what_it_wants
-    location: systems_core_kaleo_terminal_hub
+    location: systems_core
     trigger: on_choice
     requires:
       companion: any
@@ -336,7 +336,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_kaleo_what_happens_now
-    location: systems_core_kaleo_terminal_hub
+    location: systems_core
     trigger: on_choice
     requires:
       companion: any
@@ -351,7 +351,7 @@ scenes:
 
   - id: loop5_archon_truth_found
     location: docking_bay
-    trigger: on_combat_start
+    trigger: on_enter
     requires:
       companion: any
       flags_set: [orin_logs_full, orin_daughter_name]
@@ -374,7 +374,7 @@ scenes:
 
   - id: loop5_archon_truth_not_found
     location: docking_bay
-    trigger: on_combat_start
+    trigger: on_enter
     requires:
       companion: any
       flags_set: []
@@ -390,7 +390,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_convergence
-    location: research_wing_anomaly_observation_chamber
+    location: research_wing
     trigger: on_enter
     requires:
       companion: any
@@ -434,7 +434,7 @@ scenes:
     sets_flag: convergence_triggered
 
   - id: loop5_ending_doss
-    location: research_wing_anomaly_observation_chamber
+    location: research_wing
     trigger: on_choice
     requires:
       companion: any
@@ -454,7 +454,7 @@ scenes:
     sets_flag: ~
 
   - id: loop5_ending_kaleo
-    location: research_wing_anomaly_observation_chamber
+    location: research_wing
     trigger: on_choice
     requires:
       companion: any

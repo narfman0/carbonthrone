@@ -17,8 +17,9 @@ use carbonthrone::combat::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEven
 use carbonthrone::game::{ExplorationState, GamePhase, GameSession};
 use carbonthrone::health::Health;
 use carbonthrone::position::Position;
+use carbonthrone::save::{load_game, save_game};
 use carbonthrone::stats::Stats;
-use carbonthrone::terrain::{CoverLevel, LevelMap};
+use carbonthrone::terrain::{LevelMap};
 
 fn main() {
     let mut session = GameSession::new();
@@ -131,6 +132,24 @@ fn main() {
                                 session.transition_to_battle();
                                 break;
                             }
+                            KeyCode::Char('f') => {
+                                let data = session.to_save_data();
+                                if let Err(e) = save_game(&data) {
+                                    let _ = write!(stdout, "\r\nSave failed: {e}\r\n");
+                                }
+                                break;
+                            }
+                            KeyCode::Char('l') => {
+                                match load_game() {
+                                    Ok(data) => {
+                                        session = GameSession::from_save_data(data, &mut rng);
+                                    }
+                                    Err(e) => {
+                                        let _ = write!(stdout, "\r\nLoad failed: {e}\r\n");
+                                    }
+                                }
+                                break;
+                            }
                             _ => {}
                         }
                     }
@@ -146,7 +165,14 @@ fn main() {
                             break;
                         }
                         _ if battle_over => {
+                            let defeated = matches!(
+                                session.last_event.as_ref().and_then(|e| e.outcome.as_ref()),
+                                Some(BattleOutcome::PlayerDefeated)
+                            );
                             session.transition_to_exploration();
+                            if defeated {
+                                session.reset_loop(&mut rng);
+                            }
                             break;
                         }
                         _ => {}

@@ -2,11 +2,13 @@ use crate::character::{Character, CharacterKind};
 use crate::position::Position;
 use crate::terrain::{LevelMap, Tile, generate_map};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 /// One of the nine named zones in the Meridian station, as described in docs/world.md.
 /// `Hallway` is an anonymous connecting corridor used during zone travel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ZoneKind {
     // Interior zones
     ResearchWing,

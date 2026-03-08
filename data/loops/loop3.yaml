@@ -11,7 +11,7 @@ loop: 3
 scenes:
 
   - id: loop3_opening
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_enter
     requires:
       companion: any
@@ -78,7 +78,7 @@ scenes:
     sets_flag: ~
 
   - id: loop3_orin_logs_access
-    location: command_deck_orins_office
+    location: command_deck
     trigger: on_interact
     requires:
       companion: orin
@@ -102,7 +102,7 @@ scenes:
     sets_flag: orin_logs_partial
 
   - id: loop3_orin_logs_gap
-    location: command_deck_orins_office
+    location: command_deck
     trigger: on_choice
     requires:
       companion: orin
@@ -119,7 +119,7 @@ scenes:
     sets_flag: ~
 
   - id: loop3_doss_bunk
-    location: military_annex_doss_quarters
+    location: military_annex
     trigger: on_interact
     requires:
       companion: doss
@@ -154,7 +154,7 @@ scenes:
     sets_flag: doss_bunk_found
 
   - id: loop3_doss_war_not_yet
-    location: military_annex_doss_quarters
+    location: military_annex
     trigger: on_choice
     requires:
       companion: doss
@@ -168,7 +168,7 @@ scenes:
     sets_flag: ~
 
   - id: loop3_doss_maps_question
-    location: military_annex_doss_quarters
+    location: military_annex
     trigger: on_choice
     requires:
       companion: doss
@@ -185,7 +185,7 @@ scenes:
     sets_flag: doss_war_referenced
 
   - id: loop3_doss_bunk_silence
-    location: military_annex_doss_quarters
+    location: military_annex
     trigger: on_choice
     requires:
       companion: doss
@@ -199,7 +199,7 @@ scenes:
     sets_flag: ~
 
   - id: loop3_doss_war_oblique_no_companion
-    location: military_annex_doss_quarters
+    location: military_annex
     trigger: on_interact
     requires:
       companion: orin
@@ -222,7 +222,7 @@ scenes:
     sets_flag: doss_war_referenced
 
   - id: loop3_kaleo_recruitment
-    location: systems_core_maintenance_corridor
+    location: systems_core
     trigger: on_enter
     requires:
       companion: any
@@ -244,7 +244,7 @@ scenes:
     sets_flag: ~
 
   - id: loop3_kaleo_joins
-    location: systems_core_maintenance_corridor
+    location: systems_core
     trigger: on_choice
     requires:
       companion: any
@@ -261,7 +261,7 @@ scenes:
     sets_flag: ~
 
   - id: loop3_kaleo_first_warning
-    location: military_annex_guard_post
+    location: military_annex
     trigger: on_enter
     requires:
       companion: any
@@ -282,7 +282,7 @@ scenes:
     sets_flag: ~
 
   - id: loop3_kaleo_first_evasion
-    location: military_annex_guard_post
+    location: military_annex
     trigger: on_choice
     requires:
       companion: any
@@ -302,7 +302,7 @@ scenes:
     sets_flag: kaleo_knows_more
 
   - id: loop3_constancy_zealot_dying
-    location: research_wing_lab_a
+    location: research_wing
     trigger: on_combat_end
     requires:
       companion: any

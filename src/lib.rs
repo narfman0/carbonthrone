@@ -8,6 +8,7 @@ pub mod game;
 pub mod health;
 pub mod player_input;
 pub mod position;
+pub mod save;
 pub mod stats;
 pub mod terrain;
 pub mod travel;

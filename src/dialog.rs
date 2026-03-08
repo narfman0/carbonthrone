@@ -1,4 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use indexmap::IndexMap;
+use std::collections::HashSet;
 
 use serde::Deserialize;
 
@@ -47,6 +48,9 @@ pub struct Choice {
     pub leads_to: Option<String>,
     #[serde(default)]
     pub sets_flag: Option<String>,
+    /// Optional flag that must be set for this choice to appear (parsed but not yet enforced by the engine).
+    #[serde(default)]
+    pub requires_flag: Option<String>,
 }
 
 /// A self-contained dialog scene loaded from a loop YAML file.
@@ -79,7 +83,7 @@ struct DialogScript {
 /// automatically when evaluating scene requirements.
 #[derive(Debug, Default)]
 pub struct DialogEngine {
-    scenes: HashMap<String, Scene>,
+    scenes: IndexMap<String, Scene>,
     flags: HashSet<String>,
     current_scene: Option<String>,
     active_companion: Option<String>,
@@ -208,5 +212,36 @@ impl DialogEngine {
         }
         self.current_scene = Some(scene_id.clone());
         self.scenes.get(&scene_id)
+    }
+
+    // ── State export / import (for save-game persistence) ─────────────────
+
+    /// Return all currently-set flags as a sorted `Vec<String>`.
+    pub fn export_flags(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.flags.iter().cloned().collect();
+        v.sort();
+        v
+    }
+
+    /// Merge a previously-exported flag list back into the engine.
+    pub fn import_flags(&mut self, flags: Vec<String>) {
+        self.flags.extend(flags);
+    }
+
+    /// Return the active companion name, if any.
+    pub fn active_companion(&self) -> Option<&str> {
+        self.active_companion.as_deref()
+    }
+
+    /// Expose the raw flag set (read-only) for queries without cloning.
+    pub fn flags(&self) -> &HashSet<String> {
+        &self.flags
+    }
+
+    /// Remove all loaded scenes without touching flags or companion state.
+    /// Call before loading a new loop's YAML to avoid cross-loop scene collisions.
+    pub fn clear_scenes(&mut self) {
+        self.scenes.clear();
+        self.current_scene = None;
     }
 }

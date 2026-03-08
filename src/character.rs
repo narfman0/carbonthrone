@@ -1,7 +1,9 @@
 use crate::stats::Stats;
 use bevy::prelude::Component;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Component)]
+#[derive(Debug, Clone, PartialEq, Component, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CharacterKind {
     // Player characters
     /// The player character — Temporal Mage; high magic, fragile, fast.

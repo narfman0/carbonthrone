@@ -13,7 +13,7 @@ loop: 4
 scenes:
 
   - id: loop4_opening
-    location: research_wing_room_7c
+    location: research_wing
     trigger: on_enter
     requires:
       companion: any
@@ -216,7 +216,7 @@ scenes:
     sets_flag: orin_logs_partial
 
   - id: loop4_orin_logs_full
-    location: command_deck_orins_office
+    location: command_deck
     trigger: on_interact
     requires:
       companion: any
@@ -233,7 +233,7 @@ scenes:
     sets_flag: orin_logs_full
 
   - id: loop4_doss_account
-    location: military_annex_doss_quarters
+    location: military_annex
     trigger: on_interact
     requires:
       companion: any
@@ -263,7 +263,7 @@ scenes:
     sets_flag: doss_war_full
 
   - id: loop4_doss_sable_version
-    location: military_annex_doss_quarters
+    location: military_annex
     trigger: on_choice
     requires:
       companion: any
@@ -283,7 +283,7 @@ scenes:
     sets_flag: doss_sable_distortion
 
   - id: loop4_doss_preservation
-    location: military_annex_doss_quarters
+    location: military_annex
     trigger: on_choice
     requires:
       companion: any
@@ -300,7 +300,7 @@ scenes:
     sets_flag: ~
 
   - id: loop4_kaleo_plains
-    location: systems_core_kaleo_terminal_hub
+    location: systems_core
     trigger: on_interact
     requires:
       companion: any
@@ -333,7 +333,7 @@ scenes:
     sets_flag: kaleo_silence_broken
 
   - id: loop4_kaleo_what_it_wants
-    location: systems_core_kaleo_terminal_hub
+    location: systems_core
     trigger: on_choice
     requires:
       companion: any
@@ -350,7 +350,7 @@ scenes:
     sets_flag: ~
 
   - id: loop4_kaleo_this_iteration
-    location: systems_core_kaleo_terminal_hub
+    location: systems_core
     trigger: on_choice
     requires:
       companion: any
@@ -367,7 +367,7 @@ scenes:
     sets_flag: ~
 
   - id: loop4_kaleo_iteration_log
-    location: systems_core_server_room
+    location: systems_core
     trigger: on_interact
     requires:
       companion: any
@@ -397,7 +397,7 @@ scenes:
 
   - id: loop4_archon_precombat
     location: docking_bay
-    trigger: on_combat_start
+    trigger: on_enter
     requires:
       companion: any
       flags_set: []

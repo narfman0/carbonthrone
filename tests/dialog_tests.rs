@@ -26,7 +26,7 @@ fn opening_scene_fires_on_enter() {
     engine.load_script(LOOP1_YAML).unwrap();
     engine.set_companion("orin");
 
-    let scene = engine.trigger(&Trigger::OnEnter, "research_wing_room_7c");
+    let scene = engine.trigger(&Trigger::OnEnter, "research_wing");
     assert!(scene.is_some());
     let scene = scene.unwrap();
     assert_eq!(scene.id, "loop1_opening");
@@ -129,8 +129,10 @@ fn selecting_choice_sets_flag_and_navigates() {
     engine.load_script(LOOP1_YAML).unwrap();
     engine.set_companion("orin");
 
+    // loop1_split requires loop1_opened (set by loop1_opening on first entry)
+    engine.set_flag("loop1_opened");
     // Trigger the split scene which has [Follow Orin.] / [Follow Doss.]
-    let scene = engine.trigger(&Trigger::OnEnter, "research_wing_corridor");
+    let scene = engine.trigger(&Trigger::OnEnter, "research_wing");
     assert!(scene.is_some());
     assert_eq!(scene.unwrap().id, "loop1_split");
 
@@ -148,8 +150,10 @@ fn selecting_choice_with_null_leads_to_returns_none() {
     engine.set_companion("doss");
     engine.set_flag("companion_doss");
 
+    // loop1_doss_armory requires doss_arrived_annex (set by loop1_post_split_doss on first entry)
+    engine.set_flag("doss_arrived_annex");
     // loop1_doss_armory choice 1: "[Take equipment and move on.]" leads_to: ~
-    let scene = engine.trigger(&Trigger::OnEnter, "military_annex_armory");
+    let scene = engine.trigger(&Trigger::OnEnter, "military_annex");
     assert!(scene.is_some());
     assert_eq!(scene.unwrap().id, "loop1_doss_armory");
 

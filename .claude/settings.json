@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Bash(cargo add *)",
       "Bash(cargo build)",
       "Bash(cargo build --jobs 1)",
       "Bash(cargo clippy)",
@@ -11,6 +12,7 @@
       "Bash(cargo test --jobs 2)",
       "Bash(cargo test --jobs 2 --test *)",
       "Bash(grep -r *)",
+      "Bash(wc -l *)",
       "Bash(xargs wc -l)",
       "Bash(xargs grep -l *)"
     ]
