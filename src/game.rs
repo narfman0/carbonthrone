@@ -10,6 +10,9 @@ use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
 use crate::save::SaveData;
+use crate::scripted_encounter::{
+    ScriptedAlly, ScriptedEncounter, ScriptedFirstAction, scripted_encounter_for,
+};
 use crate::terrain::{BattleRng, LevelMap};
 use crate::travel::TravelState;
 use crate::travel::arrival_chance;
@@ -215,6 +218,10 @@ impl GameSession {
     }
 
     /// Transition from exploration into a fresh battle.
+    ///
+    /// If a [`ScriptedEncounter`] is registered for the current zone and loop
+    /// number, it overrides random enemy generation: enemies spawn at fixed
+    /// positions and temporary allies are spawned alongside the player.
     pub fn transition_to_battle(&mut self) {
         let GamePhase::Exploration(_) = &self.phase else {
             return;
@@ -224,7 +231,8 @@ impl GameSession {
         else {
             unreachable!()
         };
-        setup_battle(&mut self.world, &exploration.zone);
+        let script = scripted_encounter_for(exploration.zone.kind, self.loop_number);
+        setup_battle(&mut self.world, &exploration.zone, script.as_ref());
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
         self.phase = GamePhase::Battle(exploration);
@@ -256,6 +264,15 @@ impl GameSession {
                 .collect()
         };
         for e in enemies {
+            self.world.despawn(e);
+        }
+        // Despawn temporary scripted allies (player-kind characters added just
+        // for this encounter — identified by the ScriptedAlly marker).
+        let scripted_allies: Vec<Entity> = {
+            let mut q = self.world.query::<(Entity, &ScriptedAlly)>();
+            q.iter(&self.world).map(|(e, _)| e).collect()
+        };
+        for e in scripted_allies {
             self.world.despawn(e);
         }
         self.world.remove_resource::<LevelMap>();
@@ -323,8 +340,13 @@ impl GameSession {
         if rng.r#gen::<f64>() < arrival_chance(loop_number) {
             exploration.zone = Zone::enter(destination, depth, loop_number, rng);
             exploration.travel = None;
-            exploration.npcs =
-                zone_npcs(exploration.zone.kind, exploration.zone.cols, exploration.zone.rows, loop_number, exploration.dialog.flags());
+            exploration.npcs = zone_npcs(
+                exploration.zone.kind,
+                exploration.zone.cols,
+                exploration.zone.rows,
+                loop_number,
+                exploration.dialog.flags(),
+            );
             sync_companion(&mut exploration.dialog);
             // Spawn 1 tile inward from the entry door (faces back toward origin).
             let spawn = spawn_pos_near_door(&exploration.zone, travel_dir.opposite());
@@ -397,8 +419,13 @@ impl GameSession {
         let player_entity = exploration.player_entity;
         exploration.zone = Zone::enter(origin, depth, loop_number, rng);
         exploration.travel = None;
-        exploration.npcs =
-            zone_npcs(exploration.zone.kind, exploration.zone.cols, exploration.zone.rows, loop_number, exploration.dialog.flags());
+        exploration.npcs = zone_npcs(
+            exploration.zone.kind,
+            exploration.zone.cols,
+            exploration.zone.rows,
+            loop_number,
+            exploration.dialog.flags(),
+        );
         sync_companion(&mut exploration.dialog);
         // Spawn 1 tile inward from the door that leads toward the destination.
         let spawn = spawn_pos_near_door(&exploration.zone, travel_dir);
@@ -441,8 +468,13 @@ impl GameSession {
         let player_entity = exploration.player_entity;
         exploration.zone = Zone::enter(ZoneKind::ResearchWing, 1, loop_number, rng);
         exploration.travel = None;
-        exploration.npcs =
-            zone_npcs(exploration.zone.kind, exploration.zone.cols, exploration.zone.rows, loop_number, exploration.dialog.flags());
+        exploration.npcs = zone_npcs(
+            exploration.zone.kind,
+            exploration.zone.cols,
+            exploration.zone.rows,
+            loop_number,
+            exploration.dialog.flags(),
+        );
         sync_companion(&mut exploration.dialog);
         *self
             .world
@@ -569,12 +601,58 @@ pub fn setup_exploration(world: &mut World, party: &[Character]) -> Entity {
 
 /// Adds enemies and battle resources to the world. Party is already present from
 /// `setup_exploration`.
-pub fn setup_battle(world: &mut World, zone: &Zone) {
+///
+/// When `script` is `Some`, enemy positions are taken from the scripted
+/// encounter definition instead of being generated randomly.  Scripted allies
+/// are spawned with the [`ScriptedAlly`] marker component so they are
+/// despawned at the end of combat.
+pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEncounter>) {
     let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
-    for (character, pos) in zone.generate_enemies(&mut rng) {
-        let stats = character.stats.clone();
-        let hp = character.current_hp;
-        world.spawn((character, stats, Health::new(hp), ActionPoints::new(4), pos));
+
+    // Spawn enemies — either from the script or generated randomly.
+    if let Some(s) = script {
+        for placement in &s.enemies {
+            let (character, pos) = placement.to_character_and_pos(zone.cols, zone.rows);
+            let stats = character.stats.clone();
+            let hp = character.current_hp;
+            let mut entity_cmd =
+                world.spawn((character, stats, Health::new(hp), ActionPoints::new(4), pos));
+            if let Some(ability_name) = placement.first_ability {
+                entity_cmd.insert(ScriptedFirstAction {
+                    ability_name,
+                    executed: false,
+                });
+            }
+        }
+    } else {
+        for (character, pos) in zone.generate_enemies(&mut rng) {
+            let stats = character.stats.clone();
+            let hp = character.current_hp;
+            world.spawn((character, stats, Health::new(hp), ActionPoints::new(4), pos));
+        }
+    }
+
+    // Spawn scripted allies (temporary, fight on the player's side).
+    if let Some(s) = script {
+        for placement in &s.allies {
+            let (character, pos) = placement.to_character_and_pos(zone.cols, zone.rows);
+            let stats = character.stats.clone();
+            let hp = character.current_hp;
+            let mut entity_cmd = world.spawn((
+                character,
+                stats,
+                Health::new(hp),
+                ActionPoints::new(4),
+                pos,
+                ScriptedAlly,
+            ));
+            if let Some(ability_name) = placement.first_ability {
+                entity_cmd.insert(ScriptedFirstAction {
+                    ability_name,
+                    executed: false,
+                });
+            }
+        }
     }
 
     let battle_rng = StdRng::seed_from_u64(rand::random::<u64>());
@@ -656,4 +734,3 @@ pub fn sync_companion(dialog: &mut DialogEngine) {
         dialog.set_companion("kaleo");
     }
 }
-
