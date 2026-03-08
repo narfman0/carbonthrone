@@ -10,6 +10,7 @@ use crate::{
     health::Health,
     player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
+    scripted_encounter::{ScriptedAlly, ScriptedFirstAction},
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
     turn::{Action, apply_action},
@@ -202,6 +203,18 @@ impl BattleStep {
     /// The next entity waiting to act this turn, if any.
     pub fn next_actor(&self) -> Option<Entity> {
         self.actor_queue.front().copied()
+    }
+
+    /// Returns `true` when the next queued player actor is a scripted
+    /// (AI-controlled) ally rather than a true player character.
+    ///
+    /// Callers that drive combat interactively should auto-advance scripted
+    /// allies by calling [`Self::step`] instead of waiting for player input.
+    pub fn current_actor_is_scripted_ally(&self, world: &World) -> bool {
+        self.actor_queue
+            .front()
+            .map(|&e| world.get::<ScriptedAlly>(e).is_some())
+            .unwrap_or(false)
     }
 
     /// Advance one actor's full turn (all AP spent). Returns what happened.
@@ -422,11 +435,17 @@ fn is_offensive_ability(effect: &AbilityEffect) -> bool {
     )
 }
 
-/// AI entry point: seek cover first, then choose an ability.
+/// AI entry point: execute a scripted first action if present, then seek cover
+/// and choose an ability via normal tactics.
 fn choose_action(world: &mut World, actor: Entity, turn: Turn) -> Option<Action> {
     let ap = world.get::<ActionPoints>(actor)?.current;
     if ap == 0 {
         return Some(Action::Pass);
+    }
+
+    // Check for a scripted first action before falling back to tactical AI.
+    if let Some(scripted) = choose_scripted_action(world, actor, turn) {
+        return Some(scripted);
     }
 
     let min_cost = min_offensive_ap_cost(world, actor);
@@ -442,6 +461,70 @@ fn choose_action(world: &mut World, actor: Entity, turn: Turn) -> Option<Action>
     }
 
     Some(Action::Pass)
+}
+
+/// If the actor has an unexecuted [`ScriptedFirstAction`], attempt to use that
+/// ability and mark it as executed.  Returns `None` when the component is
+/// absent, already executed, the ability is unknown, or no valid target exists.
+fn choose_scripted_action(world: &mut World, actor: Entity, turn: Turn) -> Option<Action> {
+    // Peek at the scripted component without holding a reference.
+    let ability_name: &'static str = {
+        let sfa = world.get::<ScriptedFirstAction>(actor)?;
+        if sfa.executed {
+            return None;
+        }
+        sfa.ability_name
+    };
+
+    let (kind, level) = {
+        let c = world.get::<Character>(actor)?;
+        (c.kind.clone(), c.level)
+    };
+
+    // Locate the ability by name in this character's ability table.
+    let ability = character_abilities(&kind)
+        .into_iter()
+        .find(|a| a.name == ability_name && a.level_required <= level)?;
+
+    let actor_pos = world.get::<Position>(actor).copied()?;
+
+    // Resolve the target based on ability kind.
+    let target: Option<Entity> = match ability.kind {
+        AbilityKind::Melee => {
+            // Collect adjacent enemy positions (borrow dropped before mutable access).
+            let target_positions: Vec<(Entity, i32, i32)> = {
+                let mut q = world.query::<(Entity, &Character, &Health, &Position)>();
+                q.iter(world)
+                    .filter(|(_, c, h, _)| match turn {
+                        Turn::Player => {
+                            !c.kind.is_player()
+                                && c.aggression != Aggression::Friendly
+                                && h.is_alive()
+                        }
+                        Turn::Enemy => c.kind.is_player() && h.is_alive(),
+                    })
+                    .map(|(e, _, _, pos)| (e, pos.x, pos.y))
+                    .collect()
+            };
+            best_adjacent_target(&target_positions, actor_pos)
+        }
+        AbilityKind::Ranged => best_attack_target(world, actor, turn),
+        // Utility abilities are self-targeted (target = None handled by apply_ability).
+        AbilityKind::Utility => None,
+    };
+
+    // For targeted abilities that need a target, skip if none available.
+    if matches!(ability.kind, AbilityKind::Melee | AbilityKind::Ranged) && target.is_none() {
+        // Can't execute yet — don't mark as executed so the normal AI can act.
+        return None;
+    }
+
+    // Mark the scripted action as executed before returning.
+    if let Some(mut sfa) = world.get_mut::<ScriptedFirstAction>(actor) {
+        sfa.executed = true;
+    }
+
+    Some(Action::UseAbility { ability, target })
 }
 
 /// Chooses an offensive ability and target for the actor.
