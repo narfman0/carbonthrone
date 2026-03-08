@@ -1,0 +1,144 @@
+use bevy::prelude::*;
+use carbonthrone::combat::TurnAction;
+
+use super::{StateUiRoot, panel_bg, text_font, white_text};
+use crate::resources::GameSessionRes;
+use crate::state::AppState;
+
+pub struct TurnLogPlugin;
+
+impl Plugin for TurnLogPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<TurnLog>()
+            .add_systems(OnEnter(AppState::Battle), spawn_turn_log_panel)
+            .add_systems(OnExit(AppState::Battle), despawn_turn_log)
+            .add_systems(
+                Update,
+                (collect_turn_events, update_turn_log_display)
+                    .chain()
+                    .run_if(in_state(AppState::Battle)),
+            );
+    }
+}
+
+/// Rolling log of the last N turn event summaries.
+#[derive(Resource, Default)]
+pub struct TurnLog {
+    pub lines: Vec<String>,
+    pub last_processed_id: u64,
+}
+
+impl TurnLog {
+    const MAX_LINES: usize = 10;
+
+    pub fn push(&mut self, line: String) {
+        self.lines.push(line);
+        if self.lines.len() > Self::MAX_LINES {
+            self.lines.remove(0);
+        }
+    }
+}
+
+#[derive(Component)]
+struct TurnLogPanel;
+
+#[derive(Component)]
+struct TurnLogText;
+
+fn spawn_turn_log_panel(mut commands: Commands) {
+    commands
+        .spawn((
+            StateUiRoot,
+            TurnLogPanel,
+            Node {
+                position_type: PositionType::Absolute,
+                right: Val::Px(8.0),
+                top: Val::Px(8.0),
+                width: Val::Px(280.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(8.0)),
+                ..default()
+            },
+            panel_bg(),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                TurnLogText,
+                Text::new(""),
+                text_font(11.0),
+                white_text(),
+            ));
+        });
+}
+
+fn collect_turn_events(
+    session: Res<GameSessionRes>,
+    mut log: ResMut<TurnLog>,
+) {
+    if !session.is_changed() {
+        return;
+    }
+    let Some(event) = &session.0.last_event else {
+        return;
+    };
+    // Use a pointer-based ID to avoid re-processing the same event.
+    let event_id = event as *const _ as u64;
+    if log.last_processed_id == event_id {
+        return;
+    }
+    log.last_processed_id = event_id;
+
+    for action in &event.actions {
+        let line = format_action(action, &session);
+        log.push(line);
+    }
+    if let Some(outcome) = &event.outcome {
+        log.push(format!("=== {:?} ===", outcome));
+    }
+}
+
+fn format_action(action: &TurnAction, session: &GameSessionRes) -> String {
+    match action {
+        TurnAction::Move { to } => format!("→ ({}, {})", to.x, to.y),
+        TurnAction::UseAbility {
+            ability_name,
+            hit,
+            value,
+            target,
+            ..
+        } => {
+            let target_name = target
+                .and_then(|e| {
+                    session
+                        .0
+                        .world
+                        .get::<carbonthrone::character::Character>(e)
+                        .map(|c| c.name.clone())
+                })
+                .unwrap_or_else(|| "self".to_string());
+            if *hit {
+                format!("{} → {} ({})", ability_name, target_name, value)
+            } else {
+                format!("{} → {} MISS", ability_name, target_name)
+            }
+        }
+    }
+}
+
+fn update_turn_log_display(
+    log: Res<TurnLog>,
+    mut text_q: Query<&mut Text, With<TurnLogText>>,
+) {
+    if !log.is_changed() {
+        return;
+    }
+    if let Ok(mut text) = text_q.get_single_mut() {
+        *text = Text::new(log.lines.join("\n"));
+    }
+}
+
+fn despawn_turn_log(mut commands: Commands, q: Query<Entity, With<TurnLogPanel>>) {
+    for e in &q {
+        commands.entity(e).despawn_recursive();
+    }
+}

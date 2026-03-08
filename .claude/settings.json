@@ -3,6 +3,7 @@
     "allow": [
       "Bash(cargo add *)",
       "Bash(cargo build)",
+      "Bash(cargo build --bin *)",
       "Bash(cargo build --jobs 1)",
       "Bash(cargo clippy)",
       "Bash(cargo fmt)",

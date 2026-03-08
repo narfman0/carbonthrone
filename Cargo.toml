@@ -3,6 +3,14 @@ name = "carbonthrone"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "carbonthrone"
+path = "src/main.rs"
+
+[[bin]]
+name = "carbonthrone_gui"
+path = "src/bin/gui/main.rs"
+
 [dependencies]
 bevy = "0.18.1"
 crossterm = "0.27"

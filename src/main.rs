@@ -19,7 +19,7 @@ use carbonthrone::health::Health;
 use carbonthrone::position::Position;
 use carbonthrone::save::{load_game, save_game};
 use carbonthrone::stats::Stats;
-use carbonthrone::terrain::{LevelMap};
+use carbonthrone::terrain::LevelMap;
 
 fn main() {
     let mut session = GameSession::new();

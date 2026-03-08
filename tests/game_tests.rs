@@ -73,8 +73,7 @@ fn encounter_starts_battle_immediately_when_no_dialog() {
     // If encounter rolled → battle starts right away (no dialog to block it).
     for seed in 0u64..500 {
         let mut rng = StdRng::seed_from_u64(seed);
-        let session =
-            GameSession::from_save_data(save_for(ZoneKind::MilitaryAnnex, 4), &mut rng);
+        let session = GameSession::from_save_data(save_for(ZoneKind::MilitaryAnnex, 4), &mut rng);
         if matches!(session.phase, GamePhase::Battle(_)) {
             return; // encounter + no dialog → immediate battle, as expected
         }
