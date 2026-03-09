@@ -106,25 +106,25 @@ pub struct BattleStep {
     pub round: u32,
     pub turn: Turn,
     actor_queue: VecDeque<Entity>,
-    /// Whether the current player actor's AP has been refreshed this turn.
-    player_actor_ready: bool,
 }
 
 impl BattleStep {
     pub fn new(world: &mut World) -> Self {
-        let queue = VecDeque::from(living_players(world));
+        let players = living_players(world);
+        // Refresh all player APs at battle start.
+        for &e in &players {
+            refresh_actor(world, e);
+        }
         Self {
             round: 1,
             turn: Turn::Player,
-            actor_queue: queue,
-            player_actor_ready: false,
+            actor_queue: VecDeque::from(players),
         }
     }
 
     /// Returns available actions for the next queued player actor.
     ///
-    /// Refreshes the actor's AP automatically the first time this is called for
-    /// a given actor. Returns an empty vec when:
+    /// Returns an empty vec when:
     /// * it is not the player's turn (`self.turn == Turn::Enemy`),
     /// * all player actors have already acted (queue empty), or
     /// * the battle is already over.
@@ -136,10 +136,6 @@ impl BattleStep {
             Some(e) => e,
             None => return vec![],
         };
-        if !self.player_actor_ready {
-            refresh_actor(world, actor);
-            self.player_actor_ready = true;
-        }
         available_player_actions(world, actor)
     }
 
@@ -166,11 +162,6 @@ impl BattleStep {
             }
         };
 
-        if !self.player_actor_ready {
-            refresh_actor(world, actor);
-            self.player_actor_ready = true;
-        }
-
         let action = choice.to_action();
         let logged = apply_action(world, actor, &action);
 
@@ -183,12 +174,15 @@ impl BattleStep {
 
         if turn_ended {
             self.actor_queue.pop_front();
-            self.player_actor_ready = false;
 
-            // When all players have acted, switch to the enemy turn.
+            // When all players have acted, switch to the enemy turn and refresh all enemies.
             if self.actor_queue.is_empty() {
                 self.turn = Turn::Enemy;
-                self.actor_queue = VecDeque::from(living_enemies(world));
+                let enemies = living_enemies(world);
+                for &e in &enemies {
+                    refresh_actor(world, e);
+                }
+                self.actor_queue = VecDeque::from(enemies);
             }
         }
 
@@ -223,7 +217,6 @@ impl BattleStep {
         if pos != 0 {
             self.actor_queue.remove(pos);
             self.actor_queue.push_front(entity);
-            self.player_actor_ready = false;
         }
         true
     }
@@ -261,7 +254,11 @@ impl BattleStep {
             match self.turn {
                 Turn::Player => {
                     self.turn = Turn::Enemy;
-                    self.actor_queue = VecDeque::from(living_enemies(world));
+                    let enemies = living_enemies(world);
+                    for &e in &enemies {
+                        refresh_actor(world, e);
+                    }
+                    self.actor_queue = VecDeque::from(enemies);
                 }
                 Turn::Enemy => {
                     self.round += 1;
@@ -274,7 +271,11 @@ impl BattleStep {
                         };
                     }
                     self.turn = Turn::Player;
-                    self.actor_queue = VecDeque::from(living_players(world));
+                    let players = living_players(world);
+                    for &e in &players {
+                        refresh_actor(world, e);
+                    }
+                    self.actor_queue = VecDeque::from(players);
                 }
             }
             // Re-check after switching (e.g. all enemies already dead).
@@ -297,7 +298,6 @@ impl BattleStep {
             };
         };
 
-        refresh_actor(world, actor);
         let mut actions = Vec::new();
         loop {
             let actor_turn = self.turn;
@@ -346,8 +346,11 @@ fn run_side(world: &mut World, turn: Turn) {
         Turn::Player => living_players(world),
         Turn::Enemy => living_enemies(world),
     };
-    for actor in actors {
+    // Refresh all actors' AP at the start of their side's turn.
+    for &actor in &actors {
         refresh_actor(world, actor);
+    }
+    for actor in actors {
         loop {
             match choose_action(world, actor, turn) {
                 Some(Action::Pass) | None => break,

@@ -21,6 +21,9 @@
       "Bash(xargs wc -l)",
       "Bash(xargs grep -l *)",
       "WebSearch"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\narfman0\\workspace\\carbonthrone"
     ]
   }
 }
