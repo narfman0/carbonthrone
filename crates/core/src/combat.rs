@@ -205,6 +205,29 @@ impl BattleStep {
         self.actor_queue.front().copied()
     }
 
+    /// All player entities still queued to act this round (front = currently active).
+    pub fn player_queue(&self) -> &VecDeque<Entity> {
+        &self.actor_queue
+    }
+
+    /// Move `entity` to the front of the player queue so they act next.
+    /// Only meaningful when `self.turn == Turn::Player` and `entity` is in the queue.
+    /// Returns `true` if the entity was found and moved.
+    pub fn set_active_player(&mut self, entity: Entity) -> bool {
+        if self.turn != Turn::Player {
+            return false;
+        }
+        let Some(pos) = self.actor_queue.iter().position(|&e| e == entity) else {
+            return false;
+        };
+        if pos != 0 {
+            self.actor_queue.remove(pos);
+            self.actor_queue.push_front(entity);
+            self.player_actor_ready = false;
+        }
+        true
+    }
+
     /// Returns `true` when the next queued player actor is a scripted
     /// (AI-controlled) ally rather than a true player character.
     ///

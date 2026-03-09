@@ -25,6 +25,8 @@ impl Plugin for CombatUiPlugin {
                     update_action_panel,
                     handle_ability_buttons,
                     update_battle_outcome,
+                    update_party_portraits,
+                    handle_portrait_clicks,
                 )
                     .chain()
                     .run_if(in_state(AppState::Battle)),
@@ -54,6 +56,13 @@ struct OutcomeLabel;
 
 #[derive(Component)]
 struct OutcomeContinueButton;
+
+/// Portrait button linking back to its game world entity.
+#[derive(Component, Clone, Copy)]
+struct PortraitButton(bevy::ecs::entity::Entity);
+
+#[derive(Component)]
+struct PartyPortraitPanel;
 
 // ── Spawn ─────────────────────────────────────────────────────────────────────
 
@@ -97,6 +106,23 @@ fn spawn_combat_ui(mut commands: Commands) {
             flex_direction: FlexDirection::Column,
             padding: UiRect::all(Val::Px(10.0)),
             row_gap: Val::Px(4.0),
+            ..default()
+        },
+        panel_bg(),
+    ));
+
+    // Party portrait panel — left side, vertically centred.
+    commands.spawn((
+        StateUiRoot,
+        PartyPortraitPanel,
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(8.0),
+            top: Val::Percent(30.0),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(6.0),
+            padding: UiRect::all(Val::Px(6.0)),
+            width: Val::Px(110.0),
             ..default()
         },
         panel_bg(),
@@ -420,6 +446,99 @@ fn update_battle_outcome(
         if let Ok(interaction) = continue_q.single() {
             if *interaction == Interaction::Pressed {
                 session_res.0.transition_to_exploration();
+            }
+        }
+    }
+}
+
+// ── Update: party portrait panel ─────────────────────────────────────────────
+
+fn update_party_portraits(
+    mut session: ResMut<GameSessionRes>,
+    portrait_panel_q: Query<Entity, With<PartyPortraitPanel>>,
+    mut commands: Commands,
+) {
+    if !session.is_changed() {
+        return;
+    }
+    let Ok(panel_entity) = portrait_panel_q.single() else {
+        return;
+    };
+
+    // Collect player data: (entity, name, hp, max_hp, ap, is_active).
+    let active_entity = session
+        .0
+        .battle
+        .as_ref()
+        .and_then(|b| b.current_actor());
+    let queued: Vec<bevy::ecs::entity::Entity> = session
+        .0
+        .battle
+        .as_ref()
+        .map(|b| b.player_queue().iter().copied().collect())
+        .unwrap_or_default();
+
+    let world = &mut session.0.world;
+    let mut char_q = world.query::<(
+        bevy::ecs::entity::Entity,
+        &Character,
+        &Health,
+        &ActionPoints,
+    )>();
+    let players: Vec<_> = char_q
+        .iter(world)
+        .filter(|(_, c, _, _)| c.kind.is_player())
+        .map(|(e, c, h, ap)| (e, c.name.clone(), h.current, h.max, ap.current, ap.max))
+        .collect();
+
+    commands.entity(panel_entity).despawn_related::<Children>();
+    commands.entity(panel_entity).with_children(|parent| {
+        parent.spawn((Text::new("PARTY"), text_font(10.0), accent_text()));
+        for (entity, name, hp, max_hp, ap, max_ap) in &players {
+            let is_active = Some(*entity) == active_entity;
+            let queued_idx = queued.iter().position(|&e| e == *entity);
+            let bg = if is_active {
+                Color::srgb(0.15, 0.40, 0.15) // bright green — acting now
+            } else if queued_idx.is_some() {
+                Color::srgb(0.10, 0.20, 0.10) // dim green — queued
+            } else {
+                Color::srgb(0.15, 0.15, 0.15) // grey — already acted
+            };
+            let label = format!(
+                "{}\nHP {}/{}\nAP {}/{}",
+                name, hp, max_hp, ap, max_ap
+            );
+            parent
+                .spawn((
+                    PortraitButton(*entity),
+                    Button,
+                    Node {
+                        padding: UiRect::all(Val::Px(6.0)),
+                        margin: UiRect::bottom(Val::Px(2.0)),
+                        width: Val::Percent(100.0),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    BackgroundColor(bg),
+                ))
+                .with_children(|p| {
+                    p.spawn((Text::new(label), text_font(10.0), white_text()));
+                });
+        }
+    });
+}
+
+fn handle_portrait_clicks(
+    button_q: Query<(&PortraitButton, &Interaction), Changed<Interaction>>,
+    mut session: ResMut<GameSessionRes>,
+    mut choices: ResMut<PendingPlayerChoices>,
+) {
+    for (btn, interaction) in &button_q {
+        if *interaction == Interaction::Pressed {
+            if let Some(battle) = session.0.battle.as_mut() {
+                if battle.set_active_player(btn.0) {
+                    choices.needs_refresh = true;
+                }
             }
         }
     }
