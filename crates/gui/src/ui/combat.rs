@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
     action_points::ActionPoints,
     character::Character,
@@ -6,9 +6,14 @@ use carbonthrone::{
     game::GamePhase,
     health::Health,
     player_input::PlayerActionChoice,
+    position::Position,
+    stats::Stats,
+    terrain::{CoverLevel, Direction, LevelMap},
 };
 
 use super::{StateUiRoot, accent_text, panel_bg, text_font, white_text};
+use crate::camera::IsometricCamera;
+use crate::grid::world_to_grid;
 use crate::resources::{GameSessionRes, PendingPlayerChoices, SelectedChoiceIndex};
 use crate::state::AppState;
 
@@ -27,6 +32,7 @@ impl Plugin for CombatUiPlugin {
                     update_battle_outcome,
                     update_party_portraits,
                     handle_portrait_clicks,
+                    update_info_panel,
                 )
                     .chain()
                     .run_if(in_state(AppState::Battle)),
@@ -63,6 +69,12 @@ struct PortraitButton(bevy::ecs::entity::Entity);
 
 #[derive(Component)]
 struct PartyPortraitPanel;
+
+#[derive(Component)]
+struct InfoPanel;
+
+#[derive(Component)]
+struct InfoPanelText;
 
 // ── Spawn ─────────────────────────────────────────────────────────────────────
 
@@ -127,6 +139,32 @@ fn spawn_combat_ui(mut commands: Commands) {
         },
         panel_bg(),
     ));
+
+    // Info panel — right side, middle.
+    commands
+        .spawn((
+            StateUiRoot,
+            InfoPanel,
+            Node {
+                position_type: PositionType::Absolute,
+                right: Val::Px(8.0),
+                top: Val::Percent(25.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(8.0)),
+                width: Val::Px(200.0),
+                row_gap: Val::Px(3.0),
+                ..default()
+            },
+            panel_bg(),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                InfoPanelText,
+                Text::new("Hover a tile or\nability for info"),
+                text_font(11.0),
+                white_text(),
+            ));
+        });
 
     // Outcome panel — hidden by default.
     commands
@@ -542,6 +580,122 @@ fn handle_portrait_clicks(
             }
         }
     }
+}
+
+// ── Update: hover info panel ──────────────────────────────────────────────────
+
+fn update_info_panel(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    mut session: ResMut<GameSessionRes>,
+    choices: Res<PendingPlayerChoices>,
+    ability_hover_q: Query<(&AbilityButton, &Interaction)>,
+    mut info_text_q: Query<&mut Text, With<InfoPanelText>>,
+) {
+    let Ok(mut text) = info_text_q.single_mut() else {
+        return;
+    };
+
+    // Priority 1: hovered ability button.
+    for (btn, interaction) in &ability_hover_q {
+        if *interaction == Interaction::Hovered {
+            if let Some(choice) = choices.choices.get(btn.0) {
+                *text = Text::new(choice.display());
+                return;
+            }
+        }
+    }
+
+    // Priority 2: tile under cursor.
+    let info = cursor_tile_info(&windows, &camera_q, &mut session.0.world);
+    *text = Text::new(info);
+}
+
+fn cursor_tile_info(
+    windows: &Query<&Window, With<PrimaryWindow>>,
+    camera_q: &Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    world: &mut bevy::ecs::world::World,
+) -> String {
+    let Ok(window) = windows.single() else {
+        return "Hover a tile or\nability for info".to_string();
+    };
+    let Some(cursor) = window.cursor_position() else {
+        return "Hover a tile or\nability for info".to_string();
+    };
+    let Ok((cam, cam_transform)) = camera_q.single() else {
+        return String::new();
+    };
+    let Ok(ray) = cam.viewport_to_world(cam_transform, cursor) else {
+        return String::new();
+    };
+    if ray.direction.y.abs() < 1e-6 {
+        return String::new();
+    }
+    let t = -ray.origin.y / ray.direction.y;
+    if t < 0.0 {
+        return String::new();
+    }
+    let hit = ray.origin + ray.direction * t;
+    let (gx, gy) = world_to_grid(hit);
+
+    // Check for a character at this position.
+    let mut char_q = world.query::<(&Character, &Health, &ActionPoints, &Stats, &Position)>();
+    let char_data: Vec<_> = char_q
+        .iter(world)
+        .filter(|(_, _, _, _, pos)| pos.x == gx && pos.y == gy)
+        .map(|(ch, hp, ap, stats, _)| {
+            (
+                ch.name.clone(),
+                ch.kind.is_player(),
+                hp.current,
+                hp.max,
+                ap.current,
+                ap.max,
+                stats.attack,
+                stats.defense,
+            )
+        })
+        .collect();
+    if let Some((name, is_player, hp, max_hp, ap, max_ap, atk, def)) = char_data.into_iter().next()
+    {
+        let side = if is_player { "Player" } else { "Enemy" };
+        return format!(
+            "{} ({})\nHP: {}/{}\nAP: {}/{}\nATK: {}  DEF: {}",
+            name, side, hp, max_hp, ap, max_ap, atk, def
+        );
+    }
+
+    // No character — show terrain info.
+    let Some(map) = world.get_resource::<LevelMap>() else {
+        return format!("({}, {})", gx, gy);
+    };
+    if gx < 0 || gy < 0 || gx >= map.cols as i32 || gy >= map.rows as i32 {
+        return String::new();
+    }
+
+    let tile = map.get(gx, gy);
+    let tile_name = match tile {
+        carbonthrone::terrain::Tile::Open => "Open ground",
+        carbonthrone::terrain::Tile::Obstacle => "Obstacle",
+        carbonthrone::terrain::Tile::Door => "Door",
+    };
+
+    let cover_n = map.get_cover(gx, gy, Direction::North);
+    let cover_s = map.get_cover(gx, gy, Direction::South);
+    let cover_e = map.get_cover(gx, gy, Direction::East);
+    let cover_w = map.get_cover(gx, gy, Direction::West);
+    let best_cover = [cover_n, cover_s, cover_e, cover_w]
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(CoverLevel::None);
+    let cover_label = match best_cover {
+        CoverLevel::None => "No cover",
+        CoverLevel::Partial => "Partial cover",
+        CoverLevel::Full => "Full cover",
+    };
+
+    format!("{}\n{}\n({}, {})", tile_name, cover_label, gx, gy)
 }
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────
