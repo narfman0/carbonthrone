@@ -1,9 +1,9 @@
 use bevy::prelude::*;
-use carbonthrone::{combat::Turn, game::GamePhase};
+use carbonthrone::{combat::Turn, game::GamePhase, player_input::PlayerActionChoice};
 
 use super::camera::IsometricCamera;
 use super::grid::map_center;
-use super::resources::{GameSessionRes, LastKnownZone, PendingPlayerChoices};
+use super::resources::{GameSessionRes, LastKnownZone, PendingPlayerChoices, SelectedChoiceIndex};
 use super::state::AppState;
 
 pub struct SyncPlugin;
@@ -16,7 +16,9 @@ impl Plugin for SyncPlugin {
         )
         .add_systems(
             Update,
-            refresh_player_choices.run_if(in_state(AppState::Battle)),
+            (refresh_player_choices, auto_pass_zero_ap)
+                .chain()
+                .run_if(in_state(AppState::Battle)),
         );
     }
 }
@@ -75,6 +77,21 @@ pub fn zone_change_detect_system(
     };
     if *current_state.get() == desired_state {
         next_state.set(desired_state);
+    }
+}
+
+/// Auto-pass when the active player actor has no actions left (choices = [Pass] only).
+fn auto_pass_zero_ap(
+    choices: Res<PendingPlayerChoices>,
+    mut selected: ResMut<SelectedChoiceIndex>,
+) {
+    if selected.0.is_some() {
+        return;
+    }
+    let only_pass = choices.choices.len() == 1
+        && matches!(choices.choices[0], PlayerActionChoice::Pass);
+    if only_pass {
+        selected.0 = Some(0);
     }
 }
 
