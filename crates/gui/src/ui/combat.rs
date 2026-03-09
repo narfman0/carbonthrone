@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use carbonthrone::{
+    action_points::ActionPoints,
     character::Character,
     combat::{BattleOutcome, Turn},
     health::Health,
+    player_input::PlayerActionChoice,
 };
 
 use super::{StateUiRoot, accent_text, panel_bg, text_font, white_text};
@@ -23,6 +25,7 @@ impl Plugin for CombatUiPlugin {
                     handle_ability_buttons,
                     update_battle_outcome,
                 )
+                    .chain()
                     .run_if(in_state(AppState::Battle)),
             );
     }
@@ -241,6 +244,7 @@ fn hp_bar(hp: i32, max_hp: i32) -> String {
 // ── Update: action panel ──────────────────────────────────────────────────────
 
 fn update_action_panel(
+    session: Res<GameSessionRes>,
     choices: Res<PendingPlayerChoices>,
     action_panel_q: Query<Entity, With<ActionPanel>>,
     mut commands: Commands,
@@ -253,34 +257,116 @@ fn update_action_panel(
     };
     commands.entity(panel_entity).despawn_related::<Children>();
 
+    // Build actor header text.
+    let header = match session.0.battle.as_ref() {
+        None => "Waiting...".to_string(),
+        Some(battle) => match battle.turn {
+            Turn::Enemy => "Enemy turn…".to_string(),
+            Turn::Player => match battle.current_actor() {
+                None => "Waiting for player turn…".to_string(),
+                Some(actor) => {
+                    let world = &session.0.world;
+                    let name = world
+                        .get::<Character>(actor)
+                        .map(|c| c.name.as_str())
+                        .unwrap_or("?");
+                    let ap = world
+                        .get::<ActionPoints>(actor)
+                        .map(|a| a.current)
+                        .unwrap_or(0);
+                    format!("► {name} — {ap} AP")
+                }
+            },
+        },
+    };
+
     if choices.choices.is_empty() {
         commands.entity(panel_entity).with_children(|parent| {
-            parent.spawn((
-                Text::new("Waiting for player turn..."),
-                text_font(12.0),
-                white_text(),
-            ));
+            parent.spawn((Text::new(header), text_font(13.0), accent_text()));
         });
         return;
     }
 
     commands.entity(panel_entity).with_children(|parent| {
-        parent.spawn((Text::new("Choose action:"), text_font(12.0), accent_text()));
+        parent.spawn((Text::new(header), text_font(13.0), accent_text()));
+
+        // ── Abilities ──
+        let ability_indices: Vec<usize> = choices
+            .choices
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| matches!(c, PlayerActionChoice::UseAbility { .. }))
+            .map(|(i, _)| i)
+            .collect();
+        if !ability_indices.is_empty() {
+            parent.spawn((Text::new("─── ABILITIES"), text_font(10.0), white_text()));
+            for i in ability_indices {
+                let label = choices.choices[i].display();
+                parent
+                    .spawn((
+                        AbilityButton(i),
+                        Button,
+                        Node {
+                            padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                            margin: UiRect::bottom(Val::Px(2.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.15, 0.25, 0.45)),
+                    ))
+                    .with_children(|p| {
+                        p.spawn((Text::new(label), text_font(12.0), white_text()));
+                    });
+            }
+        }
+
+        // ── Movement ──
+        let move_indices: Vec<usize> = choices
+            .choices
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| matches!(c, PlayerActionChoice::MoveToCover { .. }))
+            .map(|(i, _)| i)
+            .collect();
+        if !move_indices.is_empty() {
+            parent.spawn((Text::new("─── MOVEMENT"), text_font(10.0), white_text()));
+            for i in move_indices {
+                let label = choices.choices[i].display();
+                parent
+                    .spawn((
+                        AbilityButton(i),
+                        Button,
+                        Node {
+                            padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                            margin: UiRect::bottom(Val::Px(2.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.12, 0.28, 0.18)),
+                    ))
+                    .with_children(|p| {
+                        p.spawn((Text::new(label), text_font(12.0), white_text()));
+                    });
+            }
+        }
+
+        // ── Pass ──
         for (i, choice) in choices.choices.iter().enumerate() {
-            parent
-                .spawn((
-                    AbilityButton(i),
-                    Button,
-                    Node {
-                        padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
-                        margin: UiRect::bottom(Val::Px(2.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.15, 0.25, 0.45)),
-                ))
-                .with_children(|parent| {
-                    parent.spawn((Text::new(choice.display()), text_font(12.0), white_text()));
-                });
+            if matches!(choice, PlayerActionChoice::Pass) {
+                let label = choice.display();
+                parent
+                    .spawn((
+                        AbilityButton(i),
+                        Button,
+                        Node {
+                            padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                            margin: UiRect::bottom(Val::Px(2.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.25, 0.18, 0.18)),
+                    ))
+                    .with_children(|p| {
+                        p.spawn((Text::new(label), text_font(12.0), white_text()));
+                    });
+            }
         }
     });
 }

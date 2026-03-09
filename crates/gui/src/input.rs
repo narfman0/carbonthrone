@@ -133,10 +133,7 @@ fn left_click_npc(
 
 /// Left-click in dialog state advances to the next line.
 /// Choice selection is handled by UI buttons in `ui/dialog.rs`.
-fn advance_dialog_click(
-    mouse: Res<ButtonInput<MouseButton>>,
-    mut session: ResMut<GameSessionRes>,
-) {
+fn advance_dialog_click(mouse: Res<ButtonInput<MouseButton>>, mut session: ResMut<GameSessionRes>) {
     if mouse.just_pressed(MouseButton::Left) {
         let at_choice = match &session.0.phase {
             GamePhase::Exploration(e) => e.at_choice_screen(),

@@ -213,13 +213,18 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
         .unwrap_or((0, 0));
 
     if cols > 0 && rows > 0 {
-        let mut q2 = world.query::<(&Character, &Health, &Position)>();
+        let mut q2 = world.query::<(Entity, &Character, &Health, &Position)>();
         let enemy_positions: Vec<(i32, i32)> = q2
             .iter(world)
-            .filter(|(c, h, _)| {
+            .filter(|(_, c, h, _)| {
                 !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
             })
-            .map(|(_, _, pos)| (pos.x, pos.y))
+            .map(|(_, _, _, pos)| (pos.x, pos.y))
+            .collect();
+        let occupied_positions: HashSet<(i32, i32)> = q2
+            .iter(world)
+            .filter(|(e, _, h, _)| *e != actor && h.is_alive())
+            .map(|(_, _, _, pos)| (pos.x, pos.y))
             .collect();
 
         if let Some(&(ex, ey)) = enemy_positions
@@ -247,6 +252,9 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                             continue;
                         }
                         if !map.is_passable(tx, ty) {
+                            continue;
+                        }
+                        if occupied_positions.contains(&(tx, ty)) {
                             continue;
                         }
                         let tile_cover = map.get_cover(tx, ty, attack_dir);

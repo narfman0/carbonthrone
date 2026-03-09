@@ -26,7 +26,7 @@ fn spawn_camera(mut commands: Commands) {
         IsometricCamera,
         Camera3d::default(),
         Projection::Orthographic(OrthographicProjection {
-            scale: 0.07,
+            scale: 0.02,
             ..OrthographicProjection::default_3d()
         }),
         Transform::from_translation(cam_pos).looking_at(center, Vec3::Y),
@@ -36,7 +36,7 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         DirectionalLight {
             illuminance: 12000.0,
-            shadows_enabled: false,
+            shadows_enabled: true,
             ..default()
         },
         Transform::from_xyz(8.0, 16.0, 8.0).looking_at(Vec3::ZERO, Vec3::Y),

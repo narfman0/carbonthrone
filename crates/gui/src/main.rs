@@ -24,16 +24,14 @@ use ui::UiPlugin;
 
 fn main() {
     App::new()
-        .add_plugins(
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Carbonthrone".into(),
-                    resolution: bevy::window::WindowResolution::new(1280_u32, 720_u32),
-                    ..default()
-                }),
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Carbonthrone".into(),
+                resolution: bevy::window::WindowResolution::new(1280_u32, 720_u32),
                 ..default()
             }),
-        )
+            ..default()
+        }))
         // State machine
         .init_state::<AppState>()
         // Core resources

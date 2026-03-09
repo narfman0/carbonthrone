@@ -13,8 +13,7 @@ impl Plugin for DialogPlugin {
             .add_systems(OnExit(AppState::Dialog), despawn_dialog_panel)
             .add_systems(
                 Update,
-                (update_dialog_text, handle_choice_buttons)
-                    .run_if(in_state(AppState::Dialog)),
+                (update_dialog_text, handle_choice_buttons).run_if(in_state(AppState::Dialog)),
             );
     }
 }
@@ -95,11 +94,7 @@ fn spawn_dialog_panel(mut commands: Commands) {
                     BackgroundColor(Color::srgb(0.2, 0.4, 0.6)),
                 ))
                 .with_children(|parent| {
-                    parent.spawn((
-                        Text::new("Continue"),
-                        text_font(13.0),
-                        white_text(),
-                    ));
+                    parent.spawn((Text::new("Continue"), text_font(13.0), white_text()));
                 });
         });
 }
@@ -142,31 +137,31 @@ fn update_dialog_text(
 
     // Rebuild choice buttons.
     if let Ok(container_entity) = choices_container_q.single() {
-        commands.entity(container_entity).despawn_related::<Children>();
+        commands
+            .entity(container_entity)
+            .despawn_related::<Children>();
         if at_choices {
-            commands
-                .entity(container_entity)
-                .with_children(|parent| {
-                    for (i, choice_text) in state.scene_choices.iter().enumerate() {
-                        parent
-                            .spawn((
-                                ChoiceButton(i),
-                                Button,
-                                Node {
-                                    padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
-                                    ..default()
-                                },
-                                BackgroundColor(Color::srgb(0.15, 0.30, 0.50)),
-                            ))
-                            .with_children(|parent| {
-                                parent.spawn((
-                                    Text::new(format!("> {}", choice_text)),
-                                    text_font(13.0),
-                                    white_text(),
-                                ));
-                            });
-                    }
-                });
+            commands.entity(container_entity).with_children(|parent| {
+                for (i, choice_text) in state.scene_choices.iter().enumerate() {
+                    parent
+                        .spawn((
+                            ChoiceButton(i),
+                            Button,
+                            Node {
+                                padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(0.15, 0.30, 0.50)),
+                        ))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                Text::new(format!("> {}", choice_text)),
+                                text_font(13.0),
+                                white_text(),
+                            ));
+                        });
+                }
+            });
         }
     }
 }

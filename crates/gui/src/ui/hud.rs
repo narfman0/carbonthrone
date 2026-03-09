@@ -9,18 +9,9 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            OnEnter(AppState::Exploration),
-            spawn_exploration_hud,
-        )
-        .add_systems(
-            OnExit(AppState::Exploration),
-            despawn_state_ui::<AppState>,
-        )
-        .add_systems(
-            Update,
-            update_hud.run_if(in_state(AppState::Exploration)),
-        );
+        app.add_systems(OnEnter(AppState::Exploration), spawn_exploration_hud)
+            .add_systems(OnExit(AppState::Exploration), despawn_state_ui::<AppState>)
+            .add_systems(Update, update_hud.run_if(in_state(AppState::Exploration)));
     }
 }
 
@@ -61,20 +52,36 @@ fn spawn_exploration_hud(mut commands: Commands) {
                 text_font(12.0),
                 white_text(),
             ));
-            parent.spawn((
-                HudPartyLabel,
-                Text::new(""),
-                text_font(12.0),
-                white_text(),
-            ));
+            parent.spawn((HudPartyLabel, Text::new(""), text_font(12.0), white_text()));
         });
 }
 
 fn update_hud(
     session: Res<GameSessionRes>,
-    mut zone_q: Query<&mut Text, (With<HudZoneLabel>, Without<HudLoopLabel>, Without<HudPartyLabel>)>,
-    mut loop_q: Query<&mut Text, (With<HudLoopLabel>, Without<HudZoneLabel>, Without<HudPartyLabel>)>,
-    mut party_q: Query<&mut Text, (With<HudPartyLabel>, Without<HudZoneLabel>, Without<HudLoopLabel>)>,
+    mut zone_q: Query<
+        &mut Text,
+        (
+            With<HudZoneLabel>,
+            Without<HudLoopLabel>,
+            Without<HudPartyLabel>,
+        ),
+    >,
+    mut loop_q: Query<
+        &mut Text,
+        (
+            With<HudLoopLabel>,
+            Without<HudZoneLabel>,
+            Without<HudPartyLabel>,
+        ),
+    >,
+    mut party_q: Query<
+        &mut Text,
+        (
+            With<HudPartyLabel>,
+            Without<HudZoneLabel>,
+            Without<HudLoopLabel>,
+        ),
+    >,
 ) {
     let GamePhase::Exploration(state) = &session.0.phase else {
         return;
@@ -98,10 +105,7 @@ fn update_hud(
     }
 }
 
-fn despawn_state_ui<S: States>(
-    mut commands: Commands,
-    q: Query<Entity, With<StateUiRoot>>,
-) {
+fn despawn_state_ui<S: States>(mut commands: Commands, q: Query<Entity, With<StateUiRoot>>) {
     for e in &q {
         commands.entity(e).despawn();
     }

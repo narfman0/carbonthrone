@@ -208,6 +208,11 @@ impl BattleStep {
     /// Returns `true` when the next queued player actor is a scripted
     /// (AI-controlled) ally rather than a true player character.
     ///
+    /// Returns the entity that is currently acting (front of the queue), if any.
+    pub fn current_actor(&self) -> Option<Entity> {
+        self.actor_queue.front().copied()
+    }
+
     /// Callers that drive combat interactively should auto-advance scripted
     /// allies by calling [`Self::step`] instead of waiting for player input.
     pub fn current_actor_is_scripted_ally(&self, world: &World) -> bool {
@@ -275,11 +280,11 @@ impl BattleStep {
             let actor_turn = self.turn;
             match choose_action(world, actor, actor_turn) {
                 Some(Action::Pass) | None => break,
-                Some(action) => {
-                    if let Some(ev) = apply_action(world, actor, &action) {
-                        actions.push(ev);
-                    }
-                }
+                Some(action) => match apply_action(world, actor, &action) {
+                    Some(ev) => actions.push(ev),
+                    // Action failed without spending AP (e.g. occupied tile) — end turn.
+                    None => break,
+                },
             }
         }
 
@@ -715,6 +720,16 @@ fn seek_cover_action(
         .map(|m| (m.cols as i32, m.rows as i32))
         .unwrap_or((0, 0));
 
+    // Collect positions occupied by other living combatants.
+    let occupied: std::collections::HashSet<(i32, i32)> = {
+        let mut occ_q = world.query::<(Entity, &Position, &Health)>();
+        occ_q
+            .iter(world)
+            .filter(|(e, _, h)| *e != actor && h.is_alive())
+            .map(|(_, p, _)| (p.x, p.y))
+            .collect()
+    };
+
     let mut candidates: Vec<(i32, i32, i32, CoverLevel)> = Vec::new(); // (dist, x, y, cover)
     if let Some(map) = world.get_resource::<LevelMap>() {
         for dy in -ap..=ap {
@@ -729,6 +744,9 @@ fn seek_cover_action(
                     continue;
                 }
                 if !map.is_passable(tx, ty) {
+                    continue;
+                }
+                if occupied.contains(&(tx, ty)) {
                     continue;
                 }
                 let cover = map.get_cover(tx, ty, attack_dir);

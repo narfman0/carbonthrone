@@ -71,6 +71,19 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
                 return None;
             }
 
+            // Block movement onto tiles occupied by other living combatants.
+            {
+                let mut occ_q = world.query::<(Entity, &Position, &Health)>();
+                let occupied = occ_q
+                    .iter(world)
+                    .filter(|(e, _, h)| *e != actor && h.is_alive())
+                    .map(|(_, p, _)| (p.x, p.y))
+                    .collect::<std::collections::HashSet<_>>();
+                if occupied.contains(&(destination.x, destination.y)) {
+                    return None;
+                }
+            }
+
             world.get_mut::<ActionPoints>(actor).unwrap().spend(cost);
             if let Some(mut p) = world.get_mut::<Position>(actor) {
                 *p = *destination;

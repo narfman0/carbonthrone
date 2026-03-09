@@ -62,19 +62,11 @@ fn spawn_turn_log_panel(mut commands: Commands) {
             panel_bg(),
         ))
         .with_children(|parent| {
-            parent.spawn((
-                TurnLogText,
-                Text::new(""),
-                text_font(11.0),
-                white_text(),
-            ));
+            parent.spawn((TurnLogText, Text::new(""), text_font(11.0), white_text()));
         });
 }
 
-fn collect_turn_events(
-    session: Res<GameSessionRes>,
-    mut log: ResMut<TurnLog>,
-) {
+fn collect_turn_events(session: Res<GameSessionRes>, mut log: ResMut<TurnLog>) {
     if !session.is_changed() {
         return;
     }
@@ -125,10 +117,7 @@ fn format_action(action: &TurnAction, session: &GameSessionRes) -> String {
     }
 }
 
-fn update_turn_log_display(
-    log: Res<TurnLog>,
-    mut text_q: Query<&mut Text, With<TurnLogText>>,
-) {
+fn update_turn_log_display(log: Res<TurnLog>, mut text_q: Query<&mut Text, With<TurnLogText>>) {
     if !log.is_changed() {
         return;
     }
