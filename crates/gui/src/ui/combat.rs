@@ -299,15 +299,14 @@ fn handle_ability_buttons(
 // ── Update: battle outcome ────────────────────────────────────────────────────
 
 fn update_battle_outcome(
-    session: Res<GameSessionRes>,
     mut outcome_panel_q: Query<&mut Visibility, With<OutcomePanel>>,
     mut outcome_label_q: Query<&mut Text, (With<OutcomeLabel>, Without<OutcomeContinueButton>)>,
     continue_q: Query<&Interaction, (With<OutcomeContinueButton>, Changed<Interaction>)>,
     mut session_res: ResMut<GameSessionRes>,
 ) {
     // Show outcome panel when battle is over.
-    if session.is_changed() {
-        if let Some(outcome) = session
+    if session_res.is_changed() {
+        if let Some(outcome) = session_res
             .0
             .last_event
             .as_ref()

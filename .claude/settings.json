@@ -3,6 +3,7 @@
     "allow": [
       "Bash(cargo add *)",
       "Bash(cargo build)",
+      "Bash(cargo build -p *)",
       "Bash(cargo build --bin *)",
       "Bash(cargo build --jobs 1)",
       "Bash(cargo clippy)",
@@ -13,9 +14,11 @@
       "Bash(cargo test --jobs 2)",
       "Bash(cargo test --jobs 2 --test *)",
       "Bash(grep *)",
+      "Bash(rustc --version)",
       "Bash(wc -l *)",
       "Bash(xargs wc -l)",
-      "Bash(xargs grep -l *)"
+      "Bash(xargs grep -l *)",
+      "WebSearch"
     ]
   }
 }
