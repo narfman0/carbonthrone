@@ -7,12 +7,13 @@
       "Bash(cargo build --bin *)",
       "Bash(cargo build --jobs 2)",
       "Bash(cargo clippy)",
+      "Bash(cargo clippy -p *)",
       "Bash(cargo fmt)",
       "Bash(cargo fmt -- *)",
       "Bash(cargo init:*)",
       "Bash(cargo run)",
       "Bash(cargo test --jobs 2 *)",
-      "Bash(git add *)",
+      "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(grep *)",
       "Bash(rustc --version)",
@@ -20,8 +21,7 @@
       "Bash(wc -l *)",
       "Bash(xargs wc -l)",
       "Bash(xargs grep -l *)",
-      "WebSearch",
-      "Bash(cargo clippy -p carbonthrone-gui)"
+      "WebSearch"
     ],
     "additionalDirectories": [
       "c:\\Users\\narfman0\\workspace\\carbonthrone"
