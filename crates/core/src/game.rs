@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-use crate::action_points::ActionPoints;
+use crate::action_points::{ActionPoints, ap_for_speed};
 use crate::character::{Character, CharacterKind};
 use crate::combat::{BattleStep, TurnEvent};
 use crate::dialog::{DialogEngine, Trigger};
@@ -669,12 +669,13 @@ impl Default for GameSession {
 /// (the player-controlled Researcher).
 pub fn setup_exploration(world: &mut World, party: &[Character]) -> Entity {
     let ch = &party[0];
+    let ap_max = ap_for_speed(ch.stats.speed);
     world
         .spawn((
             ch.clone(),
             ch.stats.clone(),
             Health::new(ch.current_hp),
-            ActionPoints::new(4),
+            ActionPoints::new(ap_max),
             Experience::new(),
             Position::new(0, 2),
         ))
@@ -697,8 +698,9 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
             let (character, pos) = placement.to_character_and_pos(zone.cols, zone.rows);
             let stats = character.stats.clone();
             let hp = character.current_hp;
+            let ap_max = ap_for_speed(stats.speed);
             let mut entity_cmd =
-                world.spawn((character, stats, Health::new(hp), ActionPoints::new(4), pos));
+                world.spawn((character, stats, Health::new(hp), ActionPoints::new(ap_max), pos));
             if let Some(ability_name) = placement.first_ability {
                 entity_cmd.insert(ScriptedFirstAction {
                     ability_name,
@@ -710,7 +712,8 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
         for (character, pos) in zone.generate_enemies(&mut rng) {
             let stats = character.stats.clone();
             let hp = character.current_hp;
-            world.spawn((character, stats, Health::new(hp), ActionPoints::new(4), pos));
+            let ap_max = ap_for_speed(stats.speed);
+            world.spawn((character, stats, Health::new(hp), ActionPoints::new(ap_max), pos));
         }
     }
 
@@ -720,11 +723,12 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
             let (character, pos) = placement.to_character_and_pos(zone.cols, zone.rows);
             let stats = character.stats.clone();
             let hp = character.current_hp;
+            let ap_max = ap_for_speed(stats.speed);
             let mut entity_cmd = world.spawn((
                 character,
                 stats,
                 Health::new(hp),
-                ActionPoints::new(4),
+                ActionPoints::new(ap_max),
                 pos,
                 ScriptedAlly,
             ));

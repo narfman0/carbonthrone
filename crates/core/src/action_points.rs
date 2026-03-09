@@ -28,6 +28,13 @@ impl ActionPoints {
     }
 }
 
+/// Returns the AP maximum for a character based on their speed stat.
+///
+/// Formula: `((speed + 4) / 2).max(4)` — averages ≈ 7 across all character kinds.
+pub fn ap_for_speed(speed: i32) -> i32 {
+    ((speed + 4) / 2).max(4)
+}
+
 /// Bevy system: restores all ActionPoints to max. Run at the start of each turn.
 pub fn refresh_ap_system(mut query: Query<&mut ActionPoints>) {
     for mut ap in &mut query {
