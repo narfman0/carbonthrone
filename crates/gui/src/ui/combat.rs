@@ -3,6 +3,7 @@ use carbonthrone::{
     action_points::ActionPoints,
     character::Character,
     combat::{BattleOutcome, Turn},
+    game::GamePhase,
     health::Health,
     player_input::PlayerActionChoice,
 };
@@ -413,9 +414,13 @@ fn update_battle_outcome(
     }
 
     // Continue button: transition back to exploration.
-    if let Ok(interaction) = continue_q.single() {
-        if *interaction == Interaction::Pressed {
-            session_res.0.transition_to_exploration();
+    // Guard on still being in Battle phase so the button can't double-fire
+    // on the frame after transition_to_exploration() already ran.
+    if matches!(&session_res.0.phase, GamePhase::Battle(_)) {
+        if let Ok(interaction) = continue_q.single() {
+            if *interaction == Interaction::Pressed {
+                session_res.0.transition_to_exploration();
+            }
         }
     }
 }

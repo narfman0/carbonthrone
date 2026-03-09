@@ -16,6 +16,7 @@
       "Bash(git commit:*)",
       "Bash(grep *)",
       "Bash(rustc --version)",
+      "Bash(TaskOutput *)",
       "Bash(wc -l *)",
       "Bash(xargs wc -l)",
       "Bash(xargs grep -l *)",
