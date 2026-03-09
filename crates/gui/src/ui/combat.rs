@@ -15,7 +15,9 @@ use carbonthrone::{
 use super::{StateUiRoot, accent_text, panel_bg, text_font, white_text};
 use crate::camera::IsometricCamera;
 use crate::grid::world_to_grid;
-use crate::resources::{GameSessionRes, PendingPlayerChoices, SelectedChoiceIndex};
+use crate::resources::{
+    GameSessionRes, PendingAbilityTarget, PendingPlayerChoices, SelectedChoiceIndex,
+};
 use crate::state::AppState;
 
 pub struct CombatUiPlugin;
@@ -312,10 +314,11 @@ fn hp_bar(hp: i32, max_hp: i32) -> String {
 fn update_action_panel(
     session: Res<GameSessionRes>,
     choices: Res<PendingPlayerChoices>,
+    targeting: Res<PendingAbilityTarget>,
     action_panel_q: Query<Entity, With<ActionPanel>>,
     mut commands: Commands,
 ) {
-    if !choices.is_changed() {
+    if !choices.is_changed() && !targeting.is_changed() {
         return;
     }
     let Ok(panel_entity) = action_panel_q.single() else {
@@ -356,18 +359,31 @@ fn update_action_panel(
     commands.entity(panel_entity).with_children(|parent| {
         parent.spawn((Text::new(header), text_font(13.0), accent_text()));
 
-        // ── Abilities ──
-        let ability_indices: Vec<usize> = choices
-            .choices
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| matches!(c, PlayerActionChoice::UseAbility { .. }))
-            .map(|(i, _)| i)
-            .collect();
-        if !ability_indices.is_empty() {
+        // Show targeting mode indicator.
+        if let Some(ability_name) = targeting.0 {
+            parent.spawn((
+                Text::new(format!("⊕ Select target for: {ability_name}\n  (left-click enemy, right-click to cancel)")),
+                text_font(11.0),
+                TextColor(Color::srgb(1.0, 0.8, 0.1)),
+            ));
+            return;
+        }
+
+        // ── Abilities (one button per unique ability name) ──
+        let mut seen_names: std::collections::HashSet<&'static str> = std::collections::HashSet::new();
+        let mut ability_entries: Vec<(usize, &'static str, i32, bool)> = Vec::new(); // (choice_idx, name, ap_cost, needs_target)
+        for (i, choice) in choices.choices.iter().enumerate() {
+            if let PlayerActionChoice::UseAbility { ability, target, .. } = choice {
+                if seen_names.insert(ability.name) {
+                    ability_entries.push((i, ability.name, ability.ap_cost, target.is_some()));
+                }
+            }
+        }
+        if !ability_entries.is_empty() {
             parent.spawn((Text::new("─── ABILITIES"), text_font(10.0), white_text()));
-            for i in ability_indices {
-                let label = choices.choices[i].display();
+            for (i, name, ap_cost, needs_target) in ability_entries {
+                let target_hint = if needs_target { " [click target]" } else { "" };
+                let label = format!("{name} ({ap_cost}AP){target_hint}");
                 parent
                     .spawn((
                         AbilityButton(i),
@@ -411,10 +427,28 @@ fn update_action_panel(
 fn handle_ability_buttons(
     button_q: Query<(&AbilityButton, &Interaction), Changed<Interaction>>,
     mut selected: ResMut<SelectedChoiceIndex>,
+    mut targeting: ResMut<PendingAbilityTarget>,
+    choices: Res<PendingPlayerChoices>,
 ) {
     for (btn, interaction) in &button_q {
         if *interaction == Interaction::Pressed {
-            selected.0 = Some(btn.0);
+            if let Some(choice) = choices.choices.get(btn.0) {
+                match choice {
+                    PlayerActionChoice::UseAbility { ability, target, .. } => {
+                        if target.is_some() {
+                            // Targeted ability — enter targeting mode.
+                            targeting.0 = Some(ability.name);
+                        } else {
+                            // Utility ability (self-targeted) — execute directly.
+                            selected.0 = Some(btn.0);
+                        }
+                    }
+                    _ => {
+                        // Pass or move — execute directly.
+                        selected.0 = Some(btn.0);
+                    }
+                }
+            }
         }
     }
 }
@@ -561,6 +595,7 @@ fn update_info_panel(
     camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
     mut session: ResMut<GameSessionRes>,
     choices: Res<PendingPlayerChoices>,
+    targeting: Res<PendingAbilityTarget>,
     ability_hover_q: Query<(&AbilityButton, &Interaction)>,
     mut info_text_q: Query<&mut Text, With<InfoPanelText>>,
 ) {
@@ -568,7 +603,15 @@ fn update_info_panel(
         return;
     };
 
-    // Priority 1: hovered ability button.
+    // Priority 1: in targeting mode — show hit/damage for the hovered character.
+    if let Some(ability_name) = targeting.0 {
+        if let Some(info) = targeting_hover_info(&windows, &camera_q, &mut session, &choices, ability_name) {
+            *text = Text::new(info);
+            return;
+        }
+    }
+
+    // Priority 2: hovered ability button (shows ability details).
     for (btn, interaction) in &ability_hover_q {
         if *interaction == Interaction::Hovered {
             if let Some(choice) = choices.choices.get(btn.0) {
@@ -578,9 +621,83 @@ fn update_info_panel(
         }
     }
 
-    // Priority 2: tile under cursor.
+    // Priority 3: tile under cursor.
     let info = cursor_tile_info(&windows, &camera_q, &mut session);
     *text = Text::new(info);
+}
+
+/// When in targeting mode, returns info about the ability vs. the hovered character.
+fn targeting_hover_info(
+    windows: &Query<&Window, With<PrimaryWindow>>,
+    camera_q: &Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    session: &mut ResMut<GameSessionRes>,
+    choices: &Res<PendingPlayerChoices>,
+    ability_name: &'static str,
+) -> Option<String> {
+    let Ok(window) = windows.single() else {
+        return None;
+    };
+    let cursor = window.cursor_position()?;
+    let Ok((cam, cam_transform)) = camera_q.single() else {
+        return None;
+    };
+    let ray = cam.viewport_to_world(cam_transform, cursor).ok()?;
+    if ray.direction.y.abs() < 1e-6 {
+        return None;
+    }
+    let t = -ray.origin.y / ray.direction.y;
+    if t < 0.0 {
+        return None;
+    }
+    let (gx, gy) = world_to_grid(ray.origin + ray.direction * t);
+
+    // Find a matching choice for this tile.
+    let choice = choices.choices.iter().find(|c| {
+        if let PlayerActionChoice::UseAbility { ability, target, .. } = c {
+            if ability.name != ability_name {
+                return false;
+            }
+            if let Some(target_entity) = target {
+                let world = &session.0.world;
+                if let Some(pos) = world.get::<Position>(*target_entity) {
+                    return pos.x == gx && pos.y == gy;
+                }
+            }
+        }
+        false
+    });
+
+    let Some(PlayerActionChoice::UseAbility { ability: _, hit_chance, damage, cover, .. }) = choice else {
+        return None;
+    };
+
+    let world = &session.0.world;
+    // Get target character info.
+    let target_entity = choices.choices.iter().find_map(|c| {
+        if let PlayerActionChoice::UseAbility { ability: a, target: Some(t), .. } = c {
+            if a.name == ability_name {
+                let pos = world.get::<Position>(*t)?;
+                if pos.x == gx && pos.y == gy { return Some(*t); }
+            }
+        }
+        None
+    })?;
+
+    let char = world.get::<carbonthrone::character::Character>(target_entity)?;
+    let hp = world.get::<Health>(target_entity)?;
+    let kind_str = format!("{:?}", char.kind);
+
+    let hit_pct = hit_chance.map(|h| (h * 100.0).round() as i32).unwrap_or(90);
+    let dmg_str = damage.map(|d| format!("{d}")).unwrap_or_else(|| "?".to_string());
+    let cover_str = match cover.unwrap_or(CoverLevel::None) {
+        CoverLevel::None => "",
+        CoverLevel::Partial => " (partial cover)",
+        CoverLevel::Full => " (full cover)",
+    };
+    Some(format!(
+        "► {ability_name}\nTarget: {kind_str} Lv.{}\nHP: {}/{}\n{}% hit, {dmg_str} dmg{}",
+        char.level, hp.current, hp.max, hit_pct, cover_str
+    ))
 }
 
 fn cursor_tile_info(

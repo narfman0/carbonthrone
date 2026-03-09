@@ -3,7 +3,9 @@ use carbonthrone::{combat::Turn, game::GamePhase, player_input::PlayerActionChoi
 
 use super::camera::IsometricCamera;
 use super::grid::map_center;
-use super::resources::{GameSessionRes, LastKnownZone, PendingPlayerChoices, SelectedChoiceIndex};
+use super::resources::{
+    GameSessionRes, LastKnownZone, PendingAbilityTarget, PendingPlayerChoices, SelectedChoiceIndex,
+};
 use super::state::AppState;
 
 pub struct SyncPlugin;
@@ -99,6 +101,7 @@ fn auto_pass_zero_ap(
 fn refresh_player_choices(
     mut session: ResMut<GameSessionRes>,
     mut choices: ResMut<PendingPlayerChoices>,
+    mut targeting: ResMut<PendingAbilityTarget>,
 ) {
     let s = &mut session.0;
     let is_player_turn = s
@@ -108,6 +111,7 @@ fn refresh_player_choices(
         .unwrap_or(false);
     if !is_player_turn || s.battle_over() {
         choices.choices.clear();
+        targeting.0 = None;
         return;
     }
     if choices.needs_refresh || choices.choices.is_empty() {
@@ -117,5 +121,6 @@ fn refresh_player_choices(
             .map(|b| b.player_choices(&mut s.world))
             .unwrap_or_default();
         choices.needs_refresh = false;
+        targeting.0 = None; // cancel targeting when choices are refreshed (new actor)
     }
 }

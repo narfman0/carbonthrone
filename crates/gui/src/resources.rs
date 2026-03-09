@@ -62,3 +62,8 @@ pub struct PendingPlayerChoices {
 /// Index of the player choice that was selected this frame (if any).
 #[derive(Resource, Default)]
 pub struct SelectedChoiceIndex(pub Option<usize>);
+
+/// When `Some`, the player has clicked an ability and is now selecting a target on the map.
+/// Stores the name of the ability awaiting a target.
+#[derive(Resource, Default)]
+pub struct PendingAbilityTarget(pub Option<&'static str>);

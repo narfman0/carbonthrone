@@ -9,7 +9,10 @@ use carbonthrone::{
 use super::{
     camera::IsometricCamera,
     grid::world_to_grid,
-    resources::{ExplorationRng, GameSessionRes, PendingPlayerChoices, SelectedChoiceIndex},
+    resources::{
+        ExplorationRng, GameSessionRes, PendingAbilityTarget, PendingPlayerChoices,
+        SelectedChoiceIndex,
+    },
     state::AppState,
 };
 
@@ -24,6 +27,7 @@ impl Plugin for InputPlugin {
                 left_click_npc.run_if(in_state(AppState::Exploration)),
                 advance_dialog_click.run_if(in_state(AppState::Dialog)),
                 apply_player_choice.run_if(in_state(AppState::Battle)),
+                left_click_ability_target.run_if(in_state(AppState::Battle)),
                 right_click_battle_move.run_if(in_state(AppState::Battle)),
                 auto_advance_enemy_turn.run_if(in_state(AppState::Battle)),
             ),
@@ -151,6 +155,58 @@ fn advance_dialog_click(mouse: Res<ButtonInput<MouseButton>>, mut session: ResMu
     }
 }
 
+// ── Combat: left-click to select ability target ───────────────────────────────
+
+fn left_click_ability_target(
+    mouse: Res<ButtonInput<MouseButton>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    session: Res<GameSessionRes>,
+    choices_res: Res<PendingPlayerChoices>,
+    mut targeting: ResMut<PendingAbilityTarget>,
+    mut selected: ResMut<SelectedChoiceIndex>,
+) {
+    // Cancel targeting on Escape.
+    if targeting.0.is_some() && keyboard.just_pressed(KeyCode::Escape) {
+        targeting.0 = None;
+        return;
+    }
+    // Cancel targeting on right-click (right-click is also used for movement below,
+    // so we only consume it here when targeting is active).
+    if targeting.0.is_some() && mouse.just_pressed(MouseButton::Right) {
+        targeting.0 = None;
+        return;
+    }
+
+    let Some(ability_name) = targeting.0 else {
+        return;
+    };
+    if !mouse.just_pressed(MouseButton::Left) {
+        return;
+    }
+    let Some((gx, gy)) = get_cursor_grid(&windows, &camera_q) else {
+        return;
+    };
+
+    let world = &session.0.world;
+    let found_idx = choices_res.choices.iter().enumerate().find_map(|(i, c)| {
+        if let PlayerActionChoice::UseAbility { ability, target: Some(t), .. } = c {
+            if ability.name == ability_name {
+                let pos = world.get::<Position>(*t)?;
+                if pos.x == gx && pos.y == gy {
+                    return Some(i);
+                }
+            }
+        }
+        None
+    });
+    if let Some(idx) = found_idx {
+        selected.0 = Some(idx);
+        targeting.0 = None;
+    }
+}
+
 // ── Combat: right-click to move ──────────────────────────────────────────────
 
 fn right_click_battle_move(
@@ -159,7 +215,12 @@ fn right_click_battle_move(
     camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
     mut session: ResMut<GameSessionRes>,
     mut choices_res: ResMut<PendingPlayerChoices>,
+    targeting: Res<PendingAbilityTarget>,
 ) {
+    // Don't process movement right-click when in targeting mode (handled by left_click_ability_target).
+    if targeting.0.is_some() {
+        return;
+    }
     if !mouse.just_pressed(MouseButton::Right) {
         return;
     }
