@@ -10,6 +10,12 @@ use super::grid::{CHARACTER_HEIGHT, FLOOR_HEIGHT, TILE_SIZE, grid_to_world};
 use super::resources::GameSessionRes;
 use super::state::AppState;
 
+const HEALTH_BAR_WIDTH: f32 = TILE_SIZE * 0.70;
+const HEALTH_BAR_HEIGHT: f32 = 0.055;
+const HEALTH_BAR_THICK: f32 = 0.020;
+/// Y offset above the character mesh top.
+const HEALTH_BAR_Y_ABOVE: f32 = 0.12;
+
 /// Marker for character visual entities: links GUI entity to its game entity.
 #[derive(Component, Clone)]
 pub struct CharacterVisual {
@@ -36,6 +42,14 @@ pub struct CharacterMoveAnim {
 #[derive(Component)]
 pub struct ActiveCharOutline;
 
+/// Background of the floating HP bar for a character.
+#[derive(Component)]
+pub struct HealthBarBg(pub bevy::ecs::entity::Entity);
+
+/// Foreground fill of the floating HP bar — scaled along X by the HP fraction.
+#[derive(Component)]
+pub struct HealthBarFill(pub bevy::ecs::entity::Entity);
+
 pub struct CharacterVisualsPlugin;
 
 impl Plugin for CharacterVisualsPlugin {
@@ -55,7 +69,7 @@ impl Plugin for CharacterVisualsPlugin {
             .add_systems(OnEnter(AppState::Battle), spawn_battle_chars)
             .add_systems(
                 OnExit(AppState::Battle),
-                (despawn_char_visuals, despawn_active_char_outline),
+                (despawn_char_visuals, despawn_active_char_outline, despawn_health_bars),
             )
             .add_systems(
                 Update,
@@ -63,6 +77,7 @@ impl Plugin for CharacterVisualsPlugin {
                     detect_battle_move,
                     animate_char_moves,
                     sync_battle_chars,
+                    sync_health_bars,
                     update_active_char_outline,
                 )
                     .chain()
@@ -195,6 +210,54 @@ fn spawn_char_box(
         Mesh3d(mesh),
         MeshMaterial3d(mat),
         Transform::from_translation(world_pos),
+        GlobalTransform::default(),
+    ));
+}
+
+/// Spawn a health bar (background + fill) above a character at `world_pos`.
+fn spawn_health_bar(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    game_entity: bevy::ecs::entity::Entity,
+    world_pos: Vec3,
+    is_player: bool,
+) {
+    let bar_y = world_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE;
+    let bg_pos = Vec3::new(world_pos.x, bar_y, world_pos.z);
+
+    // Background (dark).
+    let bg_mesh = meshes.add(Cuboid::new(HEALTH_BAR_WIDTH, HEALTH_BAR_THICK, HEALTH_BAR_HEIGHT));
+    let bg_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.15, 0.15, 0.15),
+        unlit: true,
+        ..default()
+    });
+    commands.spawn((
+        HealthBarBg(game_entity),
+        Mesh3d(bg_mesh),
+        MeshMaterial3d(bg_mat),
+        Transform::from_translation(bg_pos),
+        GlobalTransform::default(),
+    ));
+
+    // Fill (coloured, scaled by HP fraction).
+    let fill_color = if is_player {
+        Color::srgb(0.10, 0.85, 0.20)
+    } else {
+        Color::srgb(0.85, 0.15, 0.15)
+    };
+    let fill_mesh = meshes.add(Cuboid::new(HEALTH_BAR_WIDTH, HEALTH_BAR_THICK, HEALTH_BAR_HEIGHT));
+    let fill_mat = materials.add(StandardMaterial {
+        base_color: fill_color,
+        unlit: true,
+        ..default()
+    });
+    commands.spawn((
+        HealthBarFill(game_entity),
+        Mesh3d(fill_mesh),
+        MeshMaterial3d(fill_mat),
+        Transform::from_translation(bg_pos),
         GlobalTransform::default(),
     ));
 }
@@ -336,21 +399,19 @@ fn spawn_battle_chars(
 ) {
     let world = &mut session.0.world;
     let mut q = world.query::<(bevy::ecs::entity::Entity, &Character, &Position, &Health)>();
-    for (entity, character, pos, health) in q.iter(world) {
-        let color = if health.is_alive() {
-            character_color(&character.kind)
+    let chars: Vec<_> = q
+        .iter(world)
+        .map(|(e, c, p, h)| (e, c.kind.clone(), c.kind.is_player(), (p.x, p.y), h.is_alive()))
+        .collect();
+    for (entity, kind, is_player, (gx, gy), alive) in chars {
+        let color = if alive {
+            character_color(&kind)
         } else {
             dead_color()
         };
-        spawn_char_box(
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            entity,
-            pos.x,
-            pos.y,
-            color,
-        );
+        spawn_char_box(&mut commands, &mut meshes, &mut materials, entity, gx, gy, color);
+        let world_pos = world_pos_for_grid(gx, gy);
+        spawn_health_bar(&mut commands, &mut meshes, &mut materials, entity, world_pos, is_player);
     }
 }
 
@@ -439,6 +500,88 @@ fn update_active_char_outline(
 
 fn despawn_active_char_outline(mut commands: Commands, q: Query<Entity, With<ActiveCharOutline>>) {
     for e in &q {
+        commands.entity(e).despawn();
+    }
+}
+
+// ── Health bars ───────────────────────────────────────────────────────────────
+
+fn sync_health_bars(
+    session: Res<GameSessionRes>,
+    char_q: Query<(&CharacterVisual, &Transform)>,
+    mut bg_q: Query<(&HealthBarBg, &mut Transform, &mut Visibility), Without<CharacterVisual>>,
+    mut fill_q: Query<
+        (&HealthBarFill, &mut Transform, &mut Visibility),
+        (Without<CharacterVisual>, Without<HealthBarBg>),
+    >,
+) {
+    let world = &session.0.world;
+
+    // Build a map from game_entity → visual world position.
+    let char_positions: std::collections::HashMap<bevy::ecs::entity::Entity, Vec3> = char_q
+        .iter()
+        .map(|(cv, t)| (cv.game_entity, t.translation))
+        .collect();
+
+    // Update background positions.
+    for (bg, mut transform, mut vis) in &mut bg_q {
+        let game_entity = bg.0;
+        let Some(&char_pos) = char_positions.get(&game_entity) else {
+            *vis = Visibility::Hidden;
+            continue;
+        };
+        let alive = world
+            .get::<Health>(game_entity)
+            .map(|h| h.is_alive())
+            .unwrap_or(false);
+        if !alive {
+            *vis = Visibility::Hidden;
+            continue;
+        }
+        *vis = Visibility::Inherited;
+        transform.translation = Vec3::new(
+            char_pos.x,
+            char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE,
+            char_pos.z,
+        );
+    }
+
+    // Update fill scale and position.
+    for (fill, mut transform, mut vis) in &mut fill_q {
+        let game_entity = fill.0;
+        let Some(&char_pos) = char_positions.get(&game_entity) else {
+            *vis = Visibility::Hidden;
+            continue;
+        };
+        let health = world.get::<Health>(game_entity);
+        let Some(health) = health else {
+            *vis = Visibility::Hidden;
+            continue;
+        };
+        if !health.is_alive() {
+            *vis = Visibility::Hidden;
+            continue;
+        }
+        *vis = Visibility::Inherited;
+        let fraction = if health.max > 0 {
+            (health.current as f32 / health.max as f32).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let bar_y = char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE;
+        // Left-align the fill: center x shifts left as fraction decreases.
+        let fill_x = char_pos.x + HEALTH_BAR_WIDTH * (fraction - 1.0) / 2.0;
+        transform.translation = Vec3::new(fill_x, bar_y, char_pos.z);
+        transform.scale = Vec3::new(fraction.max(0.001), 1.0, 1.0);
+    }
+}
+
+fn despawn_health_bars(
+    mut commands: Commands,
+    bg_q: Query<Entity, With<HealthBarBg>>,
+    fill_q: Query<Entity, With<HealthBarFill>>,
+) {
+    for e in bg_q.iter().chain(fill_q.iter()) {
         commands.entity(e).despawn();
     }
 }
