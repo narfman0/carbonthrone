@@ -59,7 +59,14 @@ impl Plugin for CharacterVisualsPlugin {
             )
             .add_systems(
                 Update,
-                (sync_battle_chars, update_active_char_outline).run_if(in_state(AppState::Battle)),
+                (
+                    detect_battle_move,
+                    animate_char_moves,
+                    sync_battle_chars,
+                    update_active_char_outline,
+                )
+                    .chain()
+                    .run_if(in_state(AppState::Battle)),
             );
     }
 }
@@ -295,6 +302,30 @@ fn sync_exploration_chars(
     }
 }
 
+// ── Battle: detect move → start animation ─────────────────────────────────────
+
+fn detect_battle_move(
+    session: Res<GameSessionRes>,
+    mut char_q: Query<(Entity, &mut CharacterVisual)>,
+    mut commands: Commands,
+) {
+    let world = &session.0.world;
+    for (entity, mut cv) in char_q.iter_mut() {
+        let Some(pos) = world.get::<Position>(cv.game_entity) else {
+            continue;
+        };
+        let new_grid = (pos.x, pos.y);
+        if new_grid == cv.last_grid {
+            continue;
+        }
+        cv.last_grid = new_grid;
+        let target = world_pos_for_grid(pos.x, pos.y);
+        commands
+            .entity(entity)
+            .insert(CharacterMoveAnim { target, face_after: None });
+    }
+}
+
 // ── Battle: spawn ─────────────────────────────────────────────────────────────
 
 fn spawn_battle_chars(
@@ -327,7 +358,7 @@ fn spawn_battle_chars(
 
 fn sync_battle_chars(
     session: Res<GameSessionRes>,
-    mut char_q: Query<(&CharacterVisual, &mut Transform, &mut Visibility)>,
+    mut char_q: Query<(&CharacterVisual, &mut Transform, &mut Visibility), Without<CharacterMoveAnim>>,
 ) {
     let world = &session.0.world;
     for (cv, mut transform, mut vis) in &mut char_q {
