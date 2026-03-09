@@ -1,4 +1,4 @@
-* support animated movement  in combat, too. i only see the characters turning and running to the target square when exploring.
+* when a party character moves, please animate it
 * during combat, show remaining AP of active character. if they have 0, automatically complete their turn
 * fix the continue button to only fire once
 * make an area on the left side in the middle of party's portraits. let the player click on a portrait to activate their turn.
