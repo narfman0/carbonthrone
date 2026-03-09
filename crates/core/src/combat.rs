@@ -13,7 +13,7 @@ use crate::{
     scripted_encounter::{ScriptedAlly, ScriptedFirstAction},
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{Action, apply_action},
+    turn::{Action, MOVE_AP_COST, apply_action, move_range_per_ap},
 };
 
 pub use crate::turn::TurnAction;
@@ -753,12 +753,16 @@ fn seek_cover_action(
             .collect()
     };
 
-    let mut candidates: Vec<(i32, i32, i32, CoverLevel)> = Vec::new(); // (dist, x, y, cover)
+    let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
+    let range = move_range_per_ap(speed);
+
+    let mut candidates: Vec<(i32, i32, i32, CoverLevel)> = Vec::new(); // (ap_cost, x, y, cover)
     if let Some(map) = world.get_resource::<LevelMap>() {
         for dy in -ap..=ap {
             for dx in -ap..=ap {
                 let dist = dx.abs() + dy.abs();
-                if dist == 0 || dist > ap {
+                let cost = MOVE_AP_COST * ((dist + range - 1) / range.max(1));
+                if dist == 0 || cost > ap {
                     continue;
                 }
                 let tx = actor_pos.x + dx;
@@ -774,7 +778,7 @@ fn seek_cover_action(
                 }
                 let cover = map.get_cover(tx, ty, attack_dir);
                 if cover > current_cover {
-                    candidates.push((dist, tx, ty, cover));
+                    candidates.push((cost, tx, ty, cover));
                 }
             }
         }
@@ -784,7 +788,7 @@ fn seek_cover_action(
         return None;
     }
 
-    // Sort: best cover first, then closest.
+    // Sort: best cover first, then cheapest AP cost.
     candidates.sort_by(|a, b| b.3.cmp(&a.3).then(a.0.cmp(&b.0)));
 
     // Phase 1: prefer a tile reachable while keeping enough AP to attack after.
@@ -792,7 +796,7 @@ fn seek_cover_action(
     if attack_budget > 0
         && let Some(&(_, tx, ty, _)) = candidates
             .iter()
-            .find(|&&(dist, _, _, _)| dist <= attack_budget)
+            .find(|&&(cost, _, _, _)| cost <= attack_budget)
     {
         return Some(Action::Move {
             destination: Position::new(tx, ty),

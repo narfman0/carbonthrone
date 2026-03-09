@@ -12,6 +12,12 @@ use crate::{
 
 pub const MOVE_AP_COST: i32 = 1;
 
+/// Tiles a combatant with the given speed stat can traverse per AP spent.
+/// speed 1-7 → 1 tile/AP, 8-15 → 2, 16-23 → 3, etc.
+pub fn move_range_per_ap(speed: i32) -> i32 {
+    (speed / 8).max(1)
+}
+
 /// An action a combatant can take on their turn, each costing AP.
 #[derive(Debug, Clone)]
 pub enum Action {
@@ -55,7 +61,9 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
             if distance == 0 {
                 return None;
             }
-            let cost = MOVE_AP_COST * distance;
+            let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
+            let range = move_range_per_ap(speed);
+            let cost = MOVE_AP_COST * ((distance + range - 1) / range);
             let ap = world
                 .get::<ActionPoints>(actor)
                 .map(|ap| ap.current)

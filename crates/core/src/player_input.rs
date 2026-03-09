@@ -11,7 +11,7 @@ use crate::{
     position::Position,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{Action, MOVE_AP_COST},
+    turn::{Action, MOVE_AP_COST, move_range_per_ap},
 };
 
 /// A fully-described action a player can choose for one of their combatants.
@@ -213,6 +213,9 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
         .unwrap_or((0, 0));
 
     if cols > 0 && rows > 0 {
+        let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
+        let range = move_range_per_ap(speed);
+
         let mut q2 = world.query::<(Entity, &Character, &Health, &Position)>();
         let enemy_positions: Vec<(i32, i32)> = q2
             .iter(world)
@@ -242,7 +245,7 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                 for dy in -ap..=ap {
                     for dx in -ap..=ap {
                         let dist = dx.abs() + dy.abs();
-                        let cost = dist * MOVE_AP_COST;
+                        let cost = MOVE_AP_COST * ((dist + range - 1) / range.max(1));
                         if dist == 0 || cost > ap {
                             continue;
                         }
@@ -259,7 +262,7 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                         }
                         let tile_cover = map.get_cover(tx, ty, attack_dir);
                         if tile_cover > current_cover {
-                            candidates.push((tile_cover, dist, tx, ty));
+                            candidates.push((tile_cover, cost, tx, ty));
                         }
                     }
                 }
@@ -267,12 +270,12 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
 
             candidates.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
             let mut seen: HashSet<u8> = HashSet::new();
-            for (tile_cover, dist, tx, ty) in candidates {
+            for (tile_cover, cost, tx, ty) in candidates {
                 if seen.insert(tile_cover as u8) {
                     choices.push(PlayerActionChoice::MoveToCover {
                         destination: Position::new(tx, ty),
                         cover: tile_cover,
-                        ap_cost: dist * MOVE_AP_COST,
+                        ap_cost: cost,
                     });
                 }
             }

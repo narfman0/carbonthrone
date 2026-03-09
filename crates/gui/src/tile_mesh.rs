@@ -3,11 +3,11 @@ use carbonthrone::{
     action_points::ActionPoints,
     combat::Turn,
     position::Position,
+    stats::Stats,
     terrain::{LevelMap, Tile},
-    turn::MOVE_AP_COST,
+    turn::{MOVE_AP_COST, move_range_per_ap},
 };
 
-use super::camera::IsometricCamera;
 use super::grid::{DOOR_HEIGHT, FLOOR_HEIGHT, OBSTACLE_HEIGHT, TILE_SIZE, grid_to_world};
 use super::resources::{GameSessionRes, PendingPlayerChoices};
 use super::state::AppState;
@@ -19,12 +19,6 @@ pub struct TileVisual;
 /// Marker for a battle-phase movement-range overlay tile.
 #[derive(Component)]
 pub struct BattleMoveOverlayTile;
-
-/// Screen-space AP cost label linked to a `BattleMoveOverlayTile` entity.
-#[derive(Component)]
-pub struct TileCostLabel {
-    pub tile_entity: Entity,
-}
 
 pub struct TilePlugin;
 
@@ -42,9 +36,7 @@ impl Plugin for TilePlugin {
             )
             .add_systems(
                 Update,
-                (refresh_battle_overlays, update_tile_cost_label_positions)
-                    .chain()
-                    .run_if(in_state(AppState::Battle)),
+                refresh_battle_overlays.run_if(in_state(AppState::Battle)),
             );
     }
 }
@@ -156,15 +148,20 @@ fn spawn_reachable_overlays(
         .get::<ActionPoints>(actor)
         .map(|a| a.current)
         .unwrap_or(0);
+    let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
+    let range = move_range_per_ap(speed);
     let Some(map) = world.get_resource::<LevelMap>() else {
         return;
     };
 
-    for dy in -ap..=ap {
-        for dx in -ap..=ap {
+    // Draw tiles reachable within `ap` AP using speed-scaled movement.
+    // Max Manhattan distance reachable = ap * range.
+    let max_dist = ap * range;
+    for dy in -max_dist..=max_dist {
+        for dx in -max_dist..=max_dist {
             let dist = dx.abs() + dy.abs();
-            let cost = dist * MOVE_AP_COST;
-            if dist == 0 || cost > ap {
+            let ap_cost = MOVE_AP_COST * ((dist + range - 1) / range.max(1));
+            if dist == 0 || ap_cost > ap {
                 continue;
             }
             let tx = actor_pos.x + dx;
@@ -176,7 +173,7 @@ fn spawn_reachable_overlays(
                 continue;
             }
 
-            let color = ap_cost_color(cost);
+            let color = ap_cost_color(ap_cost);
             let mesh = meshes.add(Cuboid::new(TILE_SIZE * 0.95, 0.02, TILE_SIZE * 0.95));
             let mat = materials.add(StandardMaterial {
                 base_color: color,
@@ -185,31 +182,12 @@ fn spawn_reachable_overlays(
                 ..default()
             });
             let world_pos = grid_to_world(tx, ty) + Vec3::Y * (FLOOR_HEIGHT + 0.011);
-            let tile_entity = commands
-                .spawn((
-                    BattleMoveOverlayTile,
-                    Mesh3d(mesh),
-                    MeshMaterial3d(mat),
-                    Transform::from_translation(world_pos),
-                    GlobalTransform::default(),
-                ))
-                .id();
-
-            // Spawn UI cost label — positioned each frame by update_tile_cost_label_positions.
             commands.spawn((
-                TileCostLabel { tile_entity },
-                Text::new(cost.to_string()),
-                TextFont {
-                    font_size: 11.0,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Px(0.0),
-                    top: Val::Px(0.0),
-                    ..default()
-                },
+                BattleMoveOverlayTile,
+                Mesh3d(mesh),
+                MeshMaterial3d(mat),
+                Transform::from_translation(world_pos),
+                GlobalTransform::default(),
             ));
         }
     }
@@ -228,7 +206,6 @@ fn refresh_battle_overlays(
     session: Res<GameSessionRes>,
     choices: Res<PendingPlayerChoices>,
     overlay_q: Query<Entity, With<BattleMoveOverlayTile>>,
-    label_q: Query<Entity, With<TileCostLabel>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -239,42 +216,14 @@ fn refresh_battle_overlays(
     for e in &overlay_q {
         commands.entity(e).despawn();
     }
-    for e in &label_q {
-        commands.entity(e).despawn();
-    }
     spawn_reachable_overlays(&session, &mut commands, &mut meshes, &mut materials);
-}
-
-fn update_tile_cost_label_positions(
-    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
-    tile_q: Query<&GlobalTransform, With<BattleMoveOverlayTile>>,
-    mut label_q: Query<(&TileCostLabel, &mut Node)>,
-) {
-    let Ok((cam, cam_transform)) = camera_q.single() else {
-        return;
-    };
-    for (label, mut node) in label_q.iter_mut() {
-        let Ok(tile_transform) = tile_q.get(label.tile_entity) else {
-            continue;
-        };
-        let label_world = tile_transform.translation() + Vec3::Y * 0.15;
-        let Ok(screen_pos) = cam.world_to_viewport(cam_transform, label_world) else {
-            continue;
-        };
-        node.left = Val::Px(screen_pos.x - 6.0);
-        node.top = Val::Px(screen_pos.y - 8.0);
-    }
 }
 
 fn despawn_battle_overlays(
     overlay_q: Query<Entity, With<BattleMoveOverlayTile>>,
-    label_q: Query<Entity, With<TileCostLabel>>,
     mut commands: Commands,
 ) {
     for e in &overlay_q {
-        commands.entity(e).despawn();
-    }
-    for e in &label_q {
         commands.entity(e).despawn();
     }
 }
