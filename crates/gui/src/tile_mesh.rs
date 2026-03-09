@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
     action_points::ActionPoints,
     combat::Turn,
@@ -8,7 +8,8 @@ use carbonthrone::{
     turn::{MOVE_AP_COST, move_range_per_ap},
 };
 
-use super::grid::{DOOR_HEIGHT, FLOOR_HEIGHT, OBSTACLE_HEIGHT, TILE_SIZE, grid_to_world};
+use super::camera::IsometricCamera;
+use super::grid::{DOOR_HEIGHT, FLOOR_HEIGHT, OBSTACLE_HEIGHT, TILE_SIZE, grid_to_world, world_to_grid};
 use super::resources::{GameSessionRes, PendingPlayerChoices};
 use super::state::AppState;
 
@@ -20,6 +21,10 @@ pub struct TileVisual;
 #[derive(Component)]
 pub struct BattleMoveOverlayTile;
 
+/// Single tile that highlights the tile currently under the cursor in battle.
+#[derive(Component)]
+pub struct BattleCursorHighlight;
+
 pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
@@ -28,15 +33,19 @@ impl Plugin for TilePlugin {
             .add_systems(OnExit(AppState::Exploration), despawn_tile_visuals)
             .add_systems(
                 OnEnter(AppState::Battle),
-                (spawn_battle_tiles, spawn_battle_overlays),
+                (spawn_battle_tiles, spawn_battle_overlays, spawn_cursor_highlight),
             )
             .add_systems(
                 OnExit(AppState::Battle),
-                (despawn_tile_visuals, despawn_battle_overlays),
+                (despawn_tile_visuals, despawn_battle_overlays, despawn_cursor_highlight),
             )
             .add_systems(
                 Update,
-                refresh_battle_overlays.run_if(in_state(AppState::Battle)),
+                (
+                    refresh_battle_overlays,
+                    update_cursor_highlight,
+                )
+                    .run_if(in_state(AppState::Battle)),
             );
     }
 }
@@ -224,6 +233,105 @@ fn despawn_battle_overlays(
     mut commands: Commands,
 ) {
     for e in &overlay_q {
+        commands.entity(e).despawn();
+    }
+}
+
+// ── Cursor highlight ─────────────────────────────────────────────────────────
+
+fn spawn_cursor_highlight(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let mesh = meshes.add(Cuboid::new(TILE_SIZE * 0.97, 0.025, TILE_SIZE * 0.97));
+    let mat = materials.add(StandardMaterial {
+        base_color: Color::srgba(1.0, 1.0, 1.0, 0.55),
+        unlit: true,
+        alpha_mode: AlphaMode::Blend,
+        ..default()
+    });
+    commands.spawn((
+        BattleCursorHighlight,
+        Mesh3d(mesh),
+        MeshMaterial3d(mat),
+        Transform::from_translation(Vec3::new(0.0, -100.0, 0.0)), // hidden below map initially
+        GlobalTransform::default(),
+        Visibility::Hidden,
+    ));
+}
+
+fn update_cursor_highlight(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    session: Res<GameSessionRes>,
+    mut highlight_q: Query<(&mut Transform, &mut Visibility), With<BattleCursorHighlight>>,
+) {
+    let Ok((mut transform, mut visibility)) = highlight_q.single_mut() else {
+        return;
+    };
+
+    // Only show during player turn.
+    let is_player_turn = session
+        .0
+        .battle
+        .as_ref()
+        .map(|b| b.turn == Turn::Player)
+        .unwrap_or(false);
+    if !is_player_turn {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+
+    let Ok(window) = windows.single() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    let Some(cursor) = window.cursor_position() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    let Ok((cam, cam_transform)) = camera_q.single() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    let Ok(ray) = cam.viewport_to_world(cam_transform, cursor) else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    if ray.direction.y.abs() < 1e-6 {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+    let t = -ray.origin.y / ray.direction.y;
+    if t < 0.0 {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+    let hit = ray.origin + ray.direction * t;
+    let (gx, gy) = world_to_grid(hit);
+
+    // Check bounds.
+    let world = &session.0.world;
+    let Some(map) = world.get_resource::<LevelMap>() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    if gx < 0 || gy < 0 || gx >= map.cols as i32 || gy >= map.rows as i32 {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+
+    let world_pos = grid_to_world(gx, gy) + Vec3::Y * (FLOOR_HEIGHT + 0.013);
+    transform.translation = world_pos;
+    *visibility = Visibility::Inherited;
+}
+
+fn despawn_cursor_highlight(
+    mut commands: Commands,
+    q: Query<Entity, With<BattleCursorHighlight>>,
+) {
+    for e in &q {
         commands.entity(e).despawn();
     }
 }

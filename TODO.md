@@ -1,4 +1,3 @@
-* during combat, do not show movement as an action to select. rather, in the tile info panel on the right, show the ap cost for the active party member to move to the highlighted tile, and make right click move there. also add a highlight on the tile itself to add visual clarity, and say the ap cost when hovering
 * show a health bar above each character
 * when the mouse hovers over a character, draw an orange "selected" outline around the character
 * in combat, when highlighting a tile or character on a tile, show the character kind above the health bar and level beside the health bar

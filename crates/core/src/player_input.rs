@@ -36,6 +36,12 @@ pub enum PlayerActionChoice {
         /// Total AP cost (Manhattan distance × `MOVE_AP_COST`).
         ap_cost: i32,
     },
+    /// Move to an arbitrary passable tile (initiated by right-click on map).
+    Move {
+        destination: Position,
+        /// Total AP cost for the move.
+        ap_cost: i32,
+    },
     /// End this actor's turn without spending more AP.
     Pass,
 }
@@ -50,9 +56,11 @@ impl PlayerActionChoice {
                 ability: ability.clone(),
                 target: *target,
             },
-            Self::MoveToCover { destination, .. } => Action::Move {
-                destination: *destination,
-            },
+            Self::MoveToCover { destination, .. } | Self::Move { destination, .. } => {
+                Action::Move {
+                    destination: *destination,
+                }
+            }
             Self::Pass => Action::Pass,
         }
     }
@@ -99,6 +107,12 @@ impl PlayerActionChoice {
                     CoverLevel::Full => "full cover",
                 };
                 format!("Move to {} (costs {} AP)", label, ap_cost)
+            }
+            Self::Move { destination, ap_cost } => {
+                format!(
+                    "Move to ({},{}) ({} AP)",
+                    destination.x, destination.y, ap_cost
+                )
             }
             Self::Pass => "Pass".to_string(),
         }

@@ -1,5 +1,10 @@
 use bevy::{prelude::*, window::PrimaryWindow};
-use carbonthrone::game::GamePhase;
+use carbonthrone::{
+    game::GamePhase,
+    player_input::PlayerActionChoice,
+    position::Position,
+    terrain::LevelMap,
+};
 
 use super::{
     camera::IsometricCamera,
@@ -19,6 +24,7 @@ impl Plugin for InputPlugin {
                 left_click_npc.run_if(in_state(AppState::Exploration)),
                 advance_dialog_click.run_if(in_state(AppState::Dialog)),
                 apply_player_choice.run_if(in_state(AppState::Battle)),
+                right_click_battle_move.run_if(in_state(AppState::Battle)),
                 auto_advance_enemy_turn.run_if(in_state(AppState::Battle)),
             ),
         );
@@ -142,6 +148,59 @@ fn advance_dialog_click(mouse: Res<ButtonInput<MouseButton>>, mut session: ResMu
         if !at_choice {
             session.0.advance_dialog();
         }
+    }
+}
+
+// ── Combat: right-click to move ──────────────────────────────────────────────
+
+fn right_click_battle_move(
+    mouse: Res<ButtonInput<MouseButton>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    mut session: ResMut<GameSessionRes>,
+    mut choices_res: ResMut<PendingPlayerChoices>,
+) {
+    if !mouse.just_pressed(MouseButton::Right) {
+        return;
+    }
+    let Some((gx, gy)) = get_cursor_grid(&windows, &camera_q) else {
+        return;
+    };
+
+    let s = &mut session.0;
+    let Some(battle) = s.battle.as_mut() else {
+        return;
+    };
+    if battle.turn != carbonthrone::combat::Turn::Player {
+        return;
+    }
+    let Some(actor) = battle.current_actor() else {
+        return;
+    };
+
+    // Verify the tile is passable and not occupied.
+    {
+        let map = s.world.get_resource::<LevelMap>();
+        let Some(map) = map else { return };
+        if !map.is_passable(gx, gy) {
+            return;
+        }
+    }
+
+    // Build the move choice and execute it.
+    let choice = PlayerActionChoice::Move {
+        destination: Position::new(gx, gy),
+        ap_cost: 0, // ap_cost is cosmetic; apply_action computes the real cost
+    };
+    let result = battle.step_player_action(&mut s.world, &choice);
+    if result.actor == actor {
+        s.last_event = Some(carbonthrone::combat::TurnEvent {
+            actor: Some(result.actor),
+            turn: carbonthrone::combat::Turn::Player,
+            actions: result.action.map(|a| vec![a]).unwrap_or_default(),
+            outcome: result.outcome,
+        });
+        choices_res.needs_refresh = true;
     }
 }
 

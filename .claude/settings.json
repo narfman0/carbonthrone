@@ -20,7 +20,8 @@
       "Bash(wc -l *)",
       "Bash(xargs wc -l)",
       "Bash(xargs grep -l *)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(cargo clippy -p carbonthrone-gui)"
     ],
     "additionalDirectories": [
       "c:\\Users\\narfman0\\workspace\\carbonthrone"

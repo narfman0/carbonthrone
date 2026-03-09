@@ -9,6 +9,7 @@ use carbonthrone::{
     position::Position,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
+    turn::{MOVE_AP_COST, move_range_per_ap},
 };
 
 use super::{StateUiRoot, accent_text, panel_bg, text_font, white_text};
@@ -384,35 +385,6 @@ fn update_action_panel(
             }
         }
 
-        // ── Movement ──
-        let move_indices: Vec<usize> = choices
-            .choices
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| matches!(c, PlayerActionChoice::MoveToCover { .. }))
-            .map(|(i, _)| i)
-            .collect();
-        if !move_indices.is_empty() {
-            parent.spawn((Text::new("─── MOVEMENT"), text_font(10.0), white_text()));
-            for i in move_indices {
-                let label = choices.choices[i].display();
-                parent
-                    .spawn((
-                        AbilityButton(i),
-                        Button,
-                        Node {
-                            padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
-                            margin: UiRect::bottom(Val::Px(2.0)),
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgb(0.12, 0.28, 0.18)),
-                    ))
-                    .with_children(|p| {
-                        p.spawn((Text::new(label), text_font(12.0), white_text()));
-                    });
-            }
-        }
-
         // ── Pass ──
         for (i, choice) in choices.choices.iter().enumerate() {
             if matches!(choice, PlayerActionChoice::Pass) {
@@ -607,14 +579,14 @@ fn update_info_panel(
     }
 
     // Priority 2: tile under cursor.
-    let info = cursor_tile_info(&windows, &camera_q, &mut session.0.world);
+    let info = cursor_tile_info(&windows, &camera_q, &mut session);
     *text = Text::new(info);
 }
 
 fn cursor_tile_info(
     windows: &Query<&Window, With<PrimaryWindow>>,
     camera_q: &Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
-    world: &mut bevy::ecs::world::World,
+    session: &mut ResMut<GameSessionRes>,
 ) -> String {
     let Ok(window) = windows.single() else {
         return "Hover a tile or\nability for info".to_string();
@@ -637,6 +609,8 @@ fn cursor_tile_info(
     }
     let hit = ray.origin + ray.direction * t;
     let (gx, gy) = world_to_grid(hit);
+
+    let world = &mut session.0.world;
 
     // Check for a character at this position.
     let mut char_q = world.query::<(&Character, &Health, &ActionPoints, &Stats, &Position)>();
@@ -695,7 +669,68 @@ fn cursor_tile_info(
         CoverLevel::Full => "Full cover",
     };
 
-    format!("{}\n{}\n({}, {})", tile_name, cover_label, gx, gy)
+    // Show movement cost for passable tiles.
+    let move_info = move_cost_for_tile(world, gx, gy);
+
+    if let Some((ap_cost, can_afford)) = move_info {
+        let afford_str = if can_afford {
+            "Right-click to move"
+        } else {
+            "Not enough AP"
+        };
+        format!(
+            "{}\n{}\nMove cost: {} AP\n{}",
+            tile_name, cover_label, ap_cost, afford_str
+        )
+    } else {
+        format!("{}\n{}\n({}, {})", tile_name, cover_label, gx, gy)
+    }
+}
+
+/// Returns `Some((ap_cost, can_afford))` if the active player can move to `(gx, gy)`,
+/// or `None` if the tile is impassable or there is no active player.
+fn move_cost_for_tile(
+    world: &mut bevy::ecs::world::World,
+    gx: i32,
+    gy: i32,
+) -> Option<(i32, bool)> {
+    let map = world.get_resource::<LevelMap>()?;
+    if !map.is_passable(gx, gy) {
+        return None;
+    }
+
+    // Find active player actor via BattleStep (stored in GameSession.battle).
+    // We access the actor through ActionPoints/Stats/Position query.
+    // The active player is whichever player character currently has a non-exhausted turn.
+    // We identify them by checking all player characters and picking the one whose entity
+    // is the "current_actor" — but we can't access BattleStep from here easily.
+    // Instead, find the player character with the most AP as a proxy.
+    let mut actor_data: Vec<(Position, i32, i32)> = {
+        let mut q = world.query::<(&carbonthrone::character::Character, &Position, &ActionPoints, &Stats)>();
+        q.iter(world)
+            .filter(|(c, _, _, _)| c.kind.is_player())
+            .map(|(_, pos, ap, stats)| (*pos, ap.current, stats.speed))
+            .collect()
+    };
+    // Pick the player with highest AP (most likely to be the active one).
+    actor_data.sort_by(|a, b| b.1.cmp(&a.1));
+    let (actor_pos, actor_ap, actor_speed) = actor_data.into_iter().next()?;
+
+    if actor_ap == 0 {
+        return None;
+    }
+
+    let range = move_range_per_ap(actor_speed);
+    let dist = (gx - actor_pos.x).abs() + (gy - actor_pos.y).abs();
+    if dist == 0 {
+        return None;
+    }
+    let ap_cost = MOVE_AP_COST * ((dist + range - 1) / range.max(1));
+    let max_dist = actor_ap * range;
+    if dist > max_dist {
+        return None; // Out of range
+    }
+    Some((ap_cost, actor_ap >= ap_cost))
 }
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────
