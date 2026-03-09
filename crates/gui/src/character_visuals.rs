@@ -47,6 +47,10 @@ pub struct ActiveCharOutline;
 #[derive(Component)]
 pub struct HoverCharOutline;
 
+/// Screen-space label showing character kind and level, positioned above the health bar.
+#[derive(Component)]
+pub struct CharKindLabel(pub bevy::ecs::entity::Entity);
+
 /// Background of the floating HP bar for a character.
 #[derive(Component)]
 pub struct HealthBarBg(pub bevy::ecs::entity::Entity);
@@ -71,7 +75,10 @@ impl Plugin for CharacterVisualsPlugin {
                     .chain()
                     .run_if(in_state(AppState::Exploration)),
             )
-            .add_systems(OnEnter(AppState::Battle), (spawn_battle_chars, spawn_hover_outline))
+            .add_systems(
+                OnEnter(AppState::Battle),
+                (spawn_battle_chars, spawn_hover_outline, spawn_char_kind_labels),
+            )
             .add_systems(
                 OnExit(AppState::Battle),
                 (
@@ -79,6 +86,7 @@ impl Plugin for CharacterVisualsPlugin {
                     despawn_active_char_outline,
                     despawn_health_bars,
                     despawn_hover_outline,
+                    despawn_char_kind_labels,
                 ),
             )
             .add_systems(
@@ -90,6 +98,7 @@ impl Plugin for CharacterVisualsPlugin {
                     sync_health_bars,
                     update_active_char_outline,
                     update_hover_outline,
+                    update_char_kind_labels,
                 )
                     .chain()
                     .run_if(in_state(AppState::Battle)),
@@ -678,6 +687,98 @@ fn update_hover_outline(
 }
 
 fn despawn_hover_outline(mut commands: Commands, q: Query<Entity, With<HoverCharOutline>>) {
+    for e in &q {
+        commands.entity(e).despawn();
+    }
+}
+
+// ── Character kind / level labels ─────────────────────────────────────────────
+
+fn spawn_char_kind_labels(
+    mut commands: Commands,
+    mut session: ResMut<GameSessionRes>,
+) {
+    let world = &mut session.0.world;
+    let mut q = world.query::<(bevy::ecs::entity::Entity, &Character)>();
+    let chars: Vec<_> = q
+        .iter(world)
+        .map(|(e, c)| (e, format!("{:?}", c.kind), c.level))
+        .collect();
+
+    for (game_entity, kind_str, level) in chars {
+        commands.spawn((
+            CharKindLabel(game_entity),
+            Text::new(format!("{kind_str} Lv.{level}")),
+            TextFont {
+                font_size: 9.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                top: Val::Px(0.0),
+                ..default()
+            },
+            Visibility::Hidden,
+        ));
+    }
+}
+
+fn update_char_kind_labels(
+    session: Res<GameSessionRes>,
+    char_visual_q: Query<(&CharacterVisual, &Transform)>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut label_q: Query<(&CharKindLabel, &mut Node, &mut Visibility)>,
+) {
+    let Ok((cam, cam_transform)) = camera_q.single() else {
+        return;
+    };
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let window_height = window.height();
+    let world = &session.0.world;
+
+    // Build map from game_entity → visual transform.
+    let char_positions: std::collections::HashMap<bevy::ecs::entity::Entity, Vec3> = char_visual_q
+        .iter()
+        .map(|(cv, t)| (cv.game_entity, t.translation))
+        .collect();
+
+    for (label, mut node, mut vis) in &mut label_q {
+        let game_entity = label.0;
+        let alive = world
+            .get::<Health>(game_entity)
+            .map(|h| h.is_alive())
+            .unwrap_or(false);
+        if !alive {
+            *vis = Visibility::Hidden;
+            continue;
+        }
+        let Some(&char_pos) = char_positions.get(&game_entity) else {
+            *vis = Visibility::Hidden;
+            continue;
+        };
+        // Project a point above the health bar.
+        let label_world_pos = Vec3::new(
+            char_pos.x,
+            char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE + 0.18,
+            char_pos.z,
+        );
+        if let Ok(screen_pos) = cam.world_to_viewport(cam_transform, label_world_pos) {
+            // Bevy UI: top is from top of screen, so invert Y.
+            node.left = Val::Px(screen_pos.x - 30.0);
+            node.top = Val::Px(window_height - screen_pos.y - 8.0);
+            *vis = Visibility::Inherited;
+        } else {
+            *vis = Visibility::Hidden;
+        }
+    }
+}
+
+fn despawn_char_kind_labels(mut commands: Commands, q: Query<Entity, With<CharKindLabel>>) {
     for e in &q {
         commands.entity(e).despawn();
     }

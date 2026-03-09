@@ -620,6 +620,8 @@ fn cursor_tile_info(
         .map(|(ch, hp, ap, stats, _)| {
             (
                 ch.name.clone(),
+                format!("{:?}", ch.kind),
+                ch.level,
                 ch.kind.is_player(),
                 hp.current,
                 hp.max,
@@ -630,12 +632,12 @@ fn cursor_tile_info(
             )
         })
         .collect();
-    if let Some((name, is_player, hp, max_hp, ap, max_ap, atk, def)) = char_data.into_iter().next()
+    if let Some((name, kind_str, level, is_player, hp, max_hp, ap, max_ap, atk, def)) =
+        char_data.into_iter().next()
     {
         let side = if is_player { "Player" } else { "Enemy" };
         return format!(
-            "{} ({})\nHP: {}/{}\nAP: {}/{}\nATK: {}  DEF: {}",
-            name, side, hp, max_hp, ap, max_ap, atk, def
+            "{kind_str}  Lv.{level}\n{name} ({side})\nHP: {hp}/{max_hp}\nAP: {ap}/{max_ap}\nATK: {atk}  DEF: {def}"
         );
     }
 
