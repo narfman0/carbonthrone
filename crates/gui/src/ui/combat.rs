@@ -331,9 +331,9 @@ fn update_action_panel(
     let header = match session.0.battle.as_ref() {
         None => "Waiting...".to_string(),
         Some(battle) => match battle.turn {
-            Turn::Enemy => "Enemy turn…".to_string(),
+            Turn::Enemy => "Enemy turn".to_string(),
             Turn::Player => match battle.current_actor() {
-                None => "Waiting for player turn…".to_string(),
+                None => "Waiting for player turn".to_string(),
                 Some(actor) => {
                     let world = &session.0.world;
                     let name = world

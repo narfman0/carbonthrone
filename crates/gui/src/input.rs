@@ -119,11 +119,10 @@ fn right_click_navigate(
 
 /// Consumes one step of the pending exploration path per frame (when not animating).
 fn advance_exploration_path(
-    session: Res<GameSessionRes>,
+    mut session: ResMut<GameSessionRes>,
     mut path: ResMut<PendingExplorationPath>,
     mut rng: ResMut<ExplorationRng>,
     anim_q: Query<(), With<CharacterMoveAnim>>,
-    mut session_mut: ResMut<GameSessionRes>,
 ) {
     if path.0.is_empty() {
         return;
@@ -150,7 +149,7 @@ fn advance_exploration_path(
     let dx = (next.0 - px).signum();
     let dy = (next.1 - py).signum();
     if dx != 0 || dy != 0 {
-        session_mut.0.move_player(dx, dy, &mut rng.0);
+        session.0.move_player(dx, dy, &mut rng.0);
     }
 }
 
