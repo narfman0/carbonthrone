@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    {
+      "name": "Debug executable 'carbonthrone_gui'",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": [
+          "run",
+          "--bin=carbonthrone_gui"
+        ]
+      },
+      "args": []
+    }
+  ]
+}
