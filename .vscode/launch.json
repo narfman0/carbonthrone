@@ -9,7 +9,8 @@
       "cargo": {
         "args": [
           "run",
-          "--bin=carbonthrone_gui"
+          "--bin",
+          "carbonthrone_gui"
         ]
       },
       "args": []

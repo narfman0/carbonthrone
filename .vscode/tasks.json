@@ -29,6 +29,18 @@
 				"$rustc"
 			],
 			"label": "rust: cargo run carbonthrone_gui"
+		},
+		{
+			"type": "cargo",
+			"command": "test",
+			"args": [
+				"--jobs",
+				"2"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "rust: cargo test"
 		}
 	]
 }
