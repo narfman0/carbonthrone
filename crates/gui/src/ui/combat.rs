@@ -1,5 +1,6 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
+    ability::character_abilities,
     action_points::ActionPoints,
     character::Character,
     combat::{BattleOutcome, Turn},
@@ -369,35 +370,76 @@ fn update_action_panel(
             return;
         }
 
-        // ── Abilities (one button per unique ability name) ──
-        let mut seen_names: std::collections::HashSet<&'static str> = std::collections::HashSet::new();
-        let mut ability_entries: Vec<(usize, &'static str, i32, bool)> = Vec::new(); // (choice_idx, name, ap_cost, needs_target)
+        // ── Abilities (one button per unique ability name, including unavailable) ──
+        // Collect available abilities from active choices.
+        let mut available_names: std::collections::HashSet<&'static str> =
+            std::collections::HashSet::new();
+        let mut ability_entries: Vec<(Option<usize>, &'static str, i32, bool)> = Vec::new();
         for (i, choice) in choices.choices.iter().enumerate() {
             if let PlayerActionChoice::UseAbility { ability, target, .. } = choice {
-                if seen_names.insert(ability.name) {
-                    ability_entries.push((i, ability.name, ability.ap_cost, target.is_some()));
+                if available_names.insert(ability.name) {
+                    ability_entries.push((Some(i), ability.name, ability.ap_cost, target.is_some()));
+                }
+            }
+        }
+        // Also add abilities from the actor's full ability table that aren't yet shown.
+        if let Some(battle) = session.0.battle.as_ref() {
+            if let Some(actor) = battle.current_actor() {
+                let world = &session.0.world;
+                if let Some(ch) = world.get::<Character>(actor) {
+                    let all_abilities = character_abilities(&ch.kind);
+                    let mut seen: std::collections::HashSet<&'static str> =
+                        available_names.iter().copied().collect();
+                    for ab in &all_abilities {
+                        if ab.level_required <= ch.level && seen.insert(ab.name) {
+                            ability_entries.push((None, ab.name, ab.ap_cost, false));
+                        }
+                    }
                 }
             }
         }
         if !ability_entries.is_empty() {
             parent.spawn((Text::new("─── ABILITIES"), text_font(10.0), white_text()));
-            for (i, name, ap_cost, needs_target) in ability_entries {
+            for (choice_idx, name, ap_cost, needs_target) in ability_entries {
+                let available = choice_idx.is_some();
                 let target_hint = if needs_target { " [click target]" } else { "" };
                 let label = format!("{name} ({ap_cost}AP){target_hint}");
-                parent
-                    .spawn((
-                        AbilityButton(i),
-                        Button,
-                        Node {
-                            padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
-                            margin: UiRect::bottom(Val::Px(2.0)),
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgb(0.15, 0.25, 0.45)),
-                    ))
-                    .with_children(|p| {
-                        p.spawn((Text::new(label), text_font(12.0), white_text()));
-                    });
+                let text_color = if available {
+                    white_text()
+                } else {
+                    TextColor(Color::srgb(0.4, 0.4, 0.4))
+                };
+                if available {
+                    let bg = Color::srgb(0.15, 0.25, 0.45);
+                    parent
+                        .spawn((
+                            AbilityButton(choice_idx.unwrap()),
+                            Button,
+                            Node {
+                                padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                                margin: UiRect::bottom(Val::Px(2.0)),
+                                ..default()
+                            },
+                            BackgroundColor(bg),
+                        ))
+                        .with_children(|p| {
+                            p.spawn((Text::new(label), text_font(12.0), text_color));
+                        });
+                } else {
+                    // Non-interactive dimmed row for unavailable abilities.
+                    parent
+                        .spawn((
+                            Node {
+                                padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                                margin: UiRect::bottom(Val::Px(2.0)),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(0.10, 0.10, 0.16)),
+                        ))
+                        .with_children(|p| {
+                            p.spawn((Text::new(label), text_font(12.0), text_color));
+                        });
+                }
             }
         }
 
@@ -434,7 +476,9 @@ fn handle_ability_buttons(
         if *interaction == Interaction::Pressed {
             if let Some(choice) = choices.choices.get(btn.0) {
                 match choice {
-                    PlayerActionChoice::UseAbility { ability, target, .. } => {
+                    PlayerActionChoice::UseAbility {
+                        ability, target, ..
+                    } => {
                         if target.is_some() {
                             // Targeted ability — enter targeting mode.
                             targeting.0 = Some(ability.name);
@@ -510,11 +554,7 @@ fn update_party_portraits(
     };
 
     // Collect player data: (entity, name, hp, max_hp, ap, is_active).
-    let active_entity = session
-        .0
-        .battle
-        .as_ref()
-        .and_then(|b| b.current_actor());
+    let active_entity = session.0.battle.as_ref().and_then(|b| b.current_actor());
     let queued: Vec<bevy::ecs::entity::Entity> = session
         .0
         .battle
@@ -548,10 +588,7 @@ fn update_party_portraits(
             } else {
                 Color::srgb(0.15, 0.15, 0.15) // grey — already acted
             };
-            let label = format!(
-                "{}\nHP {}/{}\nAP {}/{}",
-                name, hp, max_hp, ap, max_ap
-            );
+            let label = format!("{}\nHP {}/{}\nAP {}/{}", name, hp, max_hp, ap, max_ap);
             parent
                 .spawn((
                     PortraitButton(*entity),
@@ -605,7 +642,9 @@ fn update_info_panel(
 
     // Priority 1: in targeting mode — show hit/damage for the hovered character.
     if let Some(ability_name) = targeting.0 {
-        if let Some(info) = targeting_hover_info(&windows, &camera_q, &mut session, &choices, ability_name) {
+        if let Some(info) =
+            targeting_hover_info(&windows, &camera_q, &mut session, &choices, ability_name)
+        {
             *text = Text::new(info);
             return;
         }
@@ -653,7 +692,10 @@ fn targeting_hover_info(
 
     // Find a matching choice for this tile.
     let choice = choices.choices.iter().find(|c| {
-        if let PlayerActionChoice::UseAbility { ability, target, .. } = c {
+        if let PlayerActionChoice::UseAbility {
+            ability, target, ..
+        } = c
+        {
             if ability.name != ability_name {
                 return false;
             }
@@ -667,17 +709,31 @@ fn targeting_hover_info(
         false
     });
 
-    let Some(PlayerActionChoice::UseAbility { ability: _, hit_chance, damage, cover, .. }) = choice else {
+    let Some(PlayerActionChoice::UseAbility {
+        ability: _,
+        hit_chance,
+        damage,
+        cover,
+        ..
+    }) = choice
+    else {
         return None;
     };
 
     let world = &session.0.world;
     // Get target character info.
     let target_entity = choices.choices.iter().find_map(|c| {
-        if let PlayerActionChoice::UseAbility { ability: a, target: Some(t), .. } = c {
+        if let PlayerActionChoice::UseAbility {
+            ability: a,
+            target: Some(t),
+            ..
+        } = c
+        {
             if a.name == ability_name {
                 let pos = world.get::<Position>(*t)?;
-                if pos.x == gx && pos.y == gy { return Some(*t); }
+                if pos.x == gx && pos.y == gy {
+                    return Some(*t);
+                }
             }
         }
         None
@@ -688,7 +744,9 @@ fn targeting_hover_info(
     let kind_str = format!("{:?}", char.kind);
 
     let hit_pct = hit_chance.map(|h| (h * 100.0).round() as i32).unwrap_or(90);
-    let dmg_str = damage.map(|d| format!("{d}")).unwrap_or_else(|| "?".to_string());
+    let dmg_str = damage
+        .map(|d| format!("{d}"))
+        .unwrap_or_else(|| "?".to_string());
     let cover_str = match cover.unwrap_or(CoverLevel::None) {
         CoverLevel::None => "",
         CoverLevel::Partial => " (partial cover)",
@@ -825,7 +883,12 @@ fn move_cost_for_tile(
     // is the "current_actor" — but we can't access BattleStep from here easily.
     // Instead, find the player character with the most AP as a proxy.
     let mut actor_data: Vec<(Position, i32, i32)> = {
-        let mut q = world.query::<(&carbonthrone::character::Character, &Position, &ActionPoints, &Stats)>();
+        let mut q = world.query::<(
+            &carbonthrone::character::Character,
+            &Position,
+            &ActionPoints,
+            &Stats,
+        )>();
         q.iter(world)
             .filter(|(c, _, _, _)| c.kind.is_player())
             .map(|(_, pos, ap, stats)| (*pos, ap.current, stats.speed))

@@ -108,7 +108,10 @@ impl PlayerActionChoice {
                 };
                 format!("Move to {} (costs {} AP)", label, ap_cost)
             }
-            Self::Move { destination, ap_cost } => {
+            Self::Move {
+                destination,
+                ap_cost,
+            } => {
                 format!(
                     "Move to ({},{}) ({} AP)",
                     destination.x, destination.y, ap_cost
@@ -204,6 +207,27 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                             hit_chance,
                             damage,
                             cover: cover_opt,
+                        });
+                    }
+                }
+                AbilityKind::RangedAlly => {
+                    // Generate one choice per living ally (including the actor themselves).
+                    let mut q = world.query::<(Entity, &Character, &Health)>();
+                    let allies: Vec<Entity> = q
+                        .iter(world)
+                        .filter(|(e, c, h)| c.kind.is_player() && h.is_alive() && *e != actor)
+                        .map(|(e, _, _)| e)
+                        .collect();
+                    // Always include self as a target.
+                    let mut all_targets = vec![actor];
+                    all_targets.extend(allies);
+                    for target_entity in all_targets {
+                        choices.push(PlayerActionChoice::UseAbility {
+                            ability: ability.clone(),
+                            target: Some(target_entity),
+                            hit_chance: None,
+                            damage: None,
+                            cover: None,
                         });
                     }
                 }

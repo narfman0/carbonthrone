@@ -1,7 +1,7 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
     character::{Character, CharacterKind},
-    game::{GamePhase, NpcData},
+    game::GamePhase,
     health::Health,
     position::Position,
 };
@@ -11,11 +11,14 @@ use super::grid::{CHARACTER_HEIGHT, FLOOR_HEIGHT, TILE_SIZE, grid_to_world, worl
 use super::resources::GameSessionRes;
 use super::state::AppState;
 
-const HEALTH_BAR_WIDTH: f32 = TILE_SIZE * 0.70;
+const HEALTH_BAR_WIDTH: f32 = TILE_SIZE;
 const HEALTH_BAR_HEIGHT: f32 = 0.055;
 const HEALTH_BAR_THICK: f32 = 0.020;
 /// Y offset above the character mesh top.
 const HEALTH_BAR_Y_ABOVE: f32 = 0.12;
+/// Rotation (radians around Y) to align the bar horizontally in the isometric view.
+/// Camera right direction is (1,0,-1)/√2; rotating X axis by +45° achieves this.
+const HEALTH_BAR_ROTATION: f32 = std::f32::consts::FRAC_PI_4;
 
 /// Marker for character visual entities: links GUI entity to its game entity.
 #[derive(Component, Clone)]
@@ -77,7 +80,11 @@ impl Plugin for CharacterVisualsPlugin {
             )
             .add_systems(
                 OnEnter(AppState::Battle),
-                (spawn_battle_chars, spawn_hover_outline, spawn_char_kind_labels),
+                (
+                    spawn_battle_chars,
+                    spawn_hover_outline,
+                    spawn_char_kind_labels,
+                ),
             )
             .add_systems(
                 OnExit(AppState::Battle),
@@ -246,8 +253,14 @@ fn spawn_health_bar(
     let bar_y = world_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE;
     let bg_pos = Vec3::new(world_pos.x, bar_y, world_pos.z);
 
+    let bar_rotation = Quat::from_rotation_y(HEALTH_BAR_ROTATION);
+
     // Background (dark).
-    let bg_mesh = meshes.add(Cuboid::new(HEALTH_BAR_WIDTH, HEALTH_BAR_THICK, HEALTH_BAR_HEIGHT));
+    let bg_mesh = meshes.add(Cuboid::new(
+        HEALTH_BAR_WIDTH,
+        HEALTH_BAR_THICK,
+        HEALTH_BAR_HEIGHT,
+    ));
     let bg_mat = materials.add(StandardMaterial {
         base_color: Color::srgb(0.15, 0.15, 0.15),
         unlit: true,
@@ -257,7 +270,7 @@ fn spawn_health_bar(
         HealthBarBg(game_entity),
         Mesh3d(bg_mesh),
         MeshMaterial3d(bg_mat),
-        Transform::from_translation(bg_pos),
+        Transform::from_translation(bg_pos).with_rotation(bar_rotation),
         GlobalTransform::default(),
     ));
 
@@ -267,7 +280,11 @@ fn spawn_health_bar(
     } else {
         Color::srgb(0.85, 0.15, 0.15)
     };
-    let fill_mesh = meshes.add(Cuboid::new(HEALTH_BAR_WIDTH, HEALTH_BAR_THICK, HEALTH_BAR_HEIGHT));
+    let fill_mesh = meshes.add(Cuboid::new(
+        HEALTH_BAR_WIDTH,
+        HEALTH_BAR_THICK,
+        HEALTH_BAR_HEIGHT,
+    ));
     let fill_mat = materials.add(StandardMaterial {
         base_color: fill_color,
         unlit: true,
@@ -277,7 +294,7 @@ fn spawn_health_bar(
         HealthBarFill(game_entity),
         Mesh3d(fill_mesh),
         MeshMaterial3d(fill_mat),
-        Transform::from_translation(bg_pos),
+        Transform::from_translation(bg_pos).with_rotation(bar_rotation),
         GlobalTransform::default(),
     ));
 }
@@ -289,7 +306,7 @@ fn detect_player_move(
     mut char_q: Query<(Entity, &mut CharacterVisual)>,
     mut commands: Commands,
 ) {
-    let GamePhase::Exploration(state) = &session.0.phase else {
+    let GamePhase::Exploration(_) = &session.0.phase else {
         return;
     };
     let world = &session.0.world;
@@ -303,22 +320,11 @@ fn detect_player_move(
         }
         cv.last_grid = new_grid;
         let target = world_pos_for_grid(pos.x, pos.y) + Vec3::Y * char_y_offset();
-        let face_after = nearest_npc_world_pos(&state.npcs, pos.x, pos.y);
-        commands
-            .entity(entity)
-            .insert(CharacterMoveAnim { target, face_after });
+        commands.entity(entity).insert(CharacterMoveAnim {
+            target,
+            face_after: None,
+        });
     }
-}
-
-/// Return the world-space floor position of the NPC nearest to (from_x, from_y).
-fn nearest_npc_world_pos(npcs: &[NpcData], from_x: i32, from_y: i32) -> Option<Vec3> {
-    npcs.iter()
-        .min_by_key(|n| {
-            let dx = n.pos.0 - from_x;
-            let dy = n.pos.1 - from_y;
-            dx * dx + dy * dy
-        })
-        .map(|n| world_pos_for_grid(n.pos.0, n.pos.1))
 }
 
 /// Rotation angle (around Y) to make the mesh face toward `dir` in the XZ plane.
@@ -403,9 +409,10 @@ fn detect_battle_move(
         }
         cv.last_grid = new_grid;
         let target = world_pos_for_grid(pos.x, pos.y);
-        commands
-            .entity(entity)
-            .insert(CharacterMoveAnim { target, face_after: None });
+        commands.entity(entity).insert(CharacterMoveAnim {
+            target,
+            face_after: None,
+        });
     }
 }
 
@@ -421,7 +428,15 @@ fn spawn_battle_chars(
     let mut q = world.query::<(bevy::ecs::entity::Entity, &Character, &Position, &Health)>();
     let chars: Vec<_> = q
         .iter(world)
-        .map(|(e, c, p, h)| (e, c.kind.clone(), c.kind.is_player(), (p.x, p.y), h.is_alive()))
+        .map(|(e, c, p, h)| {
+            (
+                e,
+                c.kind.clone(),
+                c.kind.is_player(),
+                (p.x, p.y),
+                h.is_alive(),
+            )
+        })
         .collect();
     for (entity, kind, is_player, (gx, gy), alive) in chars {
         let color = if alive {
@@ -429,9 +444,24 @@ fn spawn_battle_chars(
         } else {
             dead_color()
         };
-        spawn_char_box(&mut commands, &mut meshes, &mut materials, entity, gx, gy, color);
+        spawn_char_box(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            entity,
+            gx,
+            gy,
+            color,
+        );
         let world_pos = world_pos_for_grid(gx, gy);
-        spawn_health_bar(&mut commands, &mut meshes, &mut materials, entity, world_pos, is_player);
+        spawn_health_bar(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            entity,
+            world_pos,
+            is_player,
+        );
     }
 }
 
@@ -439,7 +469,10 @@ fn spawn_battle_chars(
 
 fn sync_battle_chars(
     session: Res<GameSessionRes>,
-    mut char_q: Query<(&CharacterVisual, &mut Transform, &mut Visibility), Without<CharacterMoveAnim>>,
+    mut char_q: Query<
+        (&CharacterVisual, &mut Transform, &mut Visibility),
+        Without<CharacterMoveAnim>,
+    >,
 ) {
     let world = &session.0.world;
     for (cv, mut transform, mut vis) in &mut char_q {
@@ -543,6 +576,10 @@ fn sync_health_bars(
         .map(|(cv, t)| (cv.game_entity, t.translation))
         .collect();
 
+    let bar_rotation = Quat::from_rotation_y(HEALTH_BAR_ROTATION);
+    // Bar direction in world space after rotation: (1,0,-1)/√2.
+    let bar_dir = Vec3::new(1.0, 0.0, -1.0) * std::f32::consts::FRAC_1_SQRT_2;
+
     // Update background positions.
     for (bg, mut transform, mut vis) in &mut bg_q {
         let game_entity = bg.0;
@@ -559,11 +596,9 @@ fn sync_health_bars(
             continue;
         }
         *vis = Visibility::Inherited;
-        transform.translation = Vec3::new(
-            char_pos.x,
-            char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE,
-            char_pos.z,
-        );
+        let bar_y = char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE;
+        transform.translation = Vec3::new(char_pos.x, bar_y, char_pos.z);
+        transform.rotation = bar_rotation;
     }
 
     // Update fill scale and position.
@@ -589,9 +624,11 @@ fn sync_health_bars(
             0.0
         };
         let bar_y = char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE;
-        // Left-align the fill: center x shifts left as fraction decreases.
-        let fill_x = char_pos.x + HEALTH_BAR_WIDTH * (fraction - 1.0) / 2.0;
-        transform.translation = Vec3::new(fill_x, bar_y, char_pos.z);
+        // Left-align along bar_dir: shift center toward the "left" end.
+        let center = Vec3::new(char_pos.x, bar_y, char_pos.z);
+        let fill_center = center + bar_dir * (HEALTH_BAR_WIDTH * (fraction - 1.0) / 2.0);
+        transform.translation = fill_center;
+        transform.rotation = bar_rotation;
         transform.scale = Vec3::new(fraction.max(0.001), 1.0, 1.0);
     }
 }
@@ -694,10 +731,7 @@ fn despawn_hover_outline(mut commands: Commands, q: Query<Entity, With<HoverChar
 
 // ── Character kind / level labels ─────────────────────────────────────────────
 
-fn spawn_char_kind_labels(
-    mut commands: Commands,
-    mut session: ResMut<GameSessionRes>,
-) {
+fn spawn_char_kind_labels(mut commands: Commands, mut session: ResMut<GameSessionRes>) {
     let world = &mut session.0.world;
     let mut q = world.query::<(bevy::ecs::entity::Entity, &Character)>();
     let chars: Vec<_> = q
@@ -735,10 +769,9 @@ fn update_char_kind_labels(
     let Ok((cam, cam_transform)) = camera_q.single() else {
         return;
     };
-    let Ok(window) = windows.single() else {
+    let Ok(_window) = windows.single() else {
         return;
     };
-    let window_height = window.height();
     let world = &session.0.world;
 
     // Build map from game_entity → visual transform.
@@ -768,9 +801,8 @@ fn update_char_kind_labels(
             char_pos.z,
         );
         if let Ok(screen_pos) = cam.world_to_viewport(cam_transform, label_world_pos) {
-            // Bevy UI: top is from top of screen, so invert Y.
             node.left = Val::Px(screen_pos.x - 30.0);
-            node.top = Val::Px(window_height - screen_pos.y - 8.0);
+            node.top = Val::Px(screen_pos.y - 8.0);
             *vis = Visibility::Inherited;
         } else {
             *vis = Visibility::Hidden;

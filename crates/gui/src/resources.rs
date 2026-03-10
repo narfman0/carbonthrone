@@ -67,3 +67,11 @@ pub struct SelectedChoiceIndex(pub Option<usize>);
 /// Stores the name of the ability awaiting a target.
 #[derive(Resource, Default)]
 pub struct PendingAbilityTarget(pub Option<&'static str>);
+
+/// Queued exploration movement path (grid positions to step through).
+#[derive(Resource, Default)]
+pub struct PendingExplorationPath(pub Vec<(i32, i32)>);
+
+/// Queued battle movement path (grid positions to step through after AP has been charged).
+#[derive(Resource, Default)]
+pub struct PendingBattlePath(pub Vec<(i32, i32)>);

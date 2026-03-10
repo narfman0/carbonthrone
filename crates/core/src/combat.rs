@@ -287,6 +287,13 @@ impl BattleStep {
                     outcome: Some(outcome),
                 };
             }
+            // Return after side switch so the new side's input mechanism handles it.
+            return TurnEvent {
+                actor: None,
+                turn: self.turn,
+                actions: vec![],
+                outcome: None,
+            };
         }
 
         let Some(actor) = self.actor_queue.pop_front() else {
@@ -540,8 +547,8 @@ fn choose_scripted_action(world: &mut World, actor: Entity, turn: Turn) -> Optio
             best_adjacent_target(&target_positions, actor_pos)
         }
         AbilityKind::Ranged => best_attack_target(world, actor, turn),
-        // Utility abilities are self-targeted (target = None handled by apply_ability).
-        AbilityKind::Utility => None,
+        // RangedAlly and Utility are not used by scripted actions.
+        AbilityKind::RangedAlly | AbilityKind::Utility => None,
     };
 
     // For targeted abilities that need a target, skip if none available.

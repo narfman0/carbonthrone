@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use bevy::prelude::Resource;
 use rand::Rng;
@@ -136,6 +136,63 @@ impl LevelMap {
                 self.cover.insert((x, y), dc);
             }
         }
+    }
+
+    /// BFS pathfinding from `from` to `to`, avoiding non-passable tiles and `occupied` positions.
+    /// Returns the path (excluding `from`, including `to`) or an empty vec if unreachable.
+    pub fn bfs_path(
+        &self,
+        from: (i32, i32),
+        to: (i32, i32),
+        occupied: &HashSet<(i32, i32)>,
+    ) -> Vec<(i32, i32)> {
+        if from == to {
+            return vec![];
+        }
+        let mut visited: HashMap<(i32, i32), (i32, i32)> = HashMap::new();
+        let mut queue: VecDeque<(i32, i32)> = VecDeque::new();
+        visited.insert(from, from);
+        queue.push_back(from);
+        let cols = self.cols as i32;
+        let rows = self.rows as i32;
+        while let Some(cur) = queue.pop_front() {
+            if cur == to {
+                // Reconstruct path.
+                let mut path = vec![cur];
+                let mut prev = cur;
+                loop {
+                    let p = visited[&prev];
+                    if p == from {
+                        break;
+                    }
+                    path.push(p);
+                    prev = p;
+                }
+                path.reverse();
+                return path;
+            }
+            for (dx, dy) in [(0, 1), (0, -1), (1, 0), (-1, 0)] {
+                let nx = cur.0 + dx;
+                let ny = cur.1 + dy;
+                if nx < 0 || ny < 0 || nx >= cols || ny >= rows {
+                    continue;
+                }
+                let next = (nx, ny);
+                if visited.contains_key(&next) {
+                    continue;
+                }
+                if !self.is_passable(nx, ny) {
+                    continue;
+                }
+                // Allow the destination even if occupied (player moves there).
+                if next != to && occupied.contains(&next) {
+                    continue;
+                }
+                visited.insert(next, cur);
+                queue.push_back(next);
+            }
+        }
+        vec![]
     }
 
     /// Terminal character for rendering, including cover hints:

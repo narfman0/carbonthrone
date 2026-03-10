@@ -1,17 +1,25 @@
+use std::collections::HashSet;
+
 use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
+    action_points::ActionPoints,
+    character::Character,
     game::GamePhase,
+    health::Health,
     player_input::PlayerActionChoice,
     position::Position,
+    stats::Stats,
     terrain::LevelMap,
+    turn::{MOVE_AP_COST, move_range_per_ap},
 };
 
 use super::{
     camera::IsometricCamera,
+    character_visuals::CharacterMoveAnim,
     grid::world_to_grid,
     resources::{
-        ExplorationRng, GameSessionRes, PendingAbilityTarget, PendingPlayerChoices,
-        SelectedChoiceIndex,
+        ExplorationRng, GameSessionRes, PendingAbilityTarget, PendingBattlePath,
+        PendingExplorationPath, PendingPlayerChoices, SelectedChoiceIndex,
     },
     state::AppState,
 };
@@ -24,11 +32,13 @@ impl Plugin for InputPlugin {
             Update,
             (
                 right_click_navigate.run_if(in_state(AppState::Exploration)),
+                advance_exploration_path.run_if(in_state(AppState::Exploration)),
                 left_click_npc.run_if(in_state(AppState::Exploration)),
                 advance_dialog_click.run_if(in_state(AppState::Dialog)),
                 apply_player_choice.run_if(in_state(AppState::Battle)),
                 left_click_ability_target.run_if(in_state(AppState::Battle)),
                 right_click_battle_move.run_if(in_state(AppState::Battle)),
+                advance_battle_path.run_if(in_state(AppState::Battle)),
                 auto_advance_enemy_turn.run_if(in_state(AppState::Battle)),
             ),
         );
@@ -73,8 +83,8 @@ fn right_click_navigate(
     mouse: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
-    mut session: ResMut<GameSessionRes>,
-    mut rng: ResMut<ExplorationRng>,
+    session: Res<GameSessionRes>,
+    mut path: ResMut<PendingExplorationPath>,
 ) {
     if !mouse.just_pressed(MouseButton::Right) {
         return;
@@ -83,24 +93,65 @@ fn right_click_navigate(
         return;
     };
 
-    // Read player position.
     let GamePhase::Exploration(state) = &session.0.phase else {
         return;
     };
     let world = &session.0.world;
     let player_pos = world
-        .get::<carbonthrone::position::Position>(state.player_entity)
+        .get::<Position>(state.player_entity)
         .copied()
-        .unwrap_or(carbonthrone::position::Position::new(0, 0));
+        .unwrap_or(Position::new(0, 0));
 
-    let dx = (gx - player_pos.x).signum();
-    let dy = (gy - player_pos.y).signum();
-
-    if dx == 0 && dy == 0 {
+    if player_pos.x == gx && player_pos.y == gy {
         return;
     }
 
-    session.0.move_player(dx, dy, &mut rng.0);
+    // Compute BFS path through the exploration map.
+    let npc_occupied: HashSet<(i32, i32)> = state.npcs.iter().map(|n| n.pos).collect();
+    let bfs = state
+        .zone
+        .map
+        .bfs_path((player_pos.x, player_pos.y), (gx, gy), &npc_occupied);
+    if !bfs.is_empty() {
+        path.0 = bfs;
+    }
+}
+
+/// Consumes one step of the pending exploration path per frame (when not animating).
+fn advance_exploration_path(
+    session: Res<GameSessionRes>,
+    mut path: ResMut<PendingExplorationPath>,
+    mut rng: ResMut<ExplorationRng>,
+    anim_q: Query<(), With<CharacterMoveAnim>>,
+    mut session_mut: ResMut<GameSessionRes>,
+) {
+    if path.0.is_empty() {
+        return;
+    }
+    // Wait until the player entity is no longer animating.
+    if !anim_q.is_empty() {
+        return;
+    }
+    // Get current player position.
+    let (px, py) = {
+        let GamePhase::Exploration(state) = &session.0.phase else {
+            path.0.clear();
+            return;
+        };
+        let world = &session.0.world;
+        let pos = world
+            .get::<Position>(state.player_entity)
+            .copied()
+            .unwrap_or(Position::new(0, 0));
+        (pos.x, pos.y)
+    };
+
+    let next = path.0.remove(0);
+    let dx = (next.0 - px).signum();
+    let dy = (next.1 - py).signum();
+    if dx != 0 || dy != 0 {
+        session_mut.0.move_player(dx, dy, &mut rng.0);
+    }
 }
 
 // ── Exploration: left-click NPC to start dialog ───────────────────────────────
@@ -191,7 +242,12 @@ fn left_click_ability_target(
 
     let world = &session.0.world;
     let found_idx = choices_res.choices.iter().enumerate().find_map(|(i, c)| {
-        if let PlayerActionChoice::UseAbility { ability, target: Some(t), .. } = c {
+        if let PlayerActionChoice::UseAbility {
+            ability,
+            target: Some(t),
+            ..
+        } = c
+        {
             if ability.name == ability_name {
                 let pos = world.get::<Position>(*t)?;
                 if pos.x == gx && pos.y == gy {
@@ -214,10 +270,10 @@ fn right_click_battle_move(
     windows: Query<&Window, With<PrimaryWindow>>,
     camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
     mut session: ResMut<GameSessionRes>,
-    mut choices_res: ResMut<PendingPlayerChoices>,
+    mut battle_path: ResMut<PendingBattlePath>,
     targeting: Res<PendingAbilityTarget>,
 ) {
-    // Don't process movement right-click when in targeting mode (handled by left_click_ability_target).
+    // Don't process movement right-click when in targeting mode.
     if targeting.0.is_some() {
         return;
     }
@@ -229,7 +285,7 @@ fn right_click_battle_move(
     };
 
     let s = &mut session.0;
-    let Some(battle) = s.battle.as_mut() else {
+    let Some(battle) = s.battle.as_ref() else {
         return;
     };
     if battle.turn != carbonthrone::combat::Turn::Player {
@@ -239,19 +295,91 @@ fn right_click_battle_move(
         return;
     };
 
-    // Verify the tile is passable and not occupied.
-    {
-        let map = s.world.get_resource::<LevelMap>();
-        let Some(map) = map else { return };
+    let Some(actor_pos) = s.world.get::<Position>(actor).copied() else {
+        return;
+    };
+    if actor_pos.x == gx && actor_pos.y == gy {
+        return;
+    }
+
+    // Build set of occupied positions (all living combatants except actor).
+    let occupied: HashSet<(i32, i32)> = {
+        let mut q = s.world.query::<(&Character, &Position, &Health)>();
+        q.iter(&s.world)
+            .filter(|(_, _, h)| h.is_alive())
+            .map(|(_, p, _)| (p.x, p.y))
+            .filter(|&pos| pos != (actor_pos.x, actor_pos.y))
+            .collect()
+    };
+
+    let path = {
+        let Some(map) = s.world.get_resource::<LevelMap>() else {
+            return;
+        };
         if !map.is_passable(gx, gy) {
             return;
         }
+        map.bfs_path((actor_pos.x, actor_pos.y), (gx, gy), &occupied)
+    };
+
+    if path.is_empty() {
+        return;
     }
 
-    // Build the move choice and execute it.
+    // Check total AP cost for the path.
+    let speed = s.world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
+    let range = move_range_per_ap(speed);
+    let path_len = path.len() as i32;
+    let total_cost = MOVE_AP_COST * ((path_len + range - 1) / range.max(1));
+    let current_ap = s
+        .world
+        .get::<ActionPoints>(actor)
+        .map(|a| a.current)
+        .unwrap_or(0);
+    if current_ap < total_cost {
+        // Truncate path to what AP allows.
+        let max_tiles = current_ap * range;
+        let truncated: Vec<(i32, i32)> = path.into_iter().take(max_tiles as usize).collect();
+        if !truncated.is_empty() {
+            battle_path.0 = truncated;
+        }
+    } else {
+        battle_path.0 = path;
+    }
+}
+
+/// Executes one step of the battle movement path per frame when not animating.
+fn advance_battle_path(
+    mut session: ResMut<GameSessionRes>,
+    mut battle_path: ResMut<PendingBattlePath>,
+    mut choices_res: ResMut<PendingPlayerChoices>,
+    anim_q: Query<(), With<CharacterMoveAnim>>,
+) {
+    if battle_path.0.is_empty() {
+        return;
+    }
+    if !anim_q.is_empty() {
+        return;
+    }
+
+    let s = &mut session.0;
+    let Some(battle) = s.battle.as_mut() else {
+        battle_path.0.clear();
+        return;
+    };
+    if battle.turn != carbonthrone::combat::Turn::Player {
+        battle_path.0.clear();
+        return;
+    }
+    let Some(actor) = battle.current_actor() else {
+        battle_path.0.clear();
+        return;
+    };
+
+    let next = battle_path.0.remove(0);
     let choice = PlayerActionChoice::Move {
-        destination: Position::new(gx, gy),
-        ap_cost: 0, // ap_cost is cosmetic; apply_action computes the real cost
+        destination: Position::new(next.0, next.1),
+        ap_cost: 0,
     };
     let result = battle.step_player_action(&mut s.world, &choice);
     if result.actor == actor {
@@ -262,6 +390,12 @@ fn right_click_battle_move(
             outcome: result.outcome,
         });
         choices_res.needs_refresh = true;
+        // If turn ended (AP exhausted), clear the path.
+        if result.turn_ended {
+            battle_path.0.clear();
+        }
+    } else {
+        battle_path.0.clear();
     }
 }
 

@@ -19,6 +19,9 @@ impl Plugin for DialogPlugin {
 }
 
 #[derive(Component)]
+struct DialogZoneLabel;
+
+#[derive(Component)]
 struct DialogSpeakerLabel;
 
 #[derive(Component)]
@@ -51,6 +54,14 @@ fn spawn_dialog_panel(mut commands: Commands) {
             panel_bg(),
         ))
         .with_children(|parent| {
+            // Zone label (top-right of dialog panel).
+            parent.spawn((
+                DialogZoneLabel,
+                Text::new(""),
+                text_font(11.0),
+                TextColor(Color::srgb(0.6, 0.6, 0.6)),
+            ));
+
             // Speaker name.
             parent.spawn((
                 DialogSpeakerLabel,
@@ -101,8 +112,30 @@ fn spawn_dialog_panel(mut commands: Commands) {
 
 fn update_dialog_text(
     session: Res<GameSessionRes>,
-    mut speaker_q: Query<&mut Text, (With<DialogSpeakerLabel>, Without<DialogTextLabel>)>,
-    mut text_q: Query<&mut Text, (With<DialogTextLabel>, Without<DialogSpeakerLabel>)>,
+    mut zone_q: Query<
+        &mut Text,
+        (
+            With<DialogZoneLabel>,
+            Without<DialogSpeakerLabel>,
+            Without<DialogTextLabel>,
+        ),
+    >,
+    mut speaker_q: Query<
+        &mut Text,
+        (
+            With<DialogSpeakerLabel>,
+            Without<DialogZoneLabel>,
+            Without<DialogTextLabel>,
+        ),
+    >,
+    mut text_q: Query<
+        &mut Text,
+        (
+            With<DialogTextLabel>,
+            Without<DialogZoneLabel>,
+            Without<DialogSpeakerLabel>,
+        ),
+    >,
     mut continue_q: Query<&mut Visibility, With<ContinueButton>>,
     choices_container_q: Query<Entity, With<DialogChoicesContainer>>,
     mut commands: Commands,
@@ -113,6 +146,11 @@ fn update_dialog_text(
     let GamePhase::Exploration(state) = &session.0.phase else {
         return;
     };
+
+    // Update zone label.
+    if let Ok(mut t) = zone_q.single_mut() {
+        *t = Text::new(format!("[{}]", state.zone.kind.location_id()));
+    }
 
     // Update speaker + text.
     if let Some((speaker, text)) = state.scene_lines.get(state.line_index) {
