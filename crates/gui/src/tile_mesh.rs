@@ -9,7 +9,9 @@ use carbonthrone::{
 };
 
 use super::camera::IsometricCamera;
-use super::grid::{DOOR_HEIGHT, FLOOR_HEIGHT, OBSTACLE_HEIGHT, TILE_SIZE, grid_to_world, world_to_grid};
+use super::grid::{
+    DOOR_HEIGHT, FLOOR_HEIGHT, OBSTACLE_HEIGHT, TILE_SIZE, grid_to_world, world_to_grid,
+};
 use super::resources::{GameSessionRes, PendingPlayerChoices};
 use super::state::AppState;
 
@@ -33,18 +35,23 @@ impl Plugin for TilePlugin {
             .add_systems(OnExit(AppState::Exploration), despawn_tile_visuals)
             .add_systems(
                 OnEnter(AppState::Battle),
-                (spawn_battle_tiles, spawn_battle_overlays, spawn_cursor_highlight),
+                (
+                    spawn_battle_tiles,
+                    spawn_battle_overlays,
+                    spawn_cursor_highlight,
+                ),
             )
             .add_systems(
                 OnExit(AppState::Battle),
-                (despawn_tile_visuals, despawn_battle_overlays, despawn_cursor_highlight),
+                (
+                    despawn_tile_visuals,
+                    despawn_battle_overlays,
+                    despawn_cursor_highlight,
+                ),
             )
             .add_systems(
                 Update,
-                (
-                    refresh_battle_overlays,
-                    update_cursor_highlight,
-                )
+                (refresh_battle_overlays, update_cursor_highlight)
                     .run_if(in_state(AppState::Battle)),
             );
     }
@@ -327,10 +334,7 @@ fn update_cursor_highlight(
     *visibility = Visibility::Inherited;
 }
 
-fn despawn_cursor_highlight(
-    mut commands: Commands,
-    q: Query<Entity, With<BattleCursorHighlight>>,
-) {
+fn despawn_cursor_highlight(mut commands: Commands, q: Query<Entity, With<BattleCursorHighlight>>) {
     for e in &q {
         commands.entity(e).despawn();
     }

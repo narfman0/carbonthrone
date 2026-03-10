@@ -90,8 +90,8 @@ fn auto_pass_zero_ap(
     if selected.0.is_some() {
         return;
     }
-    let only_pass = choices.choices.len() == 1
-        && matches!(choices.choices[0], PlayerActionChoice::Pass);
+    let only_pass =
+        choices.choices.len() == 1 && matches!(choices.choices[0], PlayerActionChoice::Pass);
     if only_pass {
         selected.0 = Some(0);
     }

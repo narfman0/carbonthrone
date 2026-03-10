@@ -699,8 +699,13 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
             let stats = character.stats.clone();
             let hp = character.current_hp;
             let ap_max = ap_for_speed(stats.speed);
-            let mut entity_cmd =
-                world.spawn((character, stats, Health::new(hp), ActionPoints::new(ap_max), pos));
+            let mut entity_cmd = world.spawn((
+                character,
+                stats,
+                Health::new(hp),
+                ActionPoints::new(ap_max),
+                pos,
+            ));
             if let Some(ability_name) = placement.first_ability {
                 entity_cmd.insert(ScriptedFirstAction {
                     ability_name,
@@ -713,7 +718,13 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
             let stats = character.stats.clone();
             let hp = character.current_hp;
             let ap_max = ap_for_speed(stats.speed);
-            world.spawn((character, stats, Health::new(hp), ActionPoints::new(ap_max), pos));
+            world.spawn((
+                character,
+                stats,
+                Health::new(hp),
+                ActionPoints::new(ap_max),
+                pos,
+            ));
         }
     }
 
