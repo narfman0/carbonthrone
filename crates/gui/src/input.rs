@@ -352,17 +352,7 @@ fn advance_combat_path(
     if combat_path.path.is_empty() {
         let ap_cost = combat_path.total_ap_cost;
         let final_pos = Position::new(next.0, next.1);
-        let is_player = session
-            .0
-            .battle
-            .as_ref()
-            .map(|b| b.turn == Turn::Player)
-            .unwrap_or(false);
-        if is_player {
-            session.0.finalize_player_move(actor, ap_cost, final_pos);
-        } else {
-            session.0.finalize_enemy_move(actor, ap_cost, final_pos);
-        }
+        session.0.finalize_character_move(actor, ap_cost, final_pos);
         combat_path.actor = None;
     }
 }

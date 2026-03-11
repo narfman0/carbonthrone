@@ -522,50 +522,41 @@ impl GameSession {
         }
     }
 
-    /// Finalize a completed player animated move path: charge AP and end the turn if exhausted.
-    pub fn finalize_player_move(&mut self, actor: Entity, ap_cost: i32, final_pos: Position) {
+    /// Finalize a completed animated move path for any combatant: charge AP and end the turn if
+    /// exhausted. Branches on the current battle turn to apply the correct queue-advance logic.
+    pub fn finalize_character_move(&mut self, actor: Entity, ap_cost: i32, final_pos: Position) {
         use crate::combat::{Turn, TurnEvent};
         use crate::player_input::PlayerActionChoice;
         use crate::turn::TurnAction;
-        if let Some(mut ap) = self.world.get_mut::<ActionPoints>(actor) {
-            ap.spend(ap_cost);
-        }
-        let ap_remaining = self
-            .world
-            .get::<ActionPoints>(actor)
-            .map(|a| a.current)
-            .unwrap_or(0);
-        let outcome = if ap_remaining == 0 {
-            let result = self
+        let turn = self.battle.as_ref().map(|b| b.turn).unwrap_or(Turn::Player);
+        let outcome = match turn {
+            Turn::Player => {
+                if let Some(mut ap) = self.world.get_mut::<ActionPoints>(actor) {
+                    ap.spend(ap_cost);
+                }
+                let ap_remaining = self
+                    .world
+                    .get::<ActionPoints>(actor)
+                    .map(|a| a.current)
+                    .unwrap_or(0);
+                if ap_remaining == 0 {
+                    self.battle
+                        .as_mut()
+                        .unwrap()
+                        .step_player_action(&mut self.world, &PlayerActionChoice::Pass)
+                        .outcome
+                } else {
+                    None
+                }
+            }
+            Turn::Enemy => self
                 .battle
                 .as_mut()
-                .unwrap()
-                .step_player_action(&mut self.world, &PlayerActionChoice::Pass);
-            result.outcome
-        } else {
-            None
+                .and_then(|b| b.charge_enemy_move_ap(&mut self.world, ap_cost).1),
         };
         self.last_event = Some(TurnEvent {
             actor: Some(actor),
-            turn: Turn::Player,
-            actions: vec![TurnAction::Move { to: final_pos }],
-            outcome,
-        });
-    }
-
-    /// Finalize a completed enemy animated move path: charge AP via `BattleStep`.
-    pub fn finalize_enemy_move(&mut self, actor: Entity, ap_cost: i32, final_pos: Position) {
-        use crate::combat::{Turn, TurnEvent};
-        use crate::turn::TurnAction;
-        let outcome = if let Some(battle) = self.battle.as_mut() {
-            let (_, outcome) = battle.charge_enemy_move_ap(&mut self.world, ap_cost);
-            outcome
-        } else {
-            None
-        };
-        self.last_event = Some(TurnEvent {
-            actor: Some(actor),
-            turn: Turn::Enemy,
+            turn,
             actions: vec![TurnAction::Move { to: final_pos }],
             outcome,
         });
