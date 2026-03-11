@@ -3,11 +3,12 @@ use std::collections::HashSet;
 use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
     action_points::ActionPoints,
+    combat::Turn,
     game::GamePhase,
     player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
-    turn::{Action, TurnAction, bfs_move_path, move_ap_cost, move_range_per_ap},
+    turn::{Action, bfs_move_path, move_ap_cost, truncate_path_to_ap},
 };
 
 use super::{
@@ -15,7 +16,7 @@ use super::{
     character_visuals::CharacterMoveAnim,
     grid::world_to_grid,
     resources::{
-        ExplorationRng, GameSessionRes, PendingAbilityTarget, PendingBattlePath, PendingEnemyPath,
+        ExplorationRng, GameSessionRes, PendingAbilityTarget, PendingCombatPath,
         PendingExplorationPath, PendingPlayerChoices, SelectedChoiceIndex,
     },
     state::AppState,
@@ -35,8 +36,7 @@ impl Plugin for InputPlugin {
                 apply_player_choice.run_if(in_state(AppState::Battle)),
                 left_click_ability_target.run_if(in_state(AppState::Battle)),
                 right_click_battle_move.run_if(in_state(AppState::Battle)),
-                advance_battle_path.run_if(in_state(AppState::Battle)),
-                advance_enemy_path.run_if(in_state(AppState::Battle)),
+                advance_combat_path.run_if(in_state(AppState::Battle)),
                 auto_advance_enemy_turn.run_if(in_state(AppState::Battle)),
             ),
         );
@@ -267,7 +267,7 @@ fn right_click_battle_move(
     windows: Query<&Window, With<PrimaryWindow>>,
     camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
     mut session: ResMut<GameSessionRes>,
-    mut battle_path: ResMut<PendingBattlePath>,
+    mut combat_path: ResMut<PendingCombatPath>,
     targeting: Res<PendingAbilityTarget>,
 ) {
     // Don't process movement right-click when in targeting mode.
@@ -285,7 +285,7 @@ fn right_click_battle_move(
     let Some(battle) = s.battle.as_ref() else {
         return;
     };
-    if battle.turn != carbonthrone::combat::Turn::Player {
+    if battle.turn != Turn::Player {
         return;
     }
     let Some(actor) = battle.current_actor() else {
@@ -305,105 +305,63 @@ fn right_click_battle_move(
     }
 
     let speed = s.world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
-    let total_cost = move_ap_cost(path.len() as i32, speed);
     let current_ap = s
         .world
         .get::<ActionPoints>(actor)
         .map(|a| a.current)
         .unwrap_or(0);
-    if current_ap < total_cost {
-        // Truncate path to what AP allows.
-        let max_tiles = current_ap * move_range_per_ap(speed);
-        let truncated: Vec<(i32, i32)> = path.into_iter().take(max_tiles as usize).collect();
-        if !truncated.is_empty() {
-            let actual_cost = move_ap_cost(truncated.len() as i32, speed);
-            battle_path.path = truncated;
-            battle_path.total_ap_cost = actual_cost;
-        }
-    } else {
-        battle_path.path = path;
-        battle_path.total_ap_cost = total_cost;
+    let (path, cost) = truncate_path_to_ap(path, current_ap, speed);
+    if !path.is_empty() {
+        combat_path.path = path;
+        combat_path.actor = Some(actor);
+        combat_path.total_ap_cost = cost;
     }
 }
 
-/// Executes one step of the battle movement path per frame when not animating.
-/// AP is deducted all at once when the full path completes (not per tile).
-fn advance_battle_path(
+/// Executes one step of the pending combat movement path per frame when not animating.
+/// Works for both player and enemy moves. AP is deducted all at once when the full path completes.
+fn advance_combat_path(
     mut session: ResMut<GameSessionRes>,
-    mut battle_path: ResMut<PendingBattlePath>,
+    mut combat_path: ResMut<PendingCombatPath>,
     mut choices_res: ResMut<PendingPlayerChoices>,
     anim_q: Query<(), With<CharacterMoveAnim>>,
 ) {
-    if battle_path.path.is_empty() {
+    if combat_path.path.is_empty() {
+        return;
+    }
+    if session.0.battle_over() {
+        combat_path.path.clear();
+        combat_path.actor = None;
         return;
     }
     if !anim_q.is_empty() {
         return;
     }
 
-    let s = &mut session.0;
-
-    // Validate it is still the player's turn and get the current actor.
-    let actor = {
-        let Some(battle) = s.battle.as_ref() else {
-            battle_path.path.clear();
-            return;
-        };
-        if battle.turn != carbonthrone::combat::Turn::Player {
-            battle_path.path.clear();
-            return;
-        }
-        let Some(actor) = battle.current_actor() else {
-            battle_path.path.clear();
-            return;
-        };
-        actor
+    let Some(actor) = combat_path.actor else {
+        combat_path.path.clear();
+        return;
     };
 
-    let next = battle_path.path.remove(0);
-
-    // Move position directly — no per-tile AP cost.
-    if let Some(mut pos) = s.world.get_mut::<Position>(actor) {
-        *pos = Position::new(next.0, next.1);
-    }
-
+    let next = combat_path.path.remove(0);
+    session.0.step_combat_tile(actor, next);
     choices_res.needs_refresh = true;
 
-    // When the full path is complete, deduct the total AP cost once.
-    if battle_path.path.is_empty() {
-        let total_cost = battle_path.total_ap_cost;
-        if let Some(mut ap) = s.world.get_mut::<ActionPoints>(actor) {
-            ap.spend(total_cost);
-        }
-
+    if combat_path.path.is_empty() {
+        let ap_cost = combat_path.total_ap_cost;
         let final_pos = Position::new(next.0, next.1);
-        let ap_remaining = s
-            .world
-            .get::<ActionPoints>(actor)
-            .map(|a| a.current)
-            .unwrap_or(0);
-
-        if ap_remaining == 0 {
-            // Formally end this actor's turn via Pass.
-            let result = s
-                .battle
-                .as_mut()
-                .unwrap()
-                .step_player_action(&mut s.world, &PlayerActionChoice::Pass);
-            s.last_event = Some(carbonthrone::combat::TurnEvent {
-                actor: Some(actor),
-                turn: carbonthrone::combat::Turn::Player,
-                actions: vec![TurnAction::Move { to: final_pos }],
-                outcome: result.outcome,
-            });
+        let is_player = session
+            .0
+            .battle
+            .as_ref()
+            .map(|b| b.turn == Turn::Player)
+            .unwrap_or(false);
+        if is_player {
+            session.0.finalize_player_move(actor, ap_cost, final_pos);
         } else {
-            s.last_event = Some(carbonthrone::combat::TurnEvent {
-                actor: Some(actor),
-                turn: carbonthrone::combat::Turn::Player,
-                actions: vec![TurnAction::Move { to: final_pos }],
-                outcome: None,
-            });
+            session.0.finalize_enemy_move(actor, ap_cost, final_pos);
         }
+        combat_path.actor = None;
     }
 }
 
@@ -437,69 +395,18 @@ fn apply_player_choice(
     }
 }
 
-// ── Combat: advance pending enemy BFS movement path ──────────────────────────
-
-/// Advances a queued enemy movement path one tile per frame (when not animating).
-/// AP is deducted in full once the path completes, matching player movement behaviour.
-fn advance_enemy_path(
-    mut session: ResMut<GameSessionRes>,
-    mut enemy_path: ResMut<PendingEnemyPath>,
-    mut choices_res: ResMut<PendingPlayerChoices>,
-    anim_q: Query<(), With<CharacterMoveAnim>>,
-) {
-    if enemy_path.path.is_empty() {
-        return;
-    }
-    // Abort if the battle is already decided.
-    if session.0.battle_over() {
-        enemy_path.path.clear();
-        enemy_path.actor = None;
-        return;
-    }
-    if !anim_q.is_empty() {
-        return;
-    }
-    let Some(actor) = enemy_path.actor else {
-        enemy_path.path.clear();
-        return;
-    };
-
-    let next = enemy_path.path.remove(0);
-    let s = &mut session.0;
-    if let Some(mut pos) = s.world.get_mut::<Position>(actor) {
-        *pos = Position::new(next.0, next.1);
-    }
-
-    // When the full path is done, deduct the total AP cost once.
-    if enemy_path.path.is_empty() {
-        let cost = enemy_path.total_ap_cost;
-        if let Some(battle) = s.battle.as_mut() {
-            let (_, outcome) = battle.charge_enemy_move_ap(&mut s.world, cost);
-            s.last_event = Some(carbonthrone::combat::TurnEvent {
-                actor: Some(actor),
-                turn: carbonthrone::combat::Turn::Enemy,
-                actions: vec![TurnAction::Move {
-                    to: Position::new(next.0, next.1),
-                }],
-                outcome,
-            });
-        }
-        choices_res.needs_refresh = true;
-    }
-}
-
 // ── Combat: auto-advance enemy turn ──────────────────────────────────────────
 
 fn auto_advance_enemy_turn(
     mut session: ResMut<GameSessionRes>,
     mut choices_res: ResMut<PendingPlayerChoices>,
-    mut enemy_path: ResMut<PendingEnemyPath>,
+    mut combat_path: ResMut<PendingCombatPath>,
     time: Res<Time>,
     mut enemy_turn_timer: Local<f32>,
     anim_q: Query<(), With<CharacterMoveAnim>>,
 ) {
     // Don't start a new action while a path is animating.
-    if !enemy_path.path.is_empty() {
+    if !combat_path.path.is_empty() {
         return;
     }
 
@@ -570,9 +477,9 @@ fn auto_advance_enemy_turn(
                     });
                 }
             } else {
-                enemy_path.path = path.clone();
-                enemy_path.actor = Some(actor);
-                enemy_path.total_ap_cost = move_ap_cost(path.len() as i32, speed);
+                combat_path.total_ap_cost = move_ap_cost(path.len() as i32, speed);
+                combat_path.actor = Some(actor);
+                combat_path.path = path;
             }
             choices_res.needs_refresh = true;
         }

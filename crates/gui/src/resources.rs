@@ -60,22 +60,13 @@ pub struct SelectedChoiceIndex(pub Option<usize>);
 #[derive(Resource, Default)]
 pub struct PendingAbilityTarget(pub Option<&'static str>);
 
-/// Queued exploration movement path (grid positions to step through).
+/// Queued movement path used in both exploration and combat.
+/// In combat, `actor` identifies who is moving and `total_ap_cost` is charged on completion.
+/// In exploration, only `path` is used.
 #[derive(Resource, Default)]
-pub struct PendingExplorationPath(pub Vec<(i32, i32)>);
-
-/// Queued battle movement path (grid positions to step through).
-/// AP is deducted all at once when the path completes.
-#[derive(Resource, Default)]
-pub struct PendingBattlePath {
+pub struct PendingPath {
     pub path: Vec<(i32, i32)>,
-    pub total_ap_cost: i32,
-}
-
-/// Queued enemy movement path — animates one tile per frame like player movement.
-#[derive(Resource, Default)]
-pub struct PendingEnemyPath {
-    pub path: Vec<(i32, i32)>,
+    /// The entity being moved. `None` during exploration (player is implicit).
     pub actor: Option<bevy::ecs::entity::Entity>,
     pub total_ap_cost: i32,
 }

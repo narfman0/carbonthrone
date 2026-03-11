@@ -514,6 +514,63 @@ impl GameSession {
         self.maybe_start_battle();
     }
 
+    /// Move `actor` to `next` during animated combat movement.
+    /// Shared for both player and enemy animated paths.
+    pub fn step_combat_tile(&mut self, actor: Entity, next: (i32, i32)) {
+        if let Some(mut pos) = self.world.get_mut::<Position>(actor) {
+            *pos = Position::new(next.0, next.1);
+        }
+    }
+
+    /// Finalize a completed player animated move path: charge AP and end the turn if exhausted.
+    pub fn finalize_player_move(&mut self, actor: Entity, ap_cost: i32, final_pos: Position) {
+        use crate::combat::{Turn, TurnEvent};
+        use crate::player_input::PlayerActionChoice;
+        use crate::turn::TurnAction;
+        if let Some(mut ap) = self.world.get_mut::<ActionPoints>(actor) {
+            ap.spend(ap_cost);
+        }
+        let ap_remaining = self
+            .world
+            .get::<ActionPoints>(actor)
+            .map(|a| a.current)
+            .unwrap_or(0);
+        let outcome = if ap_remaining == 0 {
+            let result = self
+                .battle
+                .as_mut()
+                .unwrap()
+                .step_player_action(&mut self.world, &PlayerActionChoice::Pass);
+            result.outcome
+        } else {
+            None
+        };
+        self.last_event = Some(TurnEvent {
+            actor: Some(actor),
+            turn: Turn::Player,
+            actions: vec![TurnAction::Move { to: final_pos }],
+            outcome,
+        });
+    }
+
+    /// Finalize a completed enemy animated move path: charge AP via `BattleStep`.
+    pub fn finalize_enemy_move(&mut self, actor: Entity, ap_cost: i32, final_pos: Position) {
+        use crate::combat::{Turn, TurnEvent};
+        use crate::turn::TurnAction;
+        let outcome = if let Some(battle) = self.battle.as_mut() {
+            let (_, outcome) = battle.charge_enemy_move_ap(&mut self.world, ap_cost);
+            outcome
+        } else {
+            None
+        };
+        self.last_event = Some(TurnEvent {
+            actor: Some(actor),
+            turn: Turn::Enemy,
+            actions: vec![TurnAction::Move { to: final_pos }],
+            outcome,
+        });
+    }
+
     /// True when a battle outcome has been decided.
     pub fn battle_over(&self) -> bool {
         self.last_event
