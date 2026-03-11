@@ -23,6 +23,12 @@ pub struct SaveData {
     pub party_kinds: Vec<CharacterKind>,
     /// Current HP per party member (parallel to `party_kinds`).
     pub party_hp: Vec<i32>,
+    /// Scene ids fully seen by the player (for re-interact fallback).
+    #[serde(default)]
+    pub completed_scenes: Vec<String>,
+    /// Scripted encounter ids the player has already fought.
+    #[serde(default)]
+    pub fought_scripted_encounters: Vec<String>,
 }
 
 /// Write a [`SaveData`] to `save.yaml` in the current directory.

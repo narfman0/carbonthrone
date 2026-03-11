@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bevy::prelude::*;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -57,12 +59,15 @@ pub struct ExplorationState {
     /// A combat encounter is waiting to start (set on zone entry when the zone
     /// rolled an encounter). Cleared when `maybe_start_battle` fires.
     pub pending_battle: bool,
+    /// IDs of scripted encounters the player has already fought.
+    pub fought_scripted_encounters: HashSet<String>,
 }
 
 impl ExplorationState {
     /// Fire a trigger at the current location and load the resulting scene, if any.
     pub fn fire_trigger(&mut self, trigger: Trigger) {
-        if let Some(scene) = self.dialog.trigger(&trigger, self.zone.kind.location_id()) {
+        let location = self.zone.kind.location_id();
+        if let Some(scene) = self.dialog.trigger(&trigger, location) {
             self.scene_lines = scene
                 .lines
                 .iter()
@@ -76,6 +81,16 @@ impl ExplorationState {
             self.line_index = 0;
             self.choice_index = 0;
             self.in_dialog = !self.scene_lines.is_empty();
+        } else if trigger == Trigger::OnInteract {
+            if let Some(scene) = self.dialog.last_completed_interact_scene(location) {
+                if let Some(last_line) = scene.lines.last() {
+                    self.scene_lines = vec![(last_line.speaker.clone(), last_line.text.clone())];
+                    self.scene_choices = vec![];
+                    self.line_index = 0;
+                    self.choice_index = 0;
+                    self.in_dialog = true;
+                }
+            }
         }
     }
 
@@ -95,6 +110,9 @@ impl ExplorationState {
             // Stay at the choice screen — handled by select_choice().
             false
         } else {
+            if let Some(scene_id) = self.dialog.current_scene_id().map(str::to_string) {
+                self.dialog.mark_scene_complete(&scene_id);
+            }
             self.in_dialog = false;
             true
         }
@@ -117,6 +135,9 @@ impl ExplorationState {
             self.choice_index = 0;
             self.in_dialog = !self.scene_lines.is_empty();
         } else {
+            if let Some(scene_id) = self.dialog.current_scene_id().map(str::to_string) {
+                self.dialog.mark_scene_complete(&scene_id);
+            }
             self.in_dialog = false;
         }
     }
@@ -209,9 +230,9 @@ impl GameSession {
             in_dialog: false,
             travel: None,
             pending_battle: false,
+            fought_scripted_encounters: HashSet::new(),
         };
         exploration.fire_trigger(Trigger::OnEnter);
-        exploration.pending_battle = exploration.zone.has_encounter();
 
         let mut session = Self {
             phase: GamePhase::Exploration(exploration),
@@ -220,6 +241,7 @@ impl GameSession {
             last_event: None,
             loop_number: 1,
         };
+        session.apply_pending_battle();
         session.maybe_start_battle();
         session
     }
@@ -243,6 +265,21 @@ impl GameSession {
         self.battle = Some(BattleStep::new(&mut self.world));
         self.last_event = None;
         self.phase = GamePhase::Battle(exploration);
+    }
+
+    /// Set `pending_battle`, forcing it true for scripted encounters not yet fought.
+    fn apply_pending_battle(&mut self) {
+        let GamePhase::Exploration(e) = &mut self.phase else {
+            return;
+        };
+        e.pending_battle = e.zone.has_encounter();
+        if !e.pending_battle {
+            if let Some(enc) = scripted_encounter_for(e.zone.kind, self.loop_number) {
+                if !e.fought_scripted_encounters.contains(enc.id) {
+                    e.pending_battle = true;
+                }
+            }
+        }
     }
 
     /// If a battle is pending and no dialog is currently active, start it now.
@@ -332,6 +369,9 @@ impl GameSession {
         self.world.remove_resource::<BattleRng>();
         self.battle = None;
         self.last_event = None;
+        if let Some(enc) = scripted_encounter_for(exploration.zone.kind, self.loop_number) {
+            exploration.fought_scripted_encounters.insert(enc.id.to_string());
+        }
         exploration.fire_trigger(Trigger::OnCombatEnd);
         self.phase = GamePhase::Exploration(exploration);
     }
@@ -412,13 +452,13 @@ impl GameSession {
                 // Spawn 1 tile inward from the entry door (faces back toward origin).
                 let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
                 e.fire_trigger(Trigger::OnEnter);
-                e.pending_battle = e.zone.has_encounter();
                 spawn
             }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
                 .expect("player has Position") = Position::new(spawn.0, spawn.1);
+            self.apply_pending_battle();
             self.maybe_start_battle();
             true
         } else {
@@ -504,13 +544,13 @@ impl GameSession {
             // Spawn 1 tile inward from the door that leads toward the destination.
             let spawn = spawn_pos_near_door(&e.zone, travel_dir);
             e.fire_trigger(Trigger::OnEnter);
-            e.pending_battle = e.zone.has_encounter();
             spawn
         }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(spawn.0, spawn.1);
+        self.apply_pending_battle();
         self.maybe_start_battle();
     }
 
@@ -580,13 +620,13 @@ impl GameSession {
             );
             sync_companion(&mut e.dialog);
             e.fire_trigger(Trigger::OnEnter);
-            e.pending_battle = e.zone.has_encounter();
             e.player_entity
         }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(1, 1);
+        self.apply_pending_battle();
         self.maybe_start_battle();
     }
 
@@ -601,6 +641,8 @@ impl GameSession {
                 current_zone: ZoneKind::ResearchWing,
                 party_kinds: vec![CharacterKind::Researcher],
                 party_hp: vec![],
+                completed_scenes: vec![],
+                fought_scripted_encounters: vec![],
             };
         };
         let flags = exploration.dialog.export_flags();
@@ -608,6 +650,12 @@ impl GameSession {
         let current_zone = exploration.zone.kind;
         let party_kinds = exploration.party.iter().map(|c| c.kind.clone()).collect();
         let party_hp = exploration.party.iter().map(|c| c.current_hp).collect();
+        let completed_scenes = exploration.dialog.export_completed_scenes();
+        let fought_scripted_encounters = {
+            let mut v: Vec<String> = exploration.fought_scripted_encounters.iter().cloned().collect();
+            v.sort();
+            v
+        };
         SaveData {
             loop_number: self.loop_number,
             flags,
@@ -615,6 +663,8 @@ impl GameSession {
             current_zone,
             party_kinds,
             party_hp,
+            completed_scenes,
+            fought_scripted_encounters,
         }
     }
 
@@ -647,6 +697,7 @@ impl GameSession {
             .load_script(loop_yaml(loop_number))
             .expect("load loop yaml");
         dialog.import_flags(data.flags);
+        dialog.import_completed_scenes(data.completed_scenes);
         if let Some(companion) = data.active_companion {
             dialog.set_companion(companion);
         }
@@ -667,9 +718,9 @@ impl GameSession {
             in_dialog: false,
             travel: None,
             pending_battle: false,
+            fought_scripted_encounters: data.fought_scripted_encounters.into_iter().collect(),
         };
         exploration.fire_trigger(Trigger::OnEnter);
-        exploration.pending_battle = exploration.zone.has_encounter();
 
         let mut session = Self {
             phase: GamePhase::Exploration(exploration),
@@ -678,6 +729,7 @@ impl GameSession {
             last_event: None,
             loop_number,
         };
+        session.apply_pending_battle();
         session.maybe_start_battle();
         session
     }

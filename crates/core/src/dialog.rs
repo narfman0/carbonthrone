@@ -85,6 +85,7 @@ struct DialogScript {
 pub struct DialogEngine {
     scenes: IndexMap<String, Scene>,
     flags: HashSet<String>,
+    completed_scenes: HashSet<String>,
     current_scene: Option<String>,
     active_companion: Option<String>,
 }
@@ -238,10 +239,42 @@ impl DialogEngine {
         &self.flags
     }
 
+    /// Mark a scene as fully seen by the player.
+    pub fn mark_scene_complete(&mut self, scene_id: &str) {
+        self.completed_scenes.insert(scene_id.to_string());
+    }
+
+    /// Return the id of the current active scene.
+    pub fn current_scene_id(&self) -> Option<&str> {
+        self.current_scene.as_deref()
+    }
+
+    /// Find any completed scene with an OnInteract trigger at `location`.
+    /// Used as a fallback when no new interact scene is available.
+    pub fn last_completed_interact_scene(&self, location: &str) -> Option<&Scene> {
+        self.completed_scenes
+            .iter()
+            .filter_map(|id| self.scenes.get(id))
+            .find(|s| s.trigger == Trigger::OnInteract && s.location == location)
+    }
+
+    /// Export completed scene ids for saves.
+    pub fn export_completed_scenes(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.completed_scenes.iter().cloned().collect();
+        v.sort();
+        v
+    }
+
+    /// Import previously-exported completed scene ids.
+    pub fn import_completed_scenes(&mut self, ids: Vec<String>) {
+        self.completed_scenes.extend(ids);
+    }
+
     /// Remove all loaded scenes without touching flags or companion state.
     /// Call before loading a new loop's YAML to avoid cross-loop scene collisions.
     pub fn clear_scenes(&mut self) {
         self.scenes.clear();
+        self.completed_scenes.clear();
         self.current_scene = None;
     }
 }
