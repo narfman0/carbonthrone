@@ -16,8 +16,8 @@ use super::{
     character_visuals::CharacterMoveAnim,
     grid::world_to_grid,
     resources::{
-        ExplorationRng, GameSessionRes, PendingAbilityTarget, PendingCombatPath,
-        PendingExplorationPath, PendingPlayerChoices, SelectedChoiceIndex,
+        ExplorationRng, GameSessionRes, PendingAbilityTarget, PendingPath, PendingPlayerChoices,
+        SelectedChoiceIndex,
     },
     state::AppState,
 };
@@ -82,7 +82,7 @@ fn right_click_navigate(
     windows: Query<&Window, With<PrimaryWindow>>,
     camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
     session: Res<GameSessionRes>,
-    mut path: ResMut<PendingExplorationPath>,
+    mut path: ResMut<PendingPath>,
 ) {
     if !mouse.just_pressed(MouseButton::Right) {
         return;
@@ -111,18 +111,20 @@ fn right_click_navigate(
         .map
         .bfs_path((player_pos.x, player_pos.y), (gx, gy), &npc_occupied);
     if !bfs.is_empty() {
-        path.0 = bfs;
+        path.path = bfs;
+        path.actor = None;
+        path.total_ap_cost = 0;
     }
 }
 
 /// Consumes one step of the pending exploration path per frame (when not animating).
 fn advance_exploration_path(
     mut session: ResMut<GameSessionRes>,
-    mut path: ResMut<PendingExplorationPath>,
+    mut path: ResMut<PendingPath>,
     mut rng: ResMut<ExplorationRng>,
     anim_q: Query<(), With<CharacterMoveAnim>>,
 ) {
-    if path.0.is_empty() {
+    if path.path.is_empty() {
         return;
     }
     // Wait until the player entity is no longer animating.
@@ -132,7 +134,7 @@ fn advance_exploration_path(
     // Get current player position.
     let (px, py) = {
         let GamePhase::Exploration(state) = &session.0.phase else {
-            path.0.clear();
+            path.path.clear();
             return;
         };
         let world = &session.0.world;
@@ -143,7 +145,7 @@ fn advance_exploration_path(
         (pos.x, pos.y)
     };
 
-    let next = path.0.remove(0);
+    let next = path.path.remove(0);
     let dx = (next.0 - px).signum();
     let dy = (next.1 - py).signum();
     if dx != 0 || dy != 0 {
@@ -267,7 +269,7 @@ fn right_click_battle_move(
     windows: Query<&Window, With<PrimaryWindow>>,
     camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
     mut session: ResMut<GameSessionRes>,
-    mut combat_path: ResMut<PendingCombatPath>,
+    mut combat_path: ResMut<PendingPath>,
     targeting: Res<PendingAbilityTarget>,
 ) {
     // Don't process movement right-click when in targeting mode.
@@ -322,7 +324,7 @@ fn right_click_battle_move(
 /// Works for both player and enemy moves. AP is deducted all at once when the full path completes.
 fn advance_combat_path(
     mut session: ResMut<GameSessionRes>,
-    mut combat_path: ResMut<PendingCombatPath>,
+    mut combat_path: ResMut<PendingPath>,
     mut choices_res: ResMut<PendingPlayerChoices>,
     anim_q: Query<(), With<CharacterMoveAnim>>,
 ) {
@@ -400,7 +402,7 @@ fn apply_player_choice(
 fn auto_advance_enemy_turn(
     mut session: ResMut<GameSessionRes>,
     mut choices_res: ResMut<PendingPlayerChoices>,
-    mut combat_path: ResMut<PendingCombatPath>,
+    mut combat_path: ResMut<PendingPath>,
     time: Res<Time>,
     mut enemy_turn_timer: Local<f32>,
     anim_q: Query<(), With<CharacterMoveAnim>>,
