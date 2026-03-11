@@ -40,10 +40,6 @@ pub struct CharacterMoveAnim {
     pub target: Vec3,
 }
 
-/// Thin flat mesh placed on the floor under the currently acting character.
-#[derive(Component)]
-pub struct ActiveCharOutline;
-
 /// Screen-space label showing character kind and level, positioned above the health bar.
 #[derive(Component)]
 pub struct CharKindLabel(pub bevy::ecs::entity::Entity);
@@ -76,7 +72,6 @@ impl Plugin for CharacterVisualsPlugin {
                 OnExit(AppState::Battle),
                 (
                     despawn_char_visuals,
-                    despawn_active_char_outline,
                     despawn_health_bars,
                     despawn_char_kind_labels,
                 ),
@@ -88,7 +83,6 @@ impl Plugin for CharacterVisualsPlugin {
                     animate_char_moves,
                     sync_battle_chars,
                     sync_health_bars,
-                    update_active_char_outline,
                     update_char_kind_labels,
                 )
                     .chain()
@@ -435,62 +429,6 @@ fn despawn_char_visuals(
     }
 }
 
-// ── Battle: active character outline ─────────────────────────────────────────
-
-fn update_active_char_outline(
-    session: Res<GameSessionRes>,
-    mut outline_q: Query<(Entity, &mut Transform), With<ActiveCharOutline>>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    if !session.is_changed() {
-        return;
-    }
-
-    let actor_world_pos: Option<Vec3> = session
-        .0
-        .battle
-        .as_ref()
-        .and_then(|b| b.current_actor())
-        .and_then(|a| session.0.world.get::<Position>(a).copied())
-        .map(|pos| grid_to_world(pos.x, pos.y) + Vec3::Y * (FLOOR_HEIGHT + 0.006));
-
-    match actor_world_pos {
-        None => {
-            let entities: Vec<Entity> = outline_q.iter().map(|(e, _)| e).collect();
-            for e in entities {
-                commands.entity(e).despawn();
-            }
-        }
-        Some(world_pos) => {
-            if let Ok((_, mut transform)) = outline_q.single_mut() {
-                transform.translation = world_pos;
-            } else {
-                let mesh = meshes.add(Cuboid::new(TILE_SIZE * 0.72, 0.025, TILE_SIZE * 0.72));
-                let mat = materials.add(StandardMaterial {
-                    base_color: Color::srgba(0.20, 1.00, 0.35, 0.90),
-                    unlit: true,
-                    alpha_mode: AlphaMode::Blend,
-                    ..default()
-                });
-                commands.spawn((
-                    ActiveCharOutline,
-                    Mesh3d(mesh),
-                    MeshMaterial3d(mat),
-                    Transform::from_translation(world_pos),
-                    GlobalTransform::default(),
-                ));
-            }
-        }
-    }
-}
-
-fn despawn_active_char_outline(mut commands: Commands, q: Query<Entity, With<ActiveCharOutline>>) {
-    for e in &q {
-        commands.entity(e).despawn();
-    }
-}
 
 // ── Health bars ───────────────────────────────────────────────────────────────
 
