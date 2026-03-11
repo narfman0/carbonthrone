@@ -7,7 +7,7 @@ use carbonthrone::{
 };
 
 use super::camera::IsometricCamera;
-use super::grid::{CHARACTER_HEIGHT, FLOOR_HEIGHT, TILE_SIZE, grid_to_world, world_to_grid};
+use super::grid::{CHARACTER_HEIGHT, FLOOR_HEIGHT, TILE_SIZE, grid_to_world};
 use super::resources::GameSessionRes;
 use super::state::AppState;
 
@@ -46,10 +46,6 @@ pub struct CharacterMoveAnim {
 #[derive(Component)]
 pub struct ActiveCharOutline;
 
-/// Orange outline that appears around the character under the mouse cursor.
-#[derive(Component)]
-pub struct HoverCharOutline;
-
 /// Screen-space label showing character kind and level, positioned above the health bar.
 #[derive(Component)]
 pub struct CharKindLabel(pub bevy::ecs::entity::Entity);
@@ -80,11 +76,7 @@ impl Plugin for CharacterVisualsPlugin {
             )
             .add_systems(
                 OnEnter(AppState::Battle),
-                (
-                    spawn_battle_chars,
-                    spawn_hover_outline,
-                    spawn_char_kind_labels,
-                ),
+                (spawn_battle_chars, spawn_char_kind_labels),
             )
             .add_systems(
                 OnExit(AppState::Battle),
@@ -92,7 +84,6 @@ impl Plugin for CharacterVisualsPlugin {
                     despawn_char_visuals,
                     despawn_active_char_outline,
                     despawn_health_bars,
-                    despawn_hover_outline,
                     despawn_char_kind_labels,
                 ),
             )
@@ -104,7 +95,6 @@ impl Plugin for CharacterVisualsPlugin {
                     sync_battle_chars,
                     sync_health_bars,
                     update_active_char_outline,
-                    update_hover_outline,
                     update_char_kind_labels,
                 )
                     .chain()
@@ -319,7 +309,7 @@ fn detect_player_move(
             continue;
         }
         cv.last_grid = new_grid;
-        let target = world_pos_for_grid(pos.x, pos.y) + Vec3::Y * char_y_offset();
+        let target = world_pos_for_grid(pos.x, pos.y);
         commands.entity(entity).insert(CharacterMoveAnim {
             target,
             face_after: None,
@@ -380,7 +370,7 @@ fn sync_exploration_chars(
 
     for (cv, mut transform) in &mut char_q {
         if let Some(pos) = world.get::<Position>(cv.game_entity) {
-            transform.translation = world_pos_for_grid(pos.x, pos.y) + Vec3::Y * char_y_offset();
+            transform.translation = world_pos_for_grid(pos.x, pos.y);
         }
     }
 
@@ -639,92 +629,6 @@ fn despawn_health_bars(
     fill_q: Query<Entity, With<HealthBarFill>>,
 ) {
     for e in bg_q.iter().chain(fill_q.iter()) {
-        commands.entity(e).despawn();
-    }
-}
-
-// ── Hover character outline ───────────────────────────────────────────────────
-
-fn spawn_hover_outline(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    let size = TILE_SIZE * 0.65;
-    let mesh = meshes.add(Cuboid::new(size, 0.03, size));
-    let mat = materials.add(StandardMaterial {
-        base_color: Color::srgba(1.0, 0.50, 0.05, 0.95),
-        unlit: true,
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    });
-    commands.spawn((
-        HoverCharOutline,
-        Mesh3d(mesh),
-        MeshMaterial3d(mat),
-        Transform::from_translation(Vec3::new(0.0, -100.0, 0.0)),
-        GlobalTransform::default(),
-        Visibility::Hidden,
-    ));
-}
-
-fn update_hover_outline(
-    windows: Query<&Window, With<PrimaryWindow>>,
-    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
-    session: Res<GameSessionRes>,
-    char_visual_q: Query<&CharacterVisual>,
-    mut outline_q: Query<(&mut Transform, &mut Visibility), With<HoverCharOutline>>,
-) {
-    let Ok((mut transform, mut visibility)) = outline_q.single_mut() else {
-        return;
-    };
-
-    // Raycast cursor to grid.
-    let Some((gx, gy)) = (|| {
-        let window = windows.single().ok()?;
-        let cursor = window.cursor_position()?;
-        let (cam, cam_t) = camera_q.single().ok()?;
-        let ray = cam.viewport_to_world(cam_t, cursor).ok()?;
-        if ray.direction.y.abs() < 1e-6 {
-            return None;
-        }
-        let t = -ray.origin.y / ray.direction.y;
-        if t < 0.0 {
-            return None;
-        }
-        Some(world_to_grid(ray.origin + ray.direction * t))
-    })() else {
-        *visibility = Visibility::Hidden;
-        return;
-    };
-
-    // Look for a living CharacterVisual entity at this grid position.
-    let world = &session.0.world;
-    let found_pos = char_visual_q.iter().find_map(|cv| {
-        let pos = world.get::<Position>(cv.game_entity)?;
-        let health = world.get::<Health>(cv.game_entity)?;
-        if health.is_alive() && pos.x == gx && pos.y == gy {
-            Some(*pos)
-        } else {
-            None
-        }
-    });
-
-    match found_pos {
-        None => {
-            *visibility = Visibility::Hidden;
-        }
-        Some(pos) => {
-            let world_pos =
-                grid_to_world(pos.x, pos.y) + Vec3::Y * (FLOOR_HEIGHT + CHARACTER_HEIGHT + 0.008);
-            transform.translation = world_pos;
-            *visibility = Visibility::Inherited;
-        }
-    }
-}
-
-fn despawn_hover_outline(mut commands: Commands, q: Query<Entity, With<HoverCharOutline>>) {
-    for e in &q {
         commands.entity(e).despawn();
     }
 }

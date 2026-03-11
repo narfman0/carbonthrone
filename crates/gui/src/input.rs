@@ -10,7 +10,7 @@ use carbonthrone::{
     position::Position,
     stats::Stats,
     terrain::LevelMap,
-    turn::{MOVE_AP_COST, move_range_per_ap},
+    turn::{MOVE_AP_COST, TurnAction, move_range_per_ap},
 };
 
 use super::{
@@ -340,21 +340,25 @@ fn right_click_battle_move(
         let max_tiles = current_ap * range;
         let truncated: Vec<(i32, i32)> = path.into_iter().take(max_tiles as usize).collect();
         if !truncated.is_empty() {
-            battle_path.0 = truncated;
+            let actual_cost = MOVE_AP_COST * ((truncated.len() as i32 + range - 1) / range.max(1));
+            battle_path.path = truncated;
+            battle_path.total_ap_cost = actual_cost;
         }
     } else {
-        battle_path.0 = path;
+        battle_path.path = path;
+        battle_path.total_ap_cost = total_cost;
     }
 }
 
 /// Executes one step of the battle movement path per frame when not animating.
+/// AP is deducted all at once when the full path completes (not per tile).
 fn advance_battle_path(
     mut session: ResMut<GameSessionRes>,
     mut battle_path: ResMut<PendingBattlePath>,
     mut choices_res: ResMut<PendingPlayerChoices>,
     anim_q: Query<(), With<CharacterMoveAnim>>,
 ) {
-    if battle_path.0.is_empty() {
+    if battle_path.path.is_empty() {
         return;
     }
     if !anim_q.is_empty() {
@@ -362,39 +366,68 @@ fn advance_battle_path(
     }
 
     let s = &mut session.0;
-    let Some(battle) = s.battle.as_mut() else {
-        battle_path.0.clear();
-        return;
-    };
-    if battle.turn != carbonthrone::combat::Turn::Player {
-        battle_path.0.clear();
-        return;
-    }
-    let Some(actor) = battle.current_actor() else {
-        battle_path.0.clear();
-        return;
+
+    // Validate it is still the player's turn and get the current actor.
+    let actor = {
+        let Some(battle) = s.battle.as_ref() else {
+            battle_path.path.clear();
+            return;
+        };
+        if battle.turn != carbonthrone::combat::Turn::Player {
+            battle_path.path.clear();
+            return;
+        }
+        let Some(actor) = battle.current_actor() else {
+            battle_path.path.clear();
+            return;
+        };
+        actor
     };
 
-    let next = battle_path.0.remove(0);
-    let choice = PlayerActionChoice::Move {
-        destination: Position::new(next.0, next.1),
-        ap_cost: 0,
-    };
-    let result = battle.step_player_action(&mut s.world, &choice);
-    if result.actor == actor {
-        s.last_event = Some(carbonthrone::combat::TurnEvent {
-            actor: Some(result.actor),
-            turn: carbonthrone::combat::Turn::Player,
-            actions: result.action.map(|a| vec![a]).unwrap_or_default(),
-            outcome: result.outcome,
-        });
-        choices_res.needs_refresh = true;
-        // If turn ended (AP exhausted), clear the path.
-        if result.turn_ended {
-            battle_path.0.clear();
+    let next = battle_path.path.remove(0);
+
+    // Move position directly — no per-tile AP cost.
+    if let Some(mut pos) = s.world.get_mut::<Position>(actor) {
+        *pos = Position::new(next.0, next.1);
+    }
+
+    choices_res.needs_refresh = true;
+
+    // When the full path is complete, deduct the total AP cost once.
+    if battle_path.path.is_empty() {
+        let total_cost = battle_path.total_ap_cost;
+        if let Some(mut ap) = s.world.get_mut::<ActionPoints>(actor) {
+            ap.spend(total_cost);
         }
-    } else {
-        battle_path.0.clear();
+
+        let final_pos = Position::new(next.0, next.1);
+        let ap_remaining = s
+            .world
+            .get::<ActionPoints>(actor)
+            .map(|a| a.current)
+            .unwrap_or(0);
+
+        if ap_remaining == 0 {
+            // Formally end this actor's turn via Pass.
+            let result = s
+                .battle
+                .as_mut()
+                .unwrap()
+                .step_player_action(&mut s.world, &PlayerActionChoice::Pass);
+            s.last_event = Some(carbonthrone::combat::TurnEvent {
+                actor: Some(actor),
+                turn: carbonthrone::combat::Turn::Player,
+                actions: vec![TurnAction::Move { to: final_pos }],
+                outcome: result.outcome,
+            });
+        } else {
+            s.last_event = Some(carbonthrone::combat::TurnEvent {
+                actor: Some(actor),
+                turn: carbonthrone::combat::Turn::Player,
+                actions: vec![TurnAction::Move { to: final_pos }],
+                outcome: None,
+            });
+        }
     }
 }
 

@@ -72,6 +72,10 @@ pub struct PendingAbilityTarget(pub Option<&'static str>);
 #[derive(Resource, Default)]
 pub struct PendingExplorationPath(pub Vec<(i32, i32)>);
 
-/// Queued battle movement path (grid positions to step through after AP has been charged).
+/// Queued battle movement path (grid positions to step through).
+/// AP is deducted all at once when the path completes.
 #[derive(Resource, Default)]
-pub struct PendingBattlePath(pub Vec<(i32, i32)>);
+pub struct PendingBattlePath {
+    pub path: Vec<(i32, i32)>,
+    pub total_ap_cost: i32,
+}
