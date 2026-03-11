@@ -20,14 +20,6 @@ impl GameSessionRes {
         }
     }
 
-    /// Convenience: get zone dimensions if in Exploration phase.
-    pub fn exploration_zone_size(&self) -> Option<(u32, u32)> {
-        match &self.0.phase {
-            GamePhase::Exploration(e) => Some((e.zone.cols, e.zone.rows)),
-            _ => None,
-        }
-    }
-
     /// Returns the zone kind in either Exploration or Battle phase.
     pub fn current_zone_kind(&self) -> Option<ZoneKind> {
         match &self.0.phase {
