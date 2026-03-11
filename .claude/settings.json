@@ -21,6 +21,7 @@
       "Bash(git commit:*)",
       "Bash(grep -c *)",
       "Bash(grep *)",
+      "Bash(ls *)",
       "Bash(rustc --version)",
       "Bash(rustfmt *)",
       "Bash(timeout 120 cargo check:*)",

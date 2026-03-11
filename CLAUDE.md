@@ -35,12 +35,13 @@ All gameplay logic lives in `crates/core/src/` as library modules. The engine us
 
 ### Core entity components (Bevy `Component`)
 
-- **`stats.rs`** — `Stats` (max_hp, attack, defense, speed, magic) with per-`CharacterKind` base values and `level_up()` growth.
+- **`stats.rs`** — `Stats` (max_hp, attack, defense, speed) with per-`CharacterKind` base values and `level_up()` growth.
 - **`character.rs`** — `Character` (kind, level, current_hp, aggression) + `CharacterKind` enum covering all 4 player characters and 16 NPC/enemy types grouped by faction (The Constancy, Drifters, Automata, Abyssal Fauna, Station Personnel). `Aggression` controls whether a `CharacterKind` fights or is friendly. `Character::new_character(kind, level)` builds a fully-statted entity.
 - **`health.rs`** — `Health` component (current/max HP) with `take_damage`, `heal`, `is_alive`.
 - **`action_points.rs`** — `ActionPoints` component (current/max AP); `refresh_ap_system` Bevy system restores AP to max at turn start.
 - **`experience.rs`** — `Experience` component; `level_up_system` Bevy system applies pending level-ups and syncs `Stats`/`Health`.
 - **`position.rs`** — `Position` component (integer x/y grid coords).
+- **`scripted_encounter.rs`** — `ScriptedEncounter` struct with `CombatantPlacement` and `SpawnLocation` for fixed enemy/ally positioning. `ScriptedAlly` marker component tags an entity as a scripted ally; `ScriptedFirstAction` component specifies the forced first action for a combatant. `scripted_encounter_for()` returns the scripted encounter definition for a given zone/trigger.
 
 ### Combat
 
@@ -92,3 +93,4 @@ Game design vision lives in `docs/`; machine-readable data (YAML) lives in `data
 - **`crates/core/data/loops/`** — Companion YAML scripts (`loop1.yaml`–`loop5.yaml`); machine-readable dialog scenes with flags, triggers, branching choices, and companion conditions.
 - **`docs/world.md`** — Zone map and layout: 9 zones (6 interior, 3 exterior), room counts, tile sizes, cardinal connections, encounters, and NPCs per zone.
 - **`docs/npcs.md`** — Enemy factions (Drifters, Automata, Abyssal Fauna, Station Personnel), variants, aggression states, and loop behavior.
+- **`docs/roadmap.md`** — Canonical list of remaining features to implement, grouped by priority.

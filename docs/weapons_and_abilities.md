@@ -1,3 +1,5 @@
+> **Status: PARTIALLY IMPLEMENTED** — Temporal Flux and named abilities not yet in code. See roadmap items #5 and #6.
+
 ## The Framing: "Temporal Technology"
 
 In a sci-fi context, chronurgy doesn't need to feel like magic. It could be:

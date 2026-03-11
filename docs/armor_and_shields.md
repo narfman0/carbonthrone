@@ -1,3 +1,5 @@
+> **Status: NOT YET IMPLEMENTED** — See roadmap items #9 and #10.
+
 ## Armor
 
 **Layered Damage Types**
