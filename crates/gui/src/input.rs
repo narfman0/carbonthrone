@@ -375,7 +375,11 @@ fn advance_battle_path(
         return;
     };
 
-    let next = battle_path.0.remove(0);
+    let speed = s.world.get::<Stats>(actor).map(|s| s.speed).unwrap();
+    let range = move_range_per_ap(speed) as usize;
+    let batch_size = range.min(battle_path.0.len());
+    let batch: Vec<(i32, i32)> = battle_path.0.drain(..batch_size).collect();
+    let next = *batch.last().unwrap();
     let choice = PlayerActionChoice::Move {
         destination: Position::new(next.0, next.1),
         ap_cost: 0,
