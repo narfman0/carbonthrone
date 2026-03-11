@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Carbonthrone is a Rust RPG strategy game. The player assembles a party of up to 5 characters to battle enemies. It has both a CLI frontend and a Bevy-based graphical GUI.
+Carbonthrone is a Rust RPG turn-based strategy game. The player assembles a small party to battle enemies and interact with the story. It has both a CLI frontend and a Bevy-based graphical GUI.
 
 ## Commands
 
@@ -17,6 +17,11 @@ cargo run -p carbonthrone            # run the CLI
 cargo clippy                         # lint
 cargo fmt                            # format (run on any modified .rs files after changes)
 ```
+
+## HInts
+
+* Don't cd to another directory
+* Don't add game logic outisde of the core crate
 
 ## Architecture
 
