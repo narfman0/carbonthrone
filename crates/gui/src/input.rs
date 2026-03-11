@@ -3,14 +3,11 @@ use std::collections::HashSet;
 use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
     action_points::ActionPoints,
-    character::Character,
     game::GamePhase,
-    health::Health,
     player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
-    terrain::LevelMap,
-    turn::{Action, MOVE_AP_COST, TurnAction, move_range_per_ap},
+    turn::{Action, TurnAction, bfs_move_path, move_ap_cost, move_range_per_ap},
 };
 
 use super::{
@@ -302,35 +299,13 @@ fn right_click_battle_move(
         return;
     }
 
-    // Build set of occupied positions (all living combatants except actor).
-    let occupied: HashSet<(i32, i32)> = {
-        let mut q = s.world.query::<(&Character, &Position, &Health)>();
-        q.iter(&s.world)
-            .filter(|(_, _, h)| h.is_alive())
-            .map(|(_, p, _)| (p.x, p.y))
-            .filter(|&pos| pos != (actor_pos.x, actor_pos.y))
-            .collect()
-    };
-
-    let path = {
-        let Some(map) = s.world.get_resource::<LevelMap>() else {
-            return;
-        };
-        if !map.is_passable(gx, gy) {
-            return;
-        }
-        map.bfs_path((actor_pos.x, actor_pos.y), (gx, gy), &occupied)
-    };
-
+    let path = bfs_move_path(&mut s.world, actor, (gx, gy));
     if path.is_empty() {
         return;
     }
 
-    // Check total AP cost for the path.
     let speed = s.world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
-    let range = move_range_per_ap(speed);
-    let path_len = path.len() as i32;
-    let total_cost = MOVE_AP_COST * ((path_len + range - 1) / range.max(1));
+    let total_cost = move_ap_cost(path.len() as i32, speed);
     let current_ap = s
         .world
         .get::<ActionPoints>(actor)
@@ -338,10 +313,10 @@ fn right_click_battle_move(
         .unwrap_or(0);
     if current_ap < total_cost {
         // Truncate path to what AP allows.
-        let max_tiles = current_ap * range;
+        let max_tiles = current_ap * move_range_per_ap(speed);
         let truncated: Vec<(i32, i32)> = path.into_iter().take(max_tiles as usize).collect();
         if !truncated.is_empty() {
-            let actual_cost = MOVE_AP_COST * ((truncated.len() as i32 + range - 1) / range.max(1));
+            let actual_cost = move_ap_cost(truncated.len() as i32, speed);
             battle_path.path = truncated;
             battle_path.total_ap_cost = actual_cost;
         }
@@ -580,33 +555,8 @@ fn auto_advance_enemy_turn(
             let Some(actor) = s.battle.as_ref().and_then(|b| b.current_actor()) else {
                 return;
             };
-            let Some(actor_pos) = s.world.get::<Position>(actor).copied() else {
-                return;
-            };
             let speed = s.world.get::<Stats>(actor).map(|st| st.speed).unwrap_or(8);
-            let range = move_range_per_ap(speed);
-
-            let occupied: std::collections::HashSet<(i32, i32)> = {
-                let mut q = s
-                    .world
-                    .query::<(bevy::ecs::entity::Entity, &Position, &Health)>();
-                q.iter(&s.world)
-                    .filter(|(e, _, h)| *e != actor && h.is_alive())
-                    .map(|(_, p, _)| (p.x, p.y))
-                    .collect()
-            };
-
-            let path = s
-                .world
-                .get_resource::<LevelMap>()
-                .map(|map| {
-                    map.bfs_path(
-                        (actor_pos.x, actor_pos.y),
-                        (destination.x, destination.y),
-                        &occupied,
-                    )
-                })
-                .unwrap_or_default();
+            let path = bfs_move_path(&mut s.world, actor, (destination.x, destination.y));
 
             if path.is_empty() {
                 // Destination unreachable — pass instead.
@@ -620,11 +570,9 @@ fn auto_advance_enemy_turn(
                     });
                 }
             } else {
-                let path_len = path.len() as i32;
-                let ap_cost = MOVE_AP_COST * ((path_len + range - 1) / range.max(1));
-                enemy_path.path = path;
+                enemy_path.path = path.clone();
                 enemy_path.actor = Some(actor);
-                enemy_path.total_ap_cost = ap_cost;
+                enemy_path.total_ap_cost = move_ap_cost(path.len() as i32, speed);
             }
             choices_res.needs_refresh = true;
         }

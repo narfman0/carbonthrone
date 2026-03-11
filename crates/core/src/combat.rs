@@ -13,7 +13,7 @@ use crate::{
     scripted_encounter::{ScriptedAlly, ScriptedFirstAction},
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{Action, MOVE_AP_COST, apply_action, move_range_per_ap},
+    turn::{Action, apply_action, move_range_per_ap},
 };
 
 pub use crate::turn::TurnAction;
@@ -823,16 +823,7 @@ fn seek_cover_action(
         .map(|m| (m.cols as i32, m.rows as i32))
         .unwrap_or((0, 0));
 
-    // Collect positions occupied by other living combatants.
-    let occupied: std::collections::HashSet<(i32, i32)> = {
-        let mut occ_q = world.query::<(Entity, &Position, &Health)>();
-        occ_q
-            .iter(world)
-            .filter(|(e, _, h)| *e != actor && h.is_alive())
-            .map(|(_, p, _)| (p.x, p.y))
-            .collect()
-    };
-
+    let occupied = crate::turn::occupied_tiles(world, actor);
     let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
     let range = move_range_per_ap(speed);
     let max_tiles = ap * range;
@@ -850,10 +841,7 @@ fn seek_cover_action(
                 if tx < 0 || ty < 0 || tx >= cols || ty >= rows {
                     continue;
                 }
-                if !map.is_passable(tx, ty) {
-                    continue;
-                }
-                if occupied.contains(&(tx, ty)) {
+                if !map.is_passable(tx, ty) || occupied.contains(&(tx, ty)) {
                     continue;
                 }
                 let cover = map.get_cover(tx, ty, attack_dir);
@@ -864,11 +852,7 @@ fn seek_cover_action(
                 if path.is_empty() {
                     continue;
                 }
-                let bfs_len = path.len() as i32;
-                if bfs_len > max_tiles {
-                    continue;
-                }
-                let cost = MOVE_AP_COST * ((bfs_len + range - 1) / range.max(1));
+                let cost = crate::turn::move_ap_cost(path.len() as i32, speed);
                 if cost > ap {
                     continue;
                 }

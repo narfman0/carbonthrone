@@ -18,6 +18,38 @@ pub fn move_range_per_ap(speed: i32) -> i32 {
     (speed / 8).max(1)
 }
 
+/// AP cost to traverse `steps` BFS tiles for an actor with the given speed stat.
+pub fn move_ap_cost(steps: i32, speed: i32) -> i32 {
+    let range = move_range_per_ap(speed);
+    MOVE_AP_COST * ((steps + range - 1) / range)
+}
+
+/// Grid positions occupied by every living combatant except `exclude`.
+pub fn occupied_tiles(world: &mut World, exclude: Entity) -> std::collections::HashSet<(i32, i32)> {
+    let mut q = world.query::<(Entity, &Position, &Health)>();
+    q.iter(world)
+        .filter(|(e, _, h)| *e != exclude && h.is_alive())
+        .map(|(_, p, _)| (p.x, p.y))
+        .collect()
+}
+
+/// BFS path from `actor`'s current tile to `dest`, avoiding obstacles and other living entities.
+/// Returns an empty vec if `dest` equals the actor's position or is unreachable.
+pub fn bfs_move_path(world: &mut World, actor: Entity, dest: (i32, i32)) -> Vec<(i32, i32)> {
+    let from = match world.get::<Position>(actor) {
+        Some(p) => (p.x, p.y),
+        None => return vec![],
+    };
+    if from == dest {
+        return vec![];
+    }
+    let occupied = occupied_tiles(world, actor);
+    world
+        .get_resource::<LevelMap>()
+        .map(|map| map.bfs_path(from, dest, &occupied))
+        .unwrap_or_default()
+}
+
 /// An action a combatant can take on their turn, each costing AP.
 #[derive(Debug, Clone)]
 pub enum Action {
@@ -53,56 +85,31 @@ pub enum TurnAction {
 pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option<TurnAction> {
     match action {
         Action::Move { destination } => {
-            let current = match world.get::<Position>(actor) {
-                Some(p) => *p,
-                None => return None,
-            };
-            if destination.x == current.x && destination.y == current.y {
-                return None;
-            }
             let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
-            let range = move_range_per_ap(speed);
 
-            // Block movement onto obstacle tiles.
-            let passable = world
-                .get_resource::<LevelMap>()
-                .map(|m| m.is_passable(destination.x, destination.y))
-                .unwrap_or(false);
-            if !passable {
-                return None;
-            }
-
-            // Build occupied set; also check destination is free.
-            let occupied: std::collections::HashSet<(i32, i32)> = {
-                let mut occ_q = world.query::<(Entity, &Position, &Health)>();
-                occ_q
-                    .iter(world)
-                    .filter(|(e, _, h)| *e != actor && h.is_alive())
-                    .map(|(_, p, _)| (p.x, p.y))
-                    .collect()
-            };
+            // Reject moves onto tiles occupied by other living combatants.
+            let occupied = occupied_tiles(world, actor);
             if occupied.contains(&(destination.x, destination.y)) {
                 return None;
             }
 
-            // BFS path length gives accurate AP cost (accounts for obstacles).
-            let bfs_len = world.get_resource::<LevelMap>().and_then(|map| {
-                let path = map.bfs_path(
-                    (current.x, current.y),
-                    (destination.x, destination.y),
-                    &occupied,
-                );
-                if path.is_empty() {
-                    None
-                } else {
-                    Some(path.len() as i32)
-                }
-            });
-            let Some(bfs_len) = bfs_len else {
-                return None; // unreachable
+            // BFS gives obstacle-aware path length; empty = unreachable or same tile.
+            let from = match world.get::<Position>(actor) {
+                Some(p) => (p.x, p.y),
+                None => return None,
             };
+            if from == (destination.x, destination.y) {
+                return None;
+            }
+            let path = world
+                .get_resource::<LevelMap>()
+                .map(|map| map.bfs_path(from, (destination.x, destination.y), &occupied))
+                .unwrap_or_default();
+            if path.is_empty() {
+                return None;
+            }
 
-            let cost = MOVE_AP_COST * ((bfs_len + range - 1) / range);
+            let cost = move_ap_cost(path.len() as i32, speed);
             let ap = world
                 .get::<ActionPoints>(actor)
                 .map(|ap| ap.current)

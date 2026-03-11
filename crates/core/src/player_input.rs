@@ -11,7 +11,7 @@ use crate::{
     position::Position,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{Action, MOVE_AP_COST, move_range_per_ap},
+    turn::{Action, move_range_per_ap},
 };
 
 /// A fully-described action a player can choose for one of their combatants.
@@ -33,7 +33,7 @@ pub enum PlayerActionChoice {
         destination: Position,
         /// Cover level the destination provides against the nearest enemy.
         cover: CoverLevel,
-        /// Total AP cost (Manhattan distance × `MOVE_AP_COST`).
+        /// Total AP cost (BFS path length converted to AP via speed stat).
         ap_cost: i32,
     },
     /// Move to an arbitrary passable tile (initiated by right-click on map).
@@ -253,6 +253,7 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
     if cols > 0 && rows > 0 {
         let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
         let range = move_range_per_ap(speed);
+        let max_tiles = ap * range;
 
         let mut q2 = world.query::<(Entity, &Character, &Health, &Position)>();
         let enemy_positions: Vec<(i32, i32)> = q2
@@ -260,11 +261,6 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
             .filter(|(_, c, h, _)| {
                 !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
             })
-            .map(|(_, _, _, pos)| (pos.x, pos.y))
-            .collect();
-        let occupied_positions: HashSet<(i32, i32)> = q2
-            .iter(world)
-            .filter(|(e, _, h, _)| *e != actor && h.is_alive())
             .map(|(_, _, _, pos)| (pos.x, pos.y))
             .collect();
 
@@ -278,13 +274,13 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                 .map(|m| m.get_cover(actor_pos.x, actor_pos.y, attack_dir))
                 .unwrap_or(CoverLevel::None);
 
+            let occupied = crate::turn::occupied_tiles(world, actor);
+
             let mut candidates: Vec<(CoverLevel, i32, i32, i32)> = Vec::new();
             if let Some(map) = world.get_resource::<LevelMap>() {
-                for dy in -ap..=ap {
-                    for dx in -ap..=ap {
-                        let dist = dx.abs() + dy.abs();
-                        let cost = MOVE_AP_COST * ((dist + range - 1) / range.max(1));
-                        if dist == 0 || cost > ap {
+                for dy in -(max_tiles)..=max_tiles {
+                    for dx in -(max_tiles)..=max_tiles {
+                        if dx == 0 && dy == 0 {
                             continue;
                         }
                         let tx = actor_pos.x + dx;
@@ -292,16 +288,22 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                         if tx < 0 || ty < 0 || tx >= cols || ty >= rows {
                             continue;
                         }
-                        if !map.is_passable(tx, ty) {
-                            continue;
-                        }
-                        if occupied_positions.contains(&(tx, ty)) {
+                        if !map.is_passable(tx, ty) || occupied.contains(&(tx, ty)) {
                             continue;
                         }
                         let tile_cover = map.get_cover(tx, ty, attack_dir);
-                        if tile_cover > current_cover {
-                            candidates.push((tile_cover, cost, tx, ty));
+                        if tile_cover <= current_cover {
+                            continue;
                         }
+                        let path = map.bfs_path((actor_pos.x, actor_pos.y), (tx, ty), &occupied);
+                        if path.is_empty() {
+                            continue;
+                        }
+                        let cost = crate::turn::move_ap_cost(path.len() as i32, speed);
+                        if cost > ap {
+                            continue;
+                        }
+                        candidates.push((tile_cover, cost, tx, ty));
                     }
                 }
             }

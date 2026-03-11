@@ -10,7 +10,7 @@ use carbonthrone::{
     position::Position,
     stats::Stats,
     terrain::{CoverLevel, Direction, LevelMap},
-    turn::{MOVE_AP_COST, move_range_per_ap},
+    turn::{bfs_move_path, move_ap_cost},
 };
 
 use super::{StateUiRoot, accent_text, panel_bg, text_font, white_text};
@@ -874,49 +874,20 @@ fn move_cost_for_tile(
     gy: i32,
     actor: Option<bevy::ecs::entity::Entity>,
 ) -> Option<(i32, bool)> {
-    // Check passability (drop borrow before queries).
-    let passable = world
-        .get_resource::<LevelMap>()
-        .map(|m| m.is_passable(gx, gy))
-        .unwrap_or(false);
-    if !passable {
-        return None;
-    }
-
     let actor = actor?;
-    let actor_pos = world.get::<Position>(actor).copied()?;
     let actor_ap = world.get::<ActionPoints>(actor).map(|a| a.current)?;
     let actor_speed = world.get::<Stats>(actor).map(|s| s.speed)?;
 
-    if actor_ap == 0 || (actor_pos.x == gx && actor_pos.y == gy) {
+    if actor_ap == 0 {
         return None;
     }
 
-    // Build occupied set (scoped so borrow drops before get_resource below).
-    let occupied: std::collections::HashSet<(i32, i32)> = {
-        let mut q = world.query::<(bevy::ecs::entity::Entity, &Position, &Health)>();
-        q.iter(world)
-            .filter(|(e, _, h)| *e != actor && h.is_alive())
-            .map(|(_, p, _)| (p.x, p.y))
-            .collect()
-    };
-
-    // BFS path gives accurate step count through obstacles.
-    let bfs_len = world.get_resource::<LevelMap>().and_then(|map| {
-        let path = map.bfs_path((actor_pos.x, actor_pos.y), (gx, gy), &occupied);
-        if path.is_empty() {
-            None
-        } else {
-            Some(path.len() as i32)
-        }
-    })?;
-
-    let range = move_range_per_ap(actor_speed);
-    let max_tiles = actor_ap * range;
-    if bfs_len > max_tiles {
+    let path = bfs_move_path(world, actor, (gx, gy));
+    if path.is_empty() {
         return None;
     }
-    let ap_cost = MOVE_AP_COST * ((bfs_len + range - 1) / range.max(1));
+
+    let ap_cost = move_ap_cost(path.len() as i32, actor_speed);
     Some((ap_cost, actor_ap >= ap_cost))
 }
 
