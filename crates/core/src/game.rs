@@ -526,34 +526,12 @@ impl GameSession {
     /// exhausted. Branches on the current battle turn to apply the correct queue-advance logic.
     pub fn finalize_character_move(&mut self, actor: Entity, ap_cost: i32, final_pos: Position) {
         use crate::combat::{Turn, TurnEvent};
-        use crate::player_input::PlayerActionChoice;
         use crate::turn::TurnAction;
         let turn = self.battle.as_ref().map(|b| b.turn).unwrap_or(Turn::Player);
-        let outcome = match turn {
-            Turn::Player => {
-                if let Some(mut ap) = self.world.get_mut::<ActionPoints>(actor) {
-                    ap.spend(ap_cost);
-                }
-                let ap_remaining = self
-                    .world
-                    .get::<ActionPoints>(actor)
-                    .map(|a| a.current)
-                    .unwrap_or(0);
-                if ap_remaining == 0 {
-                    self.battle
-                        .as_mut()
-                        .unwrap()
-                        .step_player_action(&mut self.world, &PlayerActionChoice::Pass)
-                        .outcome
-                } else {
-                    None
-                }
-            }
-            Turn::Enemy => self
-                .battle
-                .as_mut()
-                .and_then(|b| b.charge_enemy_move_ap(&mut self.world, ap_cost).1),
-        };
+        let outcome = self
+            .battle
+            .as_mut()
+            .and_then(|b| b.charge_character_move_ap(&mut self.world, ap_cost).1);
         self.last_event = Some(TurnEvent {
             actor: Some(actor),
             turn,

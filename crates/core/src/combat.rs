@@ -271,9 +271,9 @@ impl BattleStep {
         (turn_ended, check_outcome(world))
     }
 
-    /// Deduct AP for a completed BFS movement path and advance the queue if the turn is over.
-    /// Returns `(turn_ended, outcome)`.
-    pub fn charge_enemy_move_ap(
+    /// Deduct AP for a completed animated move path and advance the queue if the turn is over.
+    /// Works for both player and enemy actors. Returns `(turn_ended, outcome)`.
+    pub fn charge_character_move_ap(
         &mut self,
         world: &mut World,
         ap_cost: i32,
@@ -290,9 +290,25 @@ impl BattleStep {
             .unwrap_or(0);
         let turn_ended = ap_remaining == 0;
         if turn_ended {
-            self.advance_enemy_queue(world);
+            match self.turn {
+                Turn::Player => self.advance_player_queue(world),
+                Turn::Enemy => self.advance_enemy_queue(world),
+            }
         }
         (turn_ended, check_outcome(world))
+    }
+
+    /// Pop the front of the player queue and switch to enemy turn if it empties.
+    fn advance_player_queue(&mut self, world: &mut World) {
+        self.actor_queue.pop_front();
+        if self.actor_queue.is_empty() {
+            self.turn = Turn::Enemy;
+            let enemies = living_enemies(world);
+            for &e in &enemies {
+                refresh_actor(world, e);
+            }
+            self.actor_queue = VecDeque::from(enemies);
+        }
     }
 
     /// Pop the front of the enemy queue and switch to player turn if it empties.
