@@ -238,6 +238,76 @@ impl BattleStep {
             .unwrap_or(false)
     }
 
+    /// Returns the AI's chosen action for the current enemy without applying it.
+    /// Returns `None` if not the enemy's turn or the queue is empty.
+    pub fn peek_enemy_action(&mut self, world: &mut World) -> Option<Action> {
+        if self.turn != Turn::Enemy {
+            return None;
+        }
+        let actor = self.actor_queue.front().copied()?;
+        choose_action(world, actor, self.turn)
+    }
+
+    /// Apply a non-move action for the current enemy and advance the turn queue if needed.
+    /// Returns `(turn_ended, outcome)`.
+    pub fn apply_enemy_action(
+        &mut self,
+        world: &mut World,
+        action: &Action,
+    ) -> (bool, Option<BattleOutcome>) {
+        let Some(actor) = self.actor_queue.front().copied() else {
+            return (true, check_outcome(world));
+        };
+        apply_action(world, actor, action);
+        let is_pass = matches!(action, Action::Pass);
+        let ap_remaining = world
+            .get::<ActionPoints>(actor)
+            .map(|a| a.current)
+            .unwrap_or(0);
+        let turn_ended = is_pass || ap_remaining == 0;
+        if turn_ended {
+            self.advance_enemy_queue(world);
+        }
+        (turn_ended, check_outcome(world))
+    }
+
+    /// Deduct AP for a completed BFS movement path and advance the queue if the turn is over.
+    /// Returns `(turn_ended, outcome)`.
+    pub fn charge_enemy_move_ap(
+        &mut self,
+        world: &mut World,
+        ap_cost: i32,
+    ) -> (bool, Option<BattleOutcome>) {
+        let Some(actor) = self.actor_queue.front().copied() else {
+            return (true, check_outcome(world));
+        };
+        if let Some(mut ap) = world.get_mut::<ActionPoints>(actor) {
+            ap.spend(ap_cost);
+        }
+        let ap_remaining = world
+            .get::<ActionPoints>(actor)
+            .map(|a| a.current)
+            .unwrap_or(0);
+        let turn_ended = ap_remaining == 0;
+        if turn_ended {
+            self.advance_enemy_queue(world);
+        }
+        (turn_ended, check_outcome(world))
+    }
+
+    /// Pop the front of the enemy queue and switch to player turn if it empties.
+    fn advance_enemy_queue(&mut self, world: &mut World) {
+        self.actor_queue.pop_front();
+        if self.actor_queue.is_empty() {
+            self.turn = Turn::Player;
+            let players = living_players(world);
+            for &e in &players {
+                refresh_actor(world, e);
+            }
+            self.actor_queue = VecDeque::from(players);
+        }
+    }
+
     /// Advance one actor's full turn (all AP spent). Returns what happened.
     pub fn step(&mut self, world: &mut World) -> TurnEvent {
         if let Some(outcome) = check_outcome(world) {
@@ -765,14 +835,14 @@ fn seek_cover_action(
 
     let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
     let range = move_range_per_ap(speed);
+    let max_tiles = ap * range;
 
+    // Collect candidate tiles with better cover, using BFS distance for accurate AP cost.
     let mut candidates: Vec<(i32, i32, i32, CoverLevel)> = Vec::new(); // (ap_cost, x, y, cover)
     if let Some(map) = world.get_resource::<LevelMap>() {
-        for dy in -ap..=ap {
-            for dx in -ap..=ap {
-                let dist = dx.abs() + dy.abs();
-                let cost = MOVE_AP_COST * ((dist + range - 1) / range.max(1));
-                if dist == 0 || cost > ap {
+        for dy in -(max_tiles)..=max_tiles {
+            for dx in -(max_tiles)..=max_tiles {
+                if dx == 0 && dy == 0 {
                     continue;
                 }
                 let tx = actor_pos.x + dx;
@@ -787,9 +857,22 @@ fn seek_cover_action(
                     continue;
                 }
                 let cover = map.get_cover(tx, ty, attack_dir);
-                if cover > current_cover {
-                    candidates.push((cost, tx, ty, cover));
+                if cover <= current_cover {
+                    continue;
                 }
+                let path = map.bfs_path((actor_pos.x, actor_pos.y), (tx, ty), &occupied);
+                if path.is_empty() {
+                    continue;
+                }
+                let bfs_len = path.len() as i32;
+                if bfs_len > max_tiles {
+                    continue;
+                }
+                let cost = MOVE_AP_COST * ((bfs_len + range - 1) / range.max(1));
+                if cost > ap {
+                    continue;
+                }
+                candidates.push((cost, tx, ty, cover));
             }
         }
     }

@@ -785,6 +785,8 @@ fn cursor_tile_info(
     let hit = ray.origin + ray.direction * t;
     let (gx, gy) = world_to_grid(hit);
 
+    // Capture current actor before borrowing world.
+    let current_actor = session.0.battle.as_ref().and_then(|b| b.current_actor());
     let world = &mut session.0.world;
 
     // Check for a character at this position.
@@ -847,7 +849,7 @@ fn cursor_tile_info(
     };
 
     // Show movement cost for passable tiles.
-    let move_info = move_cost_for_tile(world, gx, gy);
+    let move_info = move_cost_for_tile(world, gx, gy, current_actor);
 
     if let Some((ap_cost, can_afford)) = move_info {
         let afford_str = if can_afford {
@@ -865,53 +867,56 @@ fn cursor_tile_info(
 }
 
 /// Returns `Some((ap_cost, can_afford))` if the active player can move to `(gx, gy)`,
-/// or `None` if the tile is impassable or there is no active player.
+/// or `None` if the tile is impassable, unreachable, or there is no active player.
 fn move_cost_for_tile(
     world: &mut bevy::ecs::world::World,
     gx: i32,
     gy: i32,
+    actor: Option<bevy::ecs::entity::Entity>,
 ) -> Option<(i32, bool)> {
-    let map = world.get_resource::<LevelMap>()?;
-    if !map.is_passable(gx, gy) {
+    // Check passability (drop borrow before queries).
+    let passable = world
+        .get_resource::<LevelMap>()
+        .map(|m| m.is_passable(gx, gy))
+        .unwrap_or(false);
+    if !passable {
         return None;
     }
 
-    // Find active player actor via BattleStep (stored in GameSession.battle).
-    // We access the actor through ActionPoints/Stats/Position query.
-    // The active player is whichever player character currently has a non-exhausted turn.
-    // We identify them by checking all player characters and picking the one whose entity
-    // is the "current_actor" — but we can't access BattleStep from here easily.
-    // Instead, find the player character with the most AP as a proxy.
-    let mut actor_data: Vec<(Position, i32, i32)> = {
-        let mut q = world.query::<(
-            &carbonthrone::character::Character,
-            &Position,
-            &ActionPoints,
-            &Stats,
-        )>();
+    let actor = actor?;
+    let actor_pos = world.get::<Position>(actor).copied()?;
+    let actor_ap = world.get::<ActionPoints>(actor).map(|a| a.current)?;
+    let actor_speed = world.get::<Stats>(actor).map(|s| s.speed)?;
+
+    if actor_ap == 0 || (actor_pos.x == gx && actor_pos.y == gy) {
+        return None;
+    }
+
+    // Build occupied set (scoped so borrow drops before get_resource below).
+    let occupied: std::collections::HashSet<(i32, i32)> = {
+        let mut q = world.query::<(bevy::ecs::entity::Entity, &Position, &Health)>();
         q.iter(world)
-            .filter(|(c, _, _, _)| c.kind.is_player())
-            .map(|(_, pos, ap, stats)| (*pos, ap.current, stats.speed))
+            .filter(|(e, _, h)| *e != actor && h.is_alive())
+            .map(|(_, p, _)| (p.x, p.y))
             .collect()
     };
-    // Pick the player with highest AP (most likely to be the active one).
-    actor_data.sort_by(|a, b| b.1.cmp(&a.1));
-    let (actor_pos, actor_ap, actor_speed) = actor_data.into_iter().next()?;
 
-    if actor_ap == 0 {
-        return None;
-    }
+    // BFS path gives accurate step count through obstacles.
+    let bfs_len = world.get_resource::<LevelMap>().and_then(|map| {
+        let path = map.bfs_path((actor_pos.x, actor_pos.y), (gx, gy), &occupied);
+        if path.is_empty() {
+            None
+        } else {
+            Some(path.len() as i32)
+        }
+    })?;
 
     let range = move_range_per_ap(actor_speed);
-    let dist = (gx - actor_pos.x).abs() + (gy - actor_pos.y).abs();
-    if dist == 0 {
+    let max_tiles = actor_ap * range;
+    if bfs_len > max_tiles {
         return None;
     }
-    let ap_cost = MOVE_AP_COST * ((dist + range - 1) / range.max(1));
-    let max_dist = actor_ap * range;
-    if dist > max_dist {
-        return None; // Out of range
-    }
+    let ap_cost = MOVE_AP_COST * ((bfs_len + range - 1) / range.max(1));
     Some((ap_cost, actor_ap >= ap_cost))
 }
 

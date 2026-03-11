@@ -57,39 +57,58 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
                 Some(p) => *p,
                 None => return None,
             };
-            let distance = (destination.x - current.x).abs() + (destination.y - current.y).abs();
-            if distance == 0 {
+            if destination.x == current.x && destination.y == current.y {
                 return None;
             }
             let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
             let range = move_range_per_ap(speed);
-            let cost = MOVE_AP_COST * ((distance + range - 1) / range);
+
+            // Block movement onto obstacle tiles.
+            let passable = world
+                .get_resource::<LevelMap>()
+                .map(|m| m.is_passable(destination.x, destination.y))
+                .unwrap_or(false);
+            if !passable {
+                return None;
+            }
+
+            // Build occupied set; also check destination is free.
+            let occupied: std::collections::HashSet<(i32, i32)> = {
+                let mut occ_q = world.query::<(Entity, &Position, &Health)>();
+                occ_q
+                    .iter(world)
+                    .filter(|(e, _, h)| *e != actor && h.is_alive())
+                    .map(|(_, p, _)| (p.x, p.y))
+                    .collect()
+            };
+            if occupied.contains(&(destination.x, destination.y)) {
+                return None;
+            }
+
+            // BFS path length gives accurate AP cost (accounts for obstacles).
+            let bfs_len = world.get_resource::<LevelMap>().and_then(|map| {
+                let path = map.bfs_path(
+                    (current.x, current.y),
+                    (destination.x, destination.y),
+                    &occupied,
+                );
+                if path.is_empty() {
+                    None
+                } else {
+                    Some(path.len() as i32)
+                }
+            });
+            let Some(bfs_len) = bfs_len else {
+                return None; // unreachable
+            };
+
+            let cost = MOVE_AP_COST * ((bfs_len + range - 1) / range);
             let ap = world
                 .get::<ActionPoints>(actor)
                 .map(|ap| ap.current)
                 .unwrap_or(0);
             if ap < cost {
                 return None;
-            }
-
-            // Block movement onto obstacle tiles.
-            if let Some(map) = world.get_resource::<LevelMap>()
-                && !map.is_passable(destination.x, destination.y)
-            {
-                return None;
-            }
-
-            // Block movement onto tiles occupied by other living combatants.
-            {
-                let mut occ_q = world.query::<(Entity, &Position, &Health)>();
-                let occupied = occ_q
-                    .iter(world)
-                    .filter(|(e, _, h)| *e != actor && h.is_alive())
-                    .map(|(_, p, _)| (p.x, p.y))
-                    .collect::<std::collections::HashSet<_>>();
-                if occupied.contains(&(destination.x, destination.y)) {
-                    return None;
-                }
             }
 
             world.get_mut::<ActionPoints>(actor).unwrap().spend(cost);
