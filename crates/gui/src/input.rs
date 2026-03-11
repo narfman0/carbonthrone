@@ -8,7 +8,7 @@ use carbonthrone::{
     player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
-    turn::{Action, bfs_move_path, move_ap_cost, truncate_path_to_ap},
+    turn::{Action, bfs_move_path, move_ap_cost},
 };
 
 use super::{
@@ -307,17 +307,18 @@ fn right_click_battle_move(
     }
 
     let speed = s.world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
+    let cost = move_ap_cost(path.len() as i32, speed);
     let current_ap = s
         .world
         .get::<ActionPoints>(actor)
         .map(|a| a.current)
         .unwrap_or(0);
-    let (path, cost) = truncate_path_to_ap(path, current_ap, speed);
-    if !path.is_empty() {
-        combat_path.path = path;
-        combat_path.actor = Some(actor);
-        combat_path.total_ap_cost = cost;
+    if current_ap < cost {
+        return;
     }
+    combat_path.path = path;
+    combat_path.actor = Some(actor);
+    combat_path.total_ap_cost = cost;
 }
 
 /// Executes one step of the pending combat movement path per frame when not animating.

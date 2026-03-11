@@ -33,24 +33,6 @@ pub fn occupied_tiles(world: &mut World, exclude: Entity) -> std::collections::H
         .collect()
 }
 
-/// Truncate `path` to what `ap` AP can cover for the given `speed`.
-/// Returns `(truncated_path, actual_ap_cost)`.
-/// If the full path fits within available AP it is returned unchanged.
-pub fn truncate_path_to_ap(
-    path: Vec<(i32, i32)>,
-    ap: i32,
-    speed: i32,
-) -> (Vec<(i32, i32)>, i32) {
-    let total_cost = move_ap_cost(path.len() as i32, speed);
-    if ap >= total_cost {
-        return (path, total_cost);
-    }
-    let max_tiles = ap * move_range_per_ap(speed);
-    let truncated: Vec<(i32, i32)> = path.into_iter().take(max_tiles as usize).collect();
-    let cost = move_ap_cost(truncated.len() as i32, speed);
-    (truncated, cost)
-}
-
 /// BFS path from `actor`'s current tile to `dest`, avoiding obstacles and other living entities.
 /// Returns an empty vec if `dest` equals the actor's position or is unreachable.
 pub fn bfs_move_path(world: &mut World, actor: Entity, dest: (i32, i32)) -> Vec<(i32, i32)> {
