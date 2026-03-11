@@ -19,6 +19,7 @@
       "Bash(cargo test --jobs 2)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
+      "Bash(grep -c *)",
       "Bash(grep *)",
       "Bash(rustc --version)",
       "Bash(timeout 120 cargo check:*)",

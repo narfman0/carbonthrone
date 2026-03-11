@@ -79,3 +79,11 @@ pub struct PendingBattlePath {
     pub path: Vec<(i32, i32)>,
     pub total_ap_cost: i32,
 }
+
+/// Queued enemy movement path — animates one tile per frame like player movement.
+#[derive(Resource, Default)]
+pub struct PendingEnemyPath {
+    pub path: Vec<(i32, i32)>,
+    pub actor: Option<bevy::ecs::entity::Entity>,
+    pub total_ap_cost: i32,
+}

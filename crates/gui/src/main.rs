@@ -16,7 +16,7 @@ use character_visuals::CharacterVisualsPlugin;
 use input::InputPlugin;
 use resources::{
     ExplorationRng, GameSessionRes, LastKnownZone, PendingAbilityTarget, PendingBattlePath,
-    PendingExplorationPath, PendingPlayerChoices, SelectedChoiceIndex,
+    PendingEnemyPath, PendingExplorationPath, PendingPlayerChoices, SelectedChoiceIndex,
 };
 use state::AppState;
 use sync::SyncPlugin;
@@ -44,6 +44,7 @@ fn main() {
         .init_resource::<PendingAbilityTarget>()
         .init_resource::<PendingExplorationPath>()
         .init_resource::<PendingBattlePath>()
+        .init_resource::<PendingEnemyPath>()
         // Plugins
         .add_plugins((
             CameraPlugin,
