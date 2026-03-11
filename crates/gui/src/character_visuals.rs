@@ -38,8 +38,6 @@ pub struct NpcVisual {
 #[derive(Component)]
 pub struct CharacterMoveAnim {
     pub target: Vec3,
-    /// World position to face after arriving (nearest enemy/NPC), if any.
-    pub face_after: Option<Vec3>,
 }
 
 /// Thin flat mesh placed on the floor under the currently acting character.
@@ -66,11 +64,7 @@ impl Plugin for CharacterVisualsPlugin {
             .add_systems(OnExit(AppState::Exploration), despawn_char_visuals)
             .add_systems(
                 Update,
-                (
-                    detect_player_move,
-                    animate_char_moves,
-                    sync_exploration_chars,
-                )
+                (detect_char_move, animate_char_moves, sync_exploration_chars)
                     .chain()
                     .run_if(in_state(AppState::Exploration)),
             )
@@ -90,7 +84,7 @@ impl Plugin for CharacterVisualsPlugin {
             .add_systems(
                 Update,
                 (
-                    detect_battle_move,
+                    detect_char_move,
                     animate_char_moves,
                     sync_battle_chars,
                     sync_health_bars,
@@ -289,16 +283,13 @@ fn spawn_health_bar(
     ));
 }
 
-// ── Exploration: detect move → start animation ────────────────────────────────
+// ── Detect move → start animation (shared for exploration and battle) ─────────
 
-fn detect_player_move(
+fn detect_char_move(
     session: Res<GameSessionRes>,
     mut char_q: Query<(Entity, &mut CharacterVisual)>,
     mut commands: Commands,
 ) {
-    let GamePhase::Exploration(_) = &session.0.phase else {
-        return;
-    };
     let world = &session.0.world;
     for (entity, mut cv) in char_q.iter_mut() {
         let Some(pos) = world.get::<Position>(cv.game_entity) else {
@@ -310,19 +301,11 @@ fn detect_player_move(
         }
         cv.last_grid = new_grid;
         let target = world_pos_for_grid(pos.x, pos.y);
-        commands.entity(entity).insert(CharacterMoveAnim {
-            target,
-            face_after: None,
-        });
+        commands.entity(entity).insert(CharacterMoveAnim { target });
     }
 }
 
-/// Rotation angle (around Y) to make the mesh face toward `dir` in the XZ plane.
-fn face_angle(dir: Vec3) -> f32 {
-    f32::atan2(-dir.x, -dir.z)
-}
-
-// ── Exploration: advance in-flight move animations ────────────────────────────
+// ── Advance in-flight move animations ─────────────────────────────────────────
 
 fn animate_char_moves(
     time: Res<Time>,
@@ -334,21 +317,8 @@ fn animate_char_moves(
         let to_target = anim.target - transform.translation;
         let dist = Vec2::new(to_target.x, to_target.z).length();
         let step = SPEED * time.delta_secs();
-
-        // Always face the direction of movement.
-        if to_target.xz().length_squared() > 0.001 {
-            transform.rotation = Quat::from_rotation_y(face_angle(to_target));
-        }
-
         if dist <= step {
             transform.translation = anim.target;
-            // After arriving, look toward the nearest NPC/enemy.
-            if let Some(face_pos) = anim.face_after {
-                let dir = face_pos - transform.translation;
-                if dir.xz().length_squared() > 0.001 {
-                    transform.rotation = Quat::from_rotation_y(face_angle(dir));
-                }
-            }
             commands.entity(entity).remove::<CharacterMoveAnim>();
         } else {
             transform.translation += to_target.normalize() * step;
@@ -378,31 +348,6 @@ fn sync_exploration_chars(
         if let Some(npc) = state.npcs.get(nv.npc_index) {
             transform.translation = world_pos_for_grid(npc.pos.0, npc.pos.1);
         }
-    }
-}
-
-// ── Battle: detect move → start animation ─────────────────────────────────────
-
-fn detect_battle_move(
-    session: Res<GameSessionRes>,
-    mut char_q: Query<(Entity, &mut CharacterVisual)>,
-    mut commands: Commands,
-) {
-    let world = &session.0.world;
-    for (entity, mut cv) in char_q.iter_mut() {
-        let Some(pos) = world.get::<Position>(cv.game_entity) else {
-            continue;
-        };
-        let new_grid = (pos.x, pos.y);
-        if new_grid == cv.last_grid {
-            continue;
-        }
-        cv.last_grid = new_grid;
-        let target = world_pos_for_grid(pos.x, pos.y);
-        commands.entity(entity).insert(CharacterMoveAnim {
-            target,
-            face_after: None,
-        });
     }
 }
 

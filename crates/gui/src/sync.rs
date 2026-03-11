@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use carbonthrone::{combat::Turn, game::GamePhase, player_input::PlayerActionChoice};
 
-use super::camera::IsometricCamera;
-use super::grid::map_center;
 use super::resources::{
     GameSessionRes, LastKnownZone, PendingAbilityTarget, PendingPlayerChoices, SelectedChoiceIndex,
 };
@@ -49,7 +47,6 @@ pub fn phase_sync_system(
 pub fn zone_change_detect_system(
     session: Res<GameSessionRes>,
     mut last_zone: ResMut<LastKnownZone>,
-    mut camera_q: Query<&mut Transform, With<IsometricCamera>>,
     current_state: Res<State<AppState>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
@@ -59,16 +56,6 @@ pub fn zone_change_detect_system(
         return;
     }
     last_zone.0 = new_zone;
-
-    // Reposition camera to new zone's center.
-    if let Some((cols, rows)) = session.exploration_zone_size() {
-        let center = map_center(cols, rows);
-        let offset = Vec3::new(18.0, 18.0, 18.0);
-        let cam_pos = center + offset;
-        if let Ok(mut transform) = camera_q.single_mut() {
-            *transform = Transform::from_translation(cam_pos).looking_at(center, Vec3::Y);
-        }
-    }
 
     // Force visual respawn for same-state zone transitions (e.g. hallway → hallway).
     let desired_state = match &session.0.phase {

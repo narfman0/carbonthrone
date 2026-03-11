@@ -62,11 +62,19 @@ fn spawn_exploration_tiles(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     session: Res<GameSessionRes>,
+    mut camera_q: Query<&mut Transform, With<super::camera::IsometricCamera>>,
 ) {
     // exploration_map() is a method on GameSessionRes
     let Some(zone_map) = session.exploration_map() else {
         return;
     };
+
+    // Center the camera on the new zone exactly once, when tiles spawn.
+    if let Ok(mut transform) = camera_q.single_mut() {
+        let center = super::grid::map_center(zone_map.cols, zone_map.rows);
+        let offset = Vec3::new(18.0, 18.0, 18.0);
+        *transform = Transform::from_translation(center + offset).looking_at(center, Vec3::Y);
+    }
     let cols = zone_map.cols;
     let rows = zone_map.rows;
     // Collect tiles before closure to avoid borrow conflict
