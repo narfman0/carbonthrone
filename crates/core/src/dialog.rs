@@ -48,7 +48,8 @@ pub struct Choice {
     pub leads_to: Option<String>,
     #[serde(default)]
     pub sets_flag: Option<String>,
-    /// Optional flag that must be set for this choice to appear (parsed but not yet enforced by the engine).
+    /// Optional flag that must be set for this choice to appear.
+    /// Choices whose flag is unset are filtered out before being shown to the player.
     #[serde(default)]
     pub requires_flag: Option<String>,
 }
@@ -195,7 +196,19 @@ impl DialogEngine {
         let (flag_to_set, next_id) = {
             let scene = self.scenes.get(&scene_id)?;
             let choices = scene.choices.as_ref()?;
-            let choice = choices.get(choice_index)?;
+            // Only index into choices whose requires_flag guard is satisfied.
+            // self.scenes and self.flags are distinct fields so NLL allows
+            // the simultaneous borrows here.
+            let available: Vec<&Choice> = choices
+                .iter()
+                .filter(|c| {
+                    c.requires_flag
+                        .as_ref()
+                        .map(|f| self.flags.contains(f))
+                        .unwrap_or(true)
+                })
+                .collect();
+            let choice = available.get(choice_index)?;
             (choice.sets_flag.clone(), choice.leads_to.clone())
         };
 
@@ -247,6 +260,29 @@ impl DialogEngine {
     /// Return the id of the current active scene.
     pub fn current_scene_id(&self) -> Option<&str> {
         self.current_scene.as_deref()
+    }
+
+    /// Return the visible choice texts for the current scene, filtered to only
+    /// those whose `requires_flag` guard is satisfied by the current flag state.
+    /// Returns an empty vec when there is no current scene or no choices.
+    pub fn current_available_choice_texts(&self) -> Vec<String> {
+        let scene = match self.current_scene() {
+            Some(s) => s,
+            None => return vec![],
+        };
+        match &scene.choices {
+            None => vec![],
+            Some(choices) => choices
+                .iter()
+                .filter(|c| {
+                    c.requires_flag
+                        .as_ref()
+                        .map(|f| self.flags.contains(f))
+                        .unwrap_or(true)
+                })
+                .map(|c| c.text.clone())
+                .collect(),
+        }
     }
 
     /// Find any completed scene with an OnInteract trigger at `location`.

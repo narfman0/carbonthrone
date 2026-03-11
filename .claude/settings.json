@@ -22,6 +22,7 @@
       "Bash(grep -c *)",
       "Bash(grep *)",
       "Bash(rustc --version)",
+      "Bash(rustfmt *)",
       "Bash(timeout 120 cargo check:*)",
       "Bash(tasklist:*)",
       "Bash(taskkill:*)",

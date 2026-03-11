@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::SeedableRng;
 
-use crate::action_points::{ActionPoints, ap_for_speed};
+use crate::action_points::{ap_for_speed, ActionPoints};
 use crate::character::{Character, CharacterKind};
 use crate::combat::{BattleStep, TurnEvent};
 use crate::dialog::{DialogEngine, Trigger};
@@ -13,11 +13,11 @@ use crate::health::Health;
 use crate::position::Position;
 use crate::save::SaveData;
 use crate::scripted_encounter::{
-    ScriptedAlly, ScriptedEncounter, ScriptedFirstAction, scripted_encounter_for,
+    scripted_encounter_for, ScriptedAlly, ScriptedEncounter, ScriptedFirstAction,
 };
 use crate::terrain::{BattleRng, LevelMap};
-use crate::travel::TravelState;
 use crate::travel::arrival_chance;
+use crate::travel::TravelState;
 use crate::zone::{CardinalDir, Zone, ZoneKind};
 
 // ── Game phase ────────────────────────────────────────────────────────────────
@@ -67,20 +67,27 @@ impl ExplorationState {
     /// Fire a trigger at the current location and load the resulting scene, if any.
     pub fn fire_trigger(&mut self, trigger: Trigger) {
         let location = self.zone.kind.location_id();
-        if let Some(scene) = self.dialog.trigger(&trigger, location) {
-            self.scene_lines = scene
-                .lines
-                .iter()
-                .map(|l| (l.speaker.clone(), l.text.clone()))
-                .collect();
-            self.scene_choices = scene
-                .choices
-                .as_ref()
-                .map(|cs| cs.iter().map(|c| c.text.clone()).collect())
-                .unwrap_or_default();
-            self.line_index = 0;
-            self.choice_index = 0;
-            self.in_dialog = !self.scene_lines.is_empty();
+        // Collect lines inside a scoped block so the borrow on self.dialog is
+        // released before we call current_available_choice_texts().
+        let triggered = {
+            if let Some(scene) = self.dialog.trigger(&trigger, location) {
+                self.scene_lines = scene
+                    .lines
+                    .iter()
+                    .map(|l| (l.speaker.clone(), l.text.clone()))
+                    .collect();
+                self.line_index = 0;
+                self.choice_index = 0;
+                self.in_dialog = !self.scene_lines.is_empty();
+                true
+            } else {
+                false
+            }
+        }; // borrow on self.dialog released here
+
+        if triggered {
+            // Now filter choices with the post-activation flag state.
+            self.scene_choices = self.dialog.current_available_choice_texts();
         } else if trigger == Trigger::OnInteract {
             if let Some(scene) = self.dialog.last_completed_interact_scene(location) {
                 if let Some(last_line) = scene.lines.last() {
@@ -120,20 +127,30 @@ impl ExplorationState {
 
     /// Confirm the highlighted choice.
     pub fn select_choice(&mut self) {
-        if let Some(scene) = self.dialog.select_choice(self.choice_index) {
-            self.scene_lines = scene
-                .lines
-                .iter()
-                .map(|l| (l.speaker.clone(), l.text.clone()))
-                .collect();
-            self.scene_choices = scene
-                .choices
-                .as_ref()
-                .map(|cs| cs.iter().map(|c| c.text.clone()).collect())
-                .unwrap_or_default();
-            self.line_index = 0;
-            self.choice_index = 0;
-            self.in_dialog = !self.scene_lines.is_empty();
+        // Collect lines in a scoped block so the borrow on self.dialog is
+        // released before we call current_available_choice_texts().
+        // DialogEngine::select_choice commits any sets_flag before returning,
+        // so the post-commit flag state is used when filtering below.
+        let scene_found = {
+            if let Some(scene) = self.dialog.select_choice(self.choice_index) {
+                self.scene_lines = scene
+                    .lines
+                    .iter()
+                    .map(|l| (l.speaker.clone(), l.text.clone()))
+                    .collect();
+                self.line_index = 0;
+                self.choice_index = 0;
+                self.in_dialog = !self.scene_lines.is_empty();
+                true
+            } else {
+                false
+            }
+        }; // borrow on self.dialog released here
+
+        if scene_found {
+            // Filter with the post-commit flag state (includes any flag set by
+            // the choice we just resolved).
+            self.scene_choices = self.dialog.current_available_choice_texts();
         } else {
             if let Some(scene_id) = self.dialog.current_scene_id().map(str::to_string) {
                 self.dialog.mark_scene_complete(&scene_id);
@@ -370,7 +387,9 @@ impl GameSession {
         self.battle = None;
         self.last_event = None;
         if let Some(enc) = scripted_encounter_for(exploration.zone.kind, self.loop_number) {
-            exploration.fought_scripted_encounters.insert(enc.id.to_string());
+            exploration
+                .fought_scripted_encounters
+                .insert(enc.id.to_string());
         }
         exploration.fire_trigger(Trigger::OnCombatEnd);
         self.phase = GamePhase::Exploration(exploration);
@@ -652,7 +671,11 @@ impl GameSession {
         let party_hp = exploration.party.iter().map(|c| c.current_hp).collect();
         let completed_scenes = exploration.dialog.export_completed_scenes();
         let fought_scripted_encounters = {
-            let mut v: Vec<String> = exploration.fought_scripted_encounters.iter().cloned().collect();
+            let mut v: Vec<String> = exploration
+                .fought_scripted_encounters
+                .iter()
+                .cloned()
+                .collect();
             v.sort();
             v
         };
