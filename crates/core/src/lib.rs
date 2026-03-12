@@ -2,6 +2,7 @@ pub mod ability;
 pub mod action_points;
 pub mod character;
 pub mod combat;
+pub mod console;
 pub mod dialog;
 pub mod experience;
 pub mod game;

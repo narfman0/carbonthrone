@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 
-use crate::action_points::{ap_for_speed, ActionPoints};
+use crate::action_points::{ActionPoints, ap_for_speed};
 use crate::character::{Character, CharacterKind};
 use crate::combat::{BattleStep, TurnEvent};
 use crate::dialog::{DialogEngine, Trigger};
@@ -13,11 +13,11 @@ use crate::health::Health;
 use crate::position::Position;
 use crate::save::SaveData;
 use crate::scripted_encounter::{
-    scripted_encounter_for, PartyCompanion, ScriptedAlly, ScriptedEncounter, ScriptedFirstAction,
+    PartyCompanion, ScriptedAlly, ScriptedEncounter, ScriptedFirstAction, scripted_encounter_for,
 };
 use crate::terrain::{BattleRng, LevelMap};
-use crate::travel::arrival_chance;
 use crate::travel::TravelState;
+use crate::travel::arrival_chance;
 use crate::zone::{CardinalDir, Zone, ZoneKind};
 
 // ── Game phase ────────────────────────────────────────────────────────────────
@@ -176,7 +176,12 @@ impl ExplorationState {
             *world
                 .get_mut::<Position>(self.player_entity)
                 .expect("player has Position") = Position::new(nx, ny);
-            follow_companions(world, self.player_entity, &self.companion_entities, &self.zone);
+            follow_companions(
+                world,
+                self.player_entity,
+                &self.companion_entities,
+                &self.zone,
+            );
             return self.zone.doors.get(&(nx, ny)).copied();
         }
         None
@@ -493,13 +498,24 @@ impl GameSession {
                 // Spawn 1 tile inward from the entry door (faces back toward origin).
                 let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
                 e.fire_trigger(Trigger::OnEnter);
-                (spawn, e.companion_entities.clone(), e.zone.cols, e.zone.rows)
+                (
+                    spawn,
+                    e.companion_entities.clone(),
+                    e.zone.cols,
+                    e.zone.rows,
+                )
             }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
                 .expect("player has Position") = Position::new(spawn.0, spawn.1);
-            place_companions_near(&mut self.world, &companion_entities, spawn, zone_cols, zone_rows);
+            place_companions_near(
+                &mut self.world,
+                &companion_entities,
+                spawn,
+                zone_cols,
+                zone_rows,
+            );
             self.sync_and_recruit_companions();
             self.apply_pending_battle();
             self.maybe_start_battle();
@@ -514,13 +530,24 @@ impl GameSession {
                 e.npcs.clear();
                 // Spawn 1 tile inward from the backtrack door.
                 let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
-                (spawn, e.companion_entities.clone(), e.zone.cols, e.zone.rows)
+                (
+                    spawn,
+                    e.companion_entities.clone(),
+                    e.zone.cols,
+                    e.zone.rows,
+                )
             }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
                 .expect("player has Position") = Position::new(spawn.0, spawn.1);
-            place_companions_near(&mut self.world, &companion_entities, spawn, zone_cols, zone_rows);
+            place_companions_near(
+                &mut self.world,
+                &companion_entities,
+                spawn,
+                zone_cols,
+                zone_rows,
+            );
             false
         }
     }
@@ -588,13 +615,24 @@ impl GameSession {
             // Spawn 1 tile inward from the door that leads toward the destination.
             let spawn = spawn_pos_near_door(&e.zone, travel_dir);
             e.fire_trigger(Trigger::OnEnter);
-            (spawn, e.companion_entities.clone(), e.zone.cols, e.zone.rows)
+            (
+                spawn,
+                e.companion_entities.clone(),
+                e.zone.cols,
+                e.zone.rows,
+            )
         }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(spawn.0, spawn.1);
-        place_companions_near(&mut self.world, &companion_entities, spawn, zone_cols, zone_rows);
+        place_companions_near(
+            &mut self.world,
+            &companion_entities,
+            spawn,
+            zone_cols,
+            zone_rows,
+        );
         self.sync_and_recruit_companions();
         self.apply_pending_battle();
         self.maybe_start_battle();
@@ -665,13 +703,24 @@ impl GameSession {
                 e.dialog.flags(),
             );
             e.fire_trigger(Trigger::OnEnter);
-            (e.player_entity, e.companion_entities.clone(), e.zone.cols, e.zone.rows)
+            (
+                e.player_entity,
+                e.companion_entities.clone(),
+                e.zone.cols,
+                e.zone.rows,
+            )
         }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(1, 1);
-        place_companions_near(&mut self.world, &companion_entities, (1, 1), zone_cols, zone_rows);
+        place_companions_near(
+            &mut self.world,
+            &companion_entities,
+            (1, 1),
+            zone_cols,
+            zone_rows,
+        );
         self.sync_and_recruit_companions();
         self.apply_pending_battle();
         self.maybe_start_battle();

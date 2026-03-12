@@ -14,6 +14,7 @@ use rand::rngs::StdRng;
 
 use carbonthrone::character::{Aggression, Character};
 use carbonthrone::combat::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
+use carbonthrone::console::{execute_command, parse_command};
 use carbonthrone::game::{ExplorationState, GamePhase, GameSession};
 use carbonthrone::health::Health;
 use carbonthrone::position::Position;
@@ -70,6 +71,10 @@ fn main() {
                 KeyCode::Char('q') | KeyCode::Esc => {
                     terminal::disable_raw_mode().unwrap();
                     return;
+                }
+                KeyCode::Char('`') => {
+                    run_console(&mut session, &mut stdout);
+                    break;
                 }
                 _ => {}
             }
@@ -181,6 +186,51 @@ fn main() {
             }
         }
     }
+}
+
+// ── Developer console ─────────────────────────────────────────────────────────
+
+fn run_console(session: &mut GameSession, stdout: &mut io::Stdout) {
+    terminal::disable_raw_mode().unwrap();
+    write!(stdout, "\r\n[console] > ").unwrap();
+    stdout.flush().unwrap();
+
+    let mut input = String::new();
+    loop {
+        let Ok(ev) = event::read() else { continue };
+        let Event::Key(k) = ev else { continue };
+        if k.kind != KeyEventKind::Press {
+            continue;
+        }
+        match k.code {
+            KeyCode::Enter => break,
+            KeyCode::Esc => {
+                input.clear();
+                break;
+            }
+            KeyCode::Backspace => {
+                if input.pop().is_some() {
+                    write!(stdout, "\x08 \x08").unwrap();
+                    stdout.flush().unwrap();
+                }
+            }
+            KeyCode::Char(c) => {
+                input.push(c);
+                write!(stdout, "{}", c).unwrap();
+                stdout.flush().unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    if !input.is_empty() {
+        let cmd = parse_command(&input);
+        let result = execute_command(cmd, session);
+        write!(stdout, "\r\n[console] {}\r\n", result).unwrap();
+        stdout.flush().unwrap();
+    }
+
+    terminal::enable_raw_mode().unwrap();
 }
 
 // ── Exploration rendering ─────────────────────────────────────────────────────

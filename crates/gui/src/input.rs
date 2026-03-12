@@ -20,6 +20,7 @@ use super::{
         SelectedChoiceIndex,
     },
     state::AppState,
+    ui::terminal::terminal_closed,
 };
 
 pub struct InputPlugin;
@@ -29,15 +30,33 @@ impl Plugin for InputPlugin {
         app.add_systems(
             Update,
             (
-                right_click_navigate.run_if(in_state(AppState::Exploration)),
-                advance_exploration_path.run_if(in_state(AppState::Exploration)),
-                left_click_npc.run_if(in_state(AppState::Exploration)),
-                advance_dialog_click.run_if(in_state(AppState::Dialog)),
-                apply_player_choice.run_if(in_state(AppState::Battle)),
-                left_click_ability_target.run_if(in_state(AppState::Battle)),
-                right_click_battle_move.run_if(in_state(AppState::Battle)),
-                advance_combat_path.run_if(in_state(AppState::Battle)),
-                auto_advance_enemy_turn.run_if(in_state(AppState::Battle)),
+                right_click_navigate
+                    .run_if(in_state(AppState::Exploration))
+                    .run_if(terminal_closed),
+                advance_exploration_path
+                    .run_if(in_state(AppState::Exploration))
+                    .run_if(terminal_closed),
+                left_click_npc
+                    .run_if(in_state(AppState::Exploration))
+                    .run_if(terminal_closed),
+                advance_dialog_click
+                    .run_if(in_state(AppState::Dialog))
+                    .run_if(terminal_closed),
+                apply_player_choice
+                    .run_if(in_state(AppState::Battle))
+                    .run_if(terminal_closed),
+                left_click_ability_target
+                    .run_if(in_state(AppState::Battle))
+                    .run_if(terminal_closed),
+                right_click_battle_move
+                    .run_if(in_state(AppState::Battle))
+                    .run_if(terminal_closed),
+                advance_combat_path
+                    .run_if(in_state(AppState::Battle))
+                    .run_if(terminal_closed),
+                auto_advance_enemy_turn
+                    .run_if(in_state(AppState::Battle))
+                    .run_if(terminal_closed),
             ),
         );
     }

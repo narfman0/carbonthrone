@@ -455,7 +455,7 @@ fn run_side(world: &mut World, turn: Turn) {
     }
 }
 
-fn check_outcome(world: &mut World) -> Option<BattleOutcome> {
+pub fn check_outcome(world: &mut World) -> Option<BattleOutcome> {
     if all_enemies_defeated(world) {
         return Some(BattleOutcome::PlayerVictory);
     }

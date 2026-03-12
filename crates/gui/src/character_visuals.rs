@@ -429,7 +429,6 @@ fn despawn_char_visuals(
     }
 }
 
-
 // ── Health bars ───────────────────────────────────────────────────────────────
 
 fn sync_health_bars(

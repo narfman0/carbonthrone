@@ -295,15 +295,23 @@ fn companion_spawned_in_exploration_on_flag() {
     let mut session = GameSession::new();
     // Dismiss startup dialog.
     loop {
-        let GamePhase::Exploration(e) = &mut session.phase else { break; };
-        if !e.in_dialog { break; }
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            break;
+        };
+        if !e.in_dialog {
+            break;
+        }
         e.advance_dialog();
     }
-    let GamePhase::Exploration(_) = &session.phase else { return; };
+    let GamePhase::Exploration(_) = &session.phase else {
+        return;
+    };
 
     // Set companion_orin flag directly via dialog engine, then sync.
     {
-        let GamePhase::Exploration(e) = &mut session.phase else { return; };
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            return;
+        };
         e.dialog.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
@@ -313,10 +321,15 @@ fn companion_spawned_in_exploration_on_flag() {
     let orin_exists = q
         .iter(&session.world)
         .any(|(c, _)| c.kind == CharacterKind::Orin);
-    assert!(orin_exists, "Orin should be spawned as a PartyCompanion entity");
+    assert!(
+        orin_exists,
+        "Orin should be spawned as a PartyCompanion entity"
+    );
 
     // Party vec should include Orin.
-    let GamePhase::Exploration(e) = &session.phase else { panic!() };
+    let GamePhase::Exploration(e) = &session.phase else {
+        panic!()
+    };
     assert!(
         e.party.iter().any(|c| c.kind == CharacterKind::Orin),
         "Orin should be in party vec"
@@ -330,29 +343,41 @@ fn companion_follows_player() {
 
     // Dismiss dialog.
     loop {
-        let GamePhase::Exploration(e) = &mut session.phase else { break; };
-        if !e.in_dialog { break; }
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            break;
+        };
+        if !e.in_dialog {
+            break;
+        }
         e.advance_dialog();
     }
-    let GamePhase::Exploration(_) = &session.phase else { return; };
+    let GamePhase::Exploration(_) = &session.phase else {
+        return;
+    };
 
     // Add Orin as a companion.
     {
-        let GamePhase::Exploration(e) = &mut session.phase else { return; };
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            return;
+        };
         e.dialog.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
 
     // Place companion far away (> 3 tiles Chebyshev).
     let companion_entity = {
-        let GamePhase::Exploration(e) = &session.phase else { panic!() };
+        let GamePhase::Exploration(e) = &session.phase else {
+            panic!()
+        };
         *e.companion_entities.first().expect("companion exists")
     };
     *session.world.get_mut::<Position>(companion_entity).unwrap() = Position::new(0, 0);
 
     // Move the player to (6, 6) — far enough to trigger follow.
     let player_entity = {
-        let GamePhase::Exploration(e) = &session.phase else { panic!() };
+        let GamePhase::Exploration(e) = &session.phase else {
+            panic!()
+        };
         e.player_entity
     };
     *session.world.get_mut::<Position>(player_entity).unwrap() = Position::new(6, 6);
@@ -367,7 +392,8 @@ fn companion_follows_player() {
     assert!(
         dx.max(dy) < 7,
         "companion should have moved closer; still at ({}, {})",
-        comp_pos.x, comp_pos.y
+        comp_pos.x,
+        comp_pos.y
     );
 }
 
@@ -379,14 +405,22 @@ fn companion_in_battle_queue() {
     let mut session = GameSession::new();
     // Dismiss dialog.
     loop {
-        let GamePhase::Exploration(e) = &mut session.phase else { break; };
-        if !e.in_dialog { break; }
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            break;
+        };
+        if !e.in_dialog {
+            break;
+        }
         e.advance_dialog();
     }
-    let GamePhase::Exploration(_) = &session.phase else { return; };
+    let GamePhase::Exploration(_) = &session.phase else {
+        return;
+    };
 
     {
-        let GamePhase::Exploration(e) = &mut session.phase else { return; };
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            return;
+        };
         e.dialog.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
@@ -410,30 +444,46 @@ fn companion_in_battle_queue() {
 fn companion_hp_persists_after_battle() {
     let mut session = GameSession::new();
     loop {
-        let GamePhase::Exploration(e) = &mut session.phase else { break; };
-        if !e.in_dialog { break; }
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            break;
+        };
+        if !e.in_dialog {
+            break;
+        }
         e.advance_dialog();
     }
-    let GamePhase::Exploration(_) = &session.phase else { return; };
+    let GamePhase::Exploration(_) = &session.phase else {
+        return;
+    };
 
     {
-        let GamePhase::Exploration(e) = &mut session.phase else { return; };
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            return;
+        };
         e.dialog.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
 
     let companion_entity = {
-        let GamePhase::Exploration(e) = &session.phase else { panic!() };
+        let GamePhase::Exploration(e) = &session.phase else {
+            panic!()
+        };
         *e.companion_entities.first().expect("companion exists")
     };
 
     // Damage the companion to 5 HP before battle.
-    session.world.get_mut::<Health>(companion_entity).unwrap().current = 5;
+    session
+        .world
+        .get_mut::<Health>(companion_entity)
+        .unwrap()
+        .current = 5;
 
     session.transition_to_battle();
     session.transition_to_exploration();
 
-    let GamePhase::Exploration(e) = &session.phase else { panic!() };
+    let GamePhase::Exploration(e) = &session.phase else {
+        panic!()
+    };
     assert_eq!(
         e.party[1].current_hp, 5,
         "companion HP should be synced back to party vec after battle"
@@ -444,30 +494,46 @@ fn companion_hp_persists_after_battle() {
 fn dead_companion_revived_at_1_hp() {
     let mut session = GameSession::new();
     loop {
-        let GamePhase::Exploration(e) = &mut session.phase else { break; };
-        if !e.in_dialog { break; }
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            break;
+        };
+        if !e.in_dialog {
+            break;
+        }
         e.advance_dialog();
     }
-    let GamePhase::Exploration(_) = &session.phase else { return; };
+    let GamePhase::Exploration(_) = &session.phase else {
+        return;
+    };
 
     {
-        let GamePhase::Exploration(e) = &mut session.phase else { return; };
+        let GamePhase::Exploration(e) = &mut session.phase else {
+            return;
+        };
         e.dialog.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
 
     let companion_entity = {
-        let GamePhase::Exploration(e) = &session.phase else { panic!() };
+        let GamePhase::Exploration(e) = &session.phase else {
+            panic!()
+        };
         *e.companion_entities.first().expect("companion exists")
     };
 
     // Kill the companion.
-    session.world.get_mut::<Health>(companion_entity).unwrap().current = 0;
+    session
+        .world
+        .get_mut::<Health>(companion_entity)
+        .unwrap()
+        .current = 0;
 
     session.transition_to_battle();
     session.transition_to_exploration();
 
-    let GamePhase::Exploration(e) = &session.phase else { panic!() };
+    let GamePhase::Exploration(e) = &session.phase else {
+        panic!()
+    };
     assert_eq!(
         e.party[1].current_hp, 1,
         "dead companion should be revived at 1 HP after battle"

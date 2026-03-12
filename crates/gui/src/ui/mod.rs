@@ -1,6 +1,7 @@
 pub mod combat;
 pub mod dialog;
 pub mod hud;
+pub mod terminal;
 pub mod turn_log;
 
 use bevy::prelude::*;
@@ -14,6 +15,7 @@ impl Plugin for UiPlugin {
             dialog::DialogPlugin,
             combat::CombatUiPlugin,
             turn_log::TurnLogPlugin,
+            terminal::TerminalPlugin,
         ));
     }
 }

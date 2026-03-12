@@ -60,6 +60,14 @@ pub struct SelectedChoiceIndex(pub Option<usize>);
 #[derive(Resource, Default)]
 pub struct PendingAbilityTarget(pub Option<&'static str>);
 
+/// State for the developer terminal overlay (toggled with backtick).
+#[derive(Resource, Default)]
+pub struct TerminalState {
+    pub open: bool,
+    pub input: String,
+    pub last_output: String,
+}
+
 /// Queued movement path used in both exploration and combat.
 /// In combat, `actor` identifies who is moving and `total_ap_cost` is charged on completion.
 /// In exploration, only `path` is used.
