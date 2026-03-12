@@ -30,15 +30,6 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
-### 12. Aesthetic details
-
-**Why**: player enjoyment and engagement
-
-What: need consistent and good looking: menus, environment, meshes, textures, lighting, effects, animations, audio, intro, outro
-**Task**: Update all aesthetic systems
-
----
-
 ## MEDIUM PRIORITY — Depth & Progression
 
 ### 5. Temporal Flux Resource System
@@ -86,6 +77,15 @@ What: need consistent and good looking: menus, environment, meshes, textures, li
 - `crates/core/src/zone.rs` — `Zone::enter()` signature
 - `crates/core/src/game.rs` — pass `loop_number` to zone generation
   **Task**: `Zone::enter()` should accept `loop_number` and conditionally open/block tiles (e.g., Excavation collapsed section opens in loop 3+).
+
+---
+
+### 12. Aesthetic details
+
+**Why**: player enjoyment and engagement
+
+What: need consistent and good looking: menus, environment, meshes, textures, lighting, effects, animations, audio, intro, outro
+**Task**: Update all aesthetic systems
 
 ---
 
