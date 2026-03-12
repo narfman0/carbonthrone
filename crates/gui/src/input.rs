@@ -11,6 +11,9 @@ use carbonthrone::{
     turn::{Action, bfs_move_path, move_ap_cost},
 };
 
+use bevy::app::AppExit;
+
+
 use super::{
     camera::IsometricCamera,
     character_visuals::CharacterMoveAnim,
@@ -38,6 +41,8 @@ impl Plugin for InputPlugin {
                 right_click_battle_move.run_if(in_state(AppState::Battle)),
                 advance_combat_path.run_if(in_state(AppState::Battle)),
                 auto_advance_enemy_turn.run_if(in_state(AppState::Battle)),
+                detect_game_ending,
+                handle_ended_input.run_if(in_state(AppState::Ended)),
             ),
         );
     }
@@ -490,5 +495,28 @@ fn auto_advance_enemy_turn(
             }
             choices_res.needs_refresh = true;
         }
+    }
+}
+
+// ── Ending state ──────────────────────────────────────────────────────────────
+
+/// Transition to `AppState::Ended` when the game phase becomes `Ended`.
+fn detect_game_ending(
+    session: Res<GameSessionRes>,
+    current_state: Res<State<AppState>>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    if matches!(session.0.phase, GamePhase::Ended(_)) && *current_state.get() != AppState::Ended {
+        next_state.set(AppState::Ended);
+    }
+}
+
+/// Any keypress on the ending screen exits the application.
+fn handle_ended_input(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut app_exit: EventWriter<AppExit>,
+) {
+    if keys.get_just_pressed().next().is_some() {
+        app_exit.send(AppExit::Success);
     }
 }
