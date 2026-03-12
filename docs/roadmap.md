@@ -30,6 +30,15 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
+### 12. Aesthetic details
+
+**Why**: player enjoyment and engagement
+
+What: need consistent and good looking: menus, environment, meshes, textures, lighting, effects, animations, audio, intro, outro
+**Task**: Update all aesthetic systems
+
+---
+
 ## MEDIUM PRIORITY — Depth & Progression
 
 ### 5. Temporal Flux Resource System
@@ -103,12 +112,3 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 **Why**: Described in `docs/weapons_and_abilities.md` (repair kits, weapon heat).
 **Dependency**: Armor system (#9) first; inventory system needed.
 **Task**: Track armor integrity per layer; add repair consumable to loot tables.
-
----
-
-### 12. Aesthetic details
-
-**Why**: player enjoyment and engagement
-
-What: need consistent and good looking: menus, environment, meshes, textures, lighting, effects, animations, audio, intro, outro
-**Task**: Update all aesthetic systems

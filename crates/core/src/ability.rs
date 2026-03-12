@@ -170,14 +170,6 @@ fn doss_abilities() -> Vec<Ability> {
 fn orin_abilities() -> Vec<Ability> {
     vec![
         Ability {
-            name: "Radiant Bolt",
-            description: "A focused beam of healing light fired at range, dealing light damage.",
-            level_required: 1,
-            ap_cost: 2,
-            effect: AbilityEffect::BonusDamage { bonus: 3 },
-            kind: AbilityKind::Ranged,
-        },
-        Ability {
             name: "Heal",
             description: "Channel restorative energy to mend an ally's wounds.",
             level_required: 1,
@@ -186,19 +178,19 @@ fn orin_abilities() -> Vec<Ability> {
             kind: AbilityKind::RangedAlly,
         },
         Ability {
+            name: "Radiant Bolt",
+            description: "A focused beam of healing light fired at range, dealing light damage.",
+            level_required: 5,
+            ap_cost: 2,
+            effect: AbilityEffect::BonusDamage { bonus: 3 },
+            kind: AbilityKind::Ranged,
+        },
+        Ability {
             name: "Greater Heal",
             description: "A powerful surge of healing that restores significant HP.",
             level_required: 7,
             ap_cost: 3,
             effect: AbilityEffect::Heal { amount: 45 },
-            kind: AbilityKind::RangedAlly,
-        },
-        Ability {
-            name: "Divine Restoration",
-            description: "A transcendent healing wave that nearly fully restores an ally.",
-            level_required: 14,
-            ap_cost: 4,
-            effect: AbilityEffect::Heal { amount: 80 },
             kind: AbilityKind::RangedAlly,
         },
     ]
