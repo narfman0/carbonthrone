@@ -8,15 +8,9 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ## HIGH PRIORITY — Core Gameplay Gaps
 
-### 2. True Party Combat — Companions as Controllable Allies
+### 2. ~~True Party Combat — Companions as Controllable Allies~~ ✓ DONE
 
-**Why**: `ExplorationState.party` vec exists but companions (Orin, Doss, Kaleo) only appear as AI scripted allies. The player should be able to control their recruited companion in battle.
-**Files**:
-
-- `crates/core/src/game.rs` — `transition_to_battle()` — spawn companion as player-controlled
-- `crates/core/src/combat.rs` — `BattleStep.player_choices()` — include companion turn
-- `crates/core/src/turn.rs` — `Turn` enum already has Player/Enemy
-  **Task**: When a companion is recruited (flag `companion_orin`, `companion_doss`, `kaleo_recruited`), spawn them as a second player-side combatant whose turns the player takes.
+Companions (Orin, Doss, Kaleo) are now persistent `PartyCompanion` ECS entities spawned at session start and on recruitment. They follow the player during exploration (Chebyshev > 3 triggers one-step follow), teleport to spawn points on zone transitions, and participate as full player-controlled combatants in battle (`living_players()` picks them up automatically). HP is synced back to the party vec after battle and persisted to save data.
 
 ---
 
