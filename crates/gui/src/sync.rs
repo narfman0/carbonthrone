@@ -32,7 +32,7 @@ pub fn phase_sync_system(
         GamePhase::Exploration(e) if e.in_dialog => AppState::Dialog,
         GamePhase::Exploration(_) => AppState::Exploration,
         GamePhase::Battle(_) => AppState::Battle,
-        GamePhase::Transitioning => return,
+        GamePhase::Transitioning | GamePhase::Ended(_) => return,
     };
     if *current_state.get() != desired {
         next_state.set(desired);
@@ -58,7 +58,7 @@ pub fn zone_change_detect_system(
         GamePhase::Exploration(e) if e.in_dialog => AppState::Dialog,
         GamePhase::Exploration(_) => AppState::Exploration,
         GamePhase::Battle(_) => AppState::Battle,
-        GamePhase::Transitioning => return,
+        GamePhase::Transitioning | GamePhase::Ended(_) => return,
     };
     if *current_state.get() == desired_state {
         next_state.set(desired_state);

@@ -252,6 +252,11 @@ impl DialogEngine {
         &self.flags
     }
 
+    /// Check whether a scene has been fully seen by the player.
+    pub fn is_scene_complete(&self, scene_id: &str) -> bool {
+        self.completed_scenes.contains(scene_id)
+    }
+
     /// Mark a scene as fully seen by the player.
     pub fn mark_scene_complete(&mut self, scene_id: &str) {
         self.completed_scenes.insert(scene_id.to_string());

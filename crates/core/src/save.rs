@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::character::CharacterKind;
+use crate::game::EndingKind;
 use crate::zone::ZoneKind;
 
 const SAVE_PATH: &str = "save.yaml";
@@ -29,6 +30,9 @@ pub struct SaveData {
     /// Scripted encounter ids the player has already fought.
     #[serde(default)]
     pub fought_scripted_encounters: Vec<String>,
+    /// Story ending reached (if the game has ended).
+    #[serde(default)]
+    pub ending: Option<EndingKind>,
 }
 
 /// Write a [`SaveData`] to `save.yaml` in the current directory.

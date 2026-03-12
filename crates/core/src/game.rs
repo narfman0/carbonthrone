@@ -22,11 +22,28 @@ use crate::zone::{CardinalDir, Zone, ZoneKind};
 
 // ── Game phase ────────────────────────────────────────────────────────────────
 
+/// Which story ending the player reached in loop 5.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum EndingKind {
+    /// Anomaly contained; timeline unchanged. War happens as-is.
+    Default,
+    /// Player helped Orin destroy the program. Orin doesn't survive.
+    SableDestroyed,
+    /// Player stopped Orin. Program persists; timeline preserved.
+    SableStopped,
+    /// Player sided with Kaleo. Anomaly redirected; loop folds harmlessly.
+    KaleoCompromise,
+    /// Player sided with Doss. Timeline accepted as-is.
+    DossPreserved,
+}
+
 pub enum GamePhase {
     Exploration(ExplorationState),
     Battle(ExplorationState),
     /// Placeholder used only during phase transitions; never observed externally.
     Transitioning,
+    /// A story ending has been reached.
+    Ended(EndingKind),
 }
 
 // ── Exploration state ─────────────────────────────────────────────────────────
@@ -202,6 +219,27 @@ impl ExplorationState {
 
 // ── Helper functions ─────────────────────────────────────────────────────────
 
+/// Determine if a story ending has been reached based on completed dialog
+/// scenes and flags. Returns `None` if the game should continue normally.
+fn resolve_ending(dialog: &crate::dialog::DialogEngine, loop_number: u32) -> Option<EndingKind> {
+    if loop_number < 5 {
+        return None;
+    }
+    if dialog.is_scene_complete("loop5_ending_doss") {
+        return Some(EndingKind::DossPreserved);
+    }
+    if dialog.is_scene_complete("loop5_ending_kaleo") {
+        return Some(EndingKind::KaleoCompromise);
+    }
+    if dialog.is_scene_complete("loop5_orin_player_agrees") {
+        return Some(EndingKind::SableDestroyed);
+    }
+    if dialog.is_flag_set("orin_stopped") && !dialog.is_flag_set("convergence_triggered") {
+        return Some(EndingKind::SableStopped);
+    }
+    None
+}
+
 /// Return the embedded YAML source for the given loop number (1–5).
 pub fn loop_yaml(loop_number: u32) -> &'static str {
     match loop_number {
@@ -351,6 +389,15 @@ impl GameSession {
         };
         self.sync_and_recruit_companions();
         if dialog_closed {
+            let ending = if let GamePhase::Exploration(e) = &self.phase {
+                resolve_ending(&e.dialog, self.loop_number)
+            } else {
+                None
+            };
+            if let Some(ending) = ending {
+                self.phase = GamePhase::Ended(ending);
+                return;
+            }
             self.maybe_start_battle();
         }
     }
@@ -675,6 +722,9 @@ impl GameSession {
     /// Advance to the next loop: increment loop_number, restore party HP, and
     /// restart the player in ResearchWing with the appropriate opening scene.
     pub fn reset_loop(&mut self, rng: &mut impl rand::Rng) {
+        if matches!(self.phase, GamePhase::Ended(_)) {
+            return;
+        }
         self.loop_number = (self.loop_number + 1).min(5);
         let loop_number = self.loop_number;
 
@@ -728,8 +778,13 @@ impl GameSession {
 
     /// Capture the minimal state needed to reconstruct this session later.
     pub fn to_save_data(&self) -> SaveData {
+        let ending = if let GamePhase::Ended(k) = &self.phase {
+            Some(k.clone())
+        } else {
+            None
+        };
         let GamePhase::Exploration(exploration) = &self.phase else {
-            // Fall back to defaults if called mid-battle (shouldn't happen via UI).
+            // Fall back to defaults if called mid-battle or after ending.
             return SaveData {
                 loop_number: self.loop_number,
                 flags: vec![],
@@ -739,6 +794,7 @@ impl GameSession {
                 party_hp: vec![],
                 completed_scenes: vec![],
                 fought_scripted_encounters: vec![],
+                ending,
             };
         };
         let flags = exploration.dialog.export_flags();
@@ -784,6 +840,7 @@ impl GameSession {
             party_hp,
             completed_scenes,
             fought_scripted_encounters,
+            ending,
         }
     }
 
@@ -851,6 +908,9 @@ impl GameSession {
         };
         session.apply_pending_battle();
         session.maybe_start_battle();
+        if let Some(ending) = data.ending {
+            session.phase = GamePhase::Ended(ending);
+        }
         session
     }
 }

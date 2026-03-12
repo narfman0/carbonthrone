@@ -1,5 +1,6 @@
 pub mod combat;
 pub mod dialog;
+pub mod ending;
 pub mod hud;
 pub mod terminal;
 pub mod turn_log;
@@ -16,6 +17,7 @@ impl Plugin for UiPlugin {
             combat::CombatUiPlugin,
             turn_log::TurnLogPlugin,
             terminal::TerminalPlugin,
+            ending::EndingPlugin,
         ));
     }
 }

@@ -15,7 +15,7 @@ use rand::rngs::StdRng;
 use carbonthrone::character::{Aggression, Character};
 use carbonthrone::combat::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
 use carbonthrone::console::{execute_command, parse_command};
-use carbonthrone::game::{ExplorationState, GamePhase, GameSession};
+use carbonthrone::game::{EndingKind, ExplorationState, GamePhase, GameSession};
 use carbonthrone::health::Health;
 use carbonthrone::position::Position;
 use carbonthrone::save::{load_game, save_game};
@@ -51,6 +51,10 @@ fn main() {
                 );
                 write!(stdout, "{}", frame).unwrap();
             }
+            GamePhase::Ended(ending) => {
+                let frame = render_ending(ending);
+                write!(stdout, "{}", frame).unwrap();
+            }
         }
         stdout.flush().unwrap();
 
@@ -80,6 +84,12 @@ fn main() {
             }
 
             match &mut session.phase {
+                // ── Ended input ───────────────────────────────────────────
+                GamePhase::Ended(_) => {
+                    terminal::disable_raw_mode().unwrap();
+                    return;
+                }
+
                 // ── Exploration input ─────────────────────────────────────
                 GamePhase::Exploration(state) => {
                     if state.in_dialog {
@@ -231,6 +241,56 @@ fn run_console(session: &mut GameSession, stdout: &mut io::Stdout) {
     }
 
     terminal::enable_raw_mode().unwrap();
+}
+
+// ── Ending rendering ──────────────────────────────────────────────────────────
+
+fn render_ending(ending: &EndingKind) -> String {
+    let mut out = String::new();
+    let bar = "=".repeat(WIDTH);
+
+    out += &format!("{}\r\n", bar);
+    out += &format!("{:^width$}\r\n", "C A R B O N T H R O N E", width = WIDTH);
+    out += &format!("{:^width$}\r\n", "- - - F I N - - -", width = WIDTH);
+    out += &format!("{}\r\n", bar);
+    out += "\r\n";
+
+    let (title, body) = ending_text(ending);
+    out += &format!("  {}\r\n\r\n", title);
+    for line in body.lines() {
+        out += &format!("  {}\r\n", line);
+    }
+
+    out += "\r\n";
+    out += &format!("{}\r\n", bar);
+    out += "  [any key] quit\r\n";
+    out += &format!("{}\r\n", bar);
+    out
+}
+
+fn ending_text(ending: &EndingKind) -> (&'static str, &'static str) {
+    match ending {
+        EndingKind::DossPreserved => (
+            "ENDING: The Unaltered Line",
+            "You chose to preserve the timeline.\nThe loop ends. The war happens as it always did.\nSomewhere, the station drifts. Nobody knows why the loop began.",
+        ),
+        EndingKind::KaleoCompromise => (
+            "ENDING: The Redirected Anomaly",
+            "You sided with Kaleo.\nThe anomaly folds harmlessly. The loop dissolves.\nThe war is slightly altered — for better or worse, only time will tell.",
+        ),
+        EndingKind::SableDestroyed => (
+            "ENDING: The Destroyed Program",
+            "You helped Orin destroy the program.\nThe loop ends. Orin doesn't survive.\nShe got what she came for. She knew she wouldn't make it out.",
+        ),
+        EndingKind::SableStopped => (
+            "ENDING: The Preserved Truth",
+            "You stopped Orin. The program persists. The loop ends.\nShe nods, once. The grief in her is quiet and enormous\nand she doesn't try to make you feel it.",
+        ),
+        EndingKind::Default => (
+            "ENDING: Contained",
+            "The anomaly is contained. The loop ends.\nThe war happens. Nobody knows why the loop began.\nPerhaps that's enough.",
+        ),
+    }
 }
 
 // ── Exploration rendering ─────────────────────────────────────────────────────
