@@ -13,7 +13,7 @@ use crate::health::Health;
 use crate::position::Position;
 use crate::save::SaveData;
 use crate::scripted_encounter::{
-    scripted_encounter_for, ScriptedAlly, ScriptedEncounter, ScriptedFirstAction,
+    scripted_encounter_for, PartyCompanion, ScriptedAlly, ScriptedEncounter, ScriptedFirstAction,
 };
 use crate::terrain::{BattleRng, LevelMap};
 use crate::travel::arrival_chance;
@@ -40,6 +40,8 @@ pub struct NpcData {
 pub struct ExplorationState {
     /// Entity for the player-controlled Researcher in the ECS world.
     pub player_entity: Entity,
+    /// One entity per companion in `party[1..]`; spawned persistently at session start.
+    pub companion_entities: Vec<Entity>,
     pub npcs: Vec<NpcData>,
     pub dialog: DialogEngine,
     pub zone: Zone,
@@ -174,6 +176,7 @@ impl ExplorationState {
             *world
                 .get_mut::<Position>(self.player_entity)
                 .expect("player has Position") = Position::new(nx, ny);
+            follow_companions(world, self.player_entity, &self.companion_entities, &self.zone);
             return self.zone.doors.get(&(nx, ny)).copied();
         }
         None
@@ -222,7 +225,7 @@ impl GameSession {
     pub fn new() -> Self {
         let mut world = World::new();
         let party = vec![Character::new_character(CharacterKind::Researcher, 1)];
-        let player_entity = setup_exploration(&mut world, &party);
+        let (player_entity, companion_entities) = setup_exploration(&mut world, &party);
 
         let mut dialog = DialogEngine::new();
         let loop_number = 1u32;
@@ -236,6 +239,7 @@ impl GameSession {
 
         let mut exploration = ExplorationState {
             player_entity,
+            companion_entities,
             npcs,
             dialog,
             zone,
@@ -340,6 +344,7 @@ impl GameSession {
             e.select_choice();
             was_in && !e.in_dialog
         };
+        self.sync_and_recruit_companions();
         if dialog_closed {
             self.maybe_start_battle();
         }
@@ -386,6 +391,17 @@ impl GameSession {
         self.world.remove_resource::<BattleRng>();
         self.battle = None;
         self.last_event = None;
+        // Sync HP from ECS back to party vec so save data is accurate.
+        if let Some(h) = self.world.get::<Health>(exploration.player_entity) {
+            exploration.party[0].current_hp = h.current.max(1);
+        }
+        for (i, &entity) in exploration.companion_entities.iter().enumerate() {
+            if let Some(h) = self.world.get::<Health>(entity) {
+                if let Some(m) = exploration.party.get_mut(i + 1) {
+                    m.current_hp = h.current.max(1);
+                }
+            }
+        }
         if let Some(enc) = scripted_encounter_for(exploration.zone.kind, self.loop_number) {
             exploration
                 .fought_scripted_encounters
@@ -429,6 +445,13 @@ impl GameSession {
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(spawn.0, spawn.1);
+        place_companions_near(
+            &mut self.world,
+            &exploration.companion_entities,
+            spawn,
+            exploration.zone.cols,
+            exploration.zone.rows,
+        );
     }
 
     /// Attempt to exit the current hallway. Rolls against [`arrival_chance`] for
@@ -454,7 +477,7 @@ impl GameSession {
         if rng.r#gen::<f64>() < arrival_chance(loop_number) {
             // All zone-setup and dialog happen inside a scoped block so the
             // borrow on self.phase is released before we call maybe_start_battle.
-            let spawn = {
+            let (spawn, companion_entities, zone_cols, zone_rows) = {
                 let GamePhase::Exploration(e) = &mut self.phase else {
                     unreachable!()
                 };
@@ -467,21 +490,22 @@ impl GameSession {
                     loop_number,
                     e.dialog.flags(),
                 );
-                sync_companion(&mut e.dialog);
                 // Spawn 1 tile inward from the entry door (faces back toward origin).
                 let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
                 e.fire_trigger(Trigger::OnEnter);
-                spawn
+                (spawn, e.companion_entities.clone(), e.zone.cols, e.zone.rows)
             }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
                 .expect("player has Position") = Position::new(spawn.0, spawn.1);
+            place_companions_near(&mut self.world, &companion_entities, spawn, zone_cols, zone_rows);
+            self.sync_and_recruit_companions();
             self.apply_pending_battle();
             self.maybe_start_battle();
             true
         } else {
-            let spawn = {
+            let (spawn, companion_entities, zone_cols, zone_rows) = {
                 let GamePhase::Exploration(e) = &mut self.phase else {
                     unreachable!()
                 };
@@ -489,12 +513,14 @@ impl GameSession {
                 e.zone = Zone::enter_hallway(depth, loop_number, travel_dir, rng);
                 e.npcs.clear();
                 // Spawn 1 tile inward from the backtrack door.
-                spawn_pos_near_door(&e.zone, travel_dir.opposite())
+                let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
+                (spawn, e.companion_entities.clone(), e.zone.cols, e.zone.rows)
             }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
                 .expect("player has Position") = Position::new(spawn.0, spawn.1);
+            place_companions_near(&mut self.world, &companion_entities, spawn, zone_cols, zone_rows);
             false
         }
     }
@@ -546,7 +572,7 @@ impl GameSession {
             (t.origin, t.travel_dir, e.zone.depth, e.player_entity)
         };
         let loop_number = self.loop_number;
-        let spawn = {
+        let (spawn, companion_entities, zone_cols, zone_rows) = {
             let GamePhase::Exploration(e) = &mut self.phase else {
                 unreachable!()
             };
@@ -559,16 +585,17 @@ impl GameSession {
                 loop_number,
                 e.dialog.flags(),
             );
-            sync_companion(&mut e.dialog);
             // Spawn 1 tile inward from the door that leads toward the destination.
             let spawn = spawn_pos_near_door(&e.zone, travel_dir);
             e.fire_trigger(Trigger::OnEnter);
-            spawn
+            (spawn, e.companion_entities.clone(), e.zone.cols, e.zone.rows)
         }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(spawn.0, spawn.1);
+        place_companions_near(&mut self.world, &companion_entities, spawn, zone_cols, zone_rows);
+        self.sync_and_recruit_companions();
         self.apply_pending_battle();
         self.maybe_start_battle();
     }
@@ -619,7 +646,7 @@ impl GameSession {
             h.current = h.max;
         }
 
-        let player_entity = {
+        let (player_entity, companion_entities, zone_cols, zone_rows) = {
             let GamePhase::Exploration(e) = &mut self.phase else {
                 return;
             };
@@ -637,14 +664,15 @@ impl GameSession {
                 loop_number,
                 e.dialog.flags(),
             );
-            sync_companion(&mut e.dialog);
             e.fire_trigger(Trigger::OnEnter);
-            e.player_entity
+            (e.player_entity, e.companion_entities.clone(), e.zone.cols, e.zone.rows)
         }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(1, 1);
+        place_companions_near(&mut self.world, &companion_entities, (1, 1), zone_cols, zone_rows);
+        self.sync_and_recruit_companions();
         self.apply_pending_battle();
         self.maybe_start_battle();
     }
@@ -668,7 +696,26 @@ impl GameSession {
         let active_companion = exploration.dialog.active_companion().map(str::to_string);
         let current_zone = exploration.zone.kind;
         let party_kinds = exploration.party.iter().map(|c| c.kind.clone()).collect();
-        let party_hp = exploration.party.iter().map(|c| c.current_hp).collect();
+        let party_hp: Vec<i32> = exploration
+            .party
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let entity = if i == 0 {
+                    exploration.player_entity
+                } else {
+                    exploration
+                        .companion_entities
+                        .get(i - 1)
+                        .copied()
+                        .unwrap_or(Entity::PLACEHOLDER)
+                };
+                self.world
+                    .get::<Health>(entity)
+                    .map(|h| h.current.max(1))
+                    .unwrap_or(1)
+            })
+            .collect();
         let completed_scenes = exploration.dialog.export_completed_scenes();
         let fought_scripted_encounters = {
             let mut v: Vec<String> = exploration
@@ -712,7 +759,7 @@ impl GameSession {
         };
 
         let mut world = World::new();
-        let player_entity = setup_exploration(&mut world, &party);
+        let (player_entity, companion_entities) = setup_exploration(&mut world, &party);
 
         let mut dialog = DialogEngine::new();
         let loop_number = data.loop_number;
@@ -730,6 +777,7 @@ impl GameSession {
 
         let mut exploration = ExplorationState {
             player_entity,
+            companion_entities,
             npcs,
             dialog,
             zone,
@@ -764,14 +812,93 @@ impl Default for GameSession {
     }
 }
 
+// ── Companion management ──────────────────────────────────────────────────────
+
+impl GameSession {
+    /// Sync the dialog engine's active companion from flags, then spawn any
+    /// newly recruited companions that are flagged but not yet in the party.
+    pub fn sync_and_recruit_companions(&mut self) {
+        // Step 1: update dialog active_companion pointer.
+        {
+            let GamePhase::Exploration(e) = &mut self.phase else {
+                return;
+            };
+            sync_companion(&mut e.dialog);
+        }
+
+        // Step 2: collect which companion kinds need to be spawned.
+        let (to_spawn, researcher_level, researcher_pos, zone_cols, zone_rows, companion_count) = {
+            let GamePhase::Exploration(e) = &self.phase else {
+                return;
+            };
+            let researcher_pos = self
+                .world
+                .get::<Position>(e.player_entity)
+                .copied()
+                .unwrap_or(Position::new(1, 1));
+            let researcher_level = e.party.first().map(|c| c.level).unwrap_or(1);
+            let recruits = [
+                ("companion_orin", CharacterKind::Orin),
+                ("companion_doss", CharacterKind::Doss),
+                ("kaleo_recruited", CharacterKind::Kaleo),
+            ];
+            let to_spawn: Vec<CharacterKind> = recruits
+                .iter()
+                .filter(|(flag, kind)| {
+                    e.dialog.is_flag_set(flag) && !e.party.iter().any(|c| &c.kind == kind)
+                })
+                .map(|(_, kind)| kind.clone())
+                .collect();
+            (
+                to_spawn,
+                researcher_level,
+                researcher_pos,
+                e.zone.cols,
+                e.zone.rows,
+                e.companion_entities.len(),
+            )
+        };
+
+        // Step 3: spawn each new companion entity and add to party.
+        for (i, kind) in to_spawn.into_iter().enumerate() {
+            let companion = Character::new_character(kind, researcher_level);
+            let hp = companion.current_hp;
+            let stats = companion.stats.clone();
+            let ap_max = ap_for_speed(stats.speed);
+            let offset = (companion_count + i) as i32 + 1;
+            let pos = Position::new(
+                (researcher_pos.x + offset).clamp(0, zone_cols as i32 - 1),
+                researcher_pos.y.clamp(0, zone_rows as i32 - 1),
+            );
+            let entity = self
+                .world
+                .spawn((
+                    companion.clone(),
+                    stats,
+                    Health::new(hp),
+                    ActionPoints::new(ap_max),
+                    Experience::new(),
+                    pos,
+                    PartyCompanion,
+                ))
+                .id();
+            let GamePhase::Exploration(e) = &mut self.phase else {
+                return;
+            };
+            e.party.push(companion);
+            e.companion_entities.push(entity);
+        }
+    }
+}
+
 // ── World setup ───────────────────────────────────────────────────────────────
 
-/// Spawns the party into the exploration world. Returns the first party member's entity
-/// (the player-controlled Researcher).
-pub fn setup_exploration(world: &mut World, party: &[Character]) -> Entity {
+/// Spawns the party into the exploration world. Returns the Researcher's entity
+/// and a vec of companion entities (one per `party[1..]`).
+pub fn setup_exploration(world: &mut World, party: &[Character]) -> (Entity, Vec<Entity>) {
     let ch = &party[0];
     let ap_max = ap_for_speed(ch.stats.speed);
-    world
+    let player = world
         .spawn((
             ch.clone(),
             ch.stats.clone(),
@@ -780,7 +907,27 @@ pub fn setup_exploration(world: &mut World, party: &[Character]) -> Entity {
             Experience::new(),
             Position::new(0, 2),
         ))
-        .id()
+        .id();
+
+    let mut companions = vec![];
+    for (i, companion) in party[1..].iter().enumerate() {
+        let stats = companion.stats.clone();
+        let ap_max = ap_for_speed(stats.speed);
+        let pos = Position::new(i as i32 + 1, 2);
+        let e = world
+            .spawn((
+                companion.clone(),
+                stats,
+                Health::new(companion.current_hp),
+                ActionPoints::new(ap_max),
+                Experience::new(),
+                pos,
+                PartyCompanion,
+            ))
+            .id();
+        companions.push(e);
+    }
+    (player, companions)
 }
 
 /// Adds enemies and battle resources to the world. Party is already present from
@@ -859,6 +1006,64 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Move each companion one step toward the player if Chebyshev distance > 3.
+fn follow_companions(
+    world: &mut World,
+    player_entity: Entity,
+    companion_entities: &[Entity],
+    zone: &Zone,
+) {
+    let player_pos = match world.get::<Position>(player_entity) {
+        Some(p) => *p,
+        None => return,
+    };
+    for &entity in companion_entities {
+        let comp_pos = match world.get::<Position>(entity) {
+            Some(p) => *p,
+            None => continue,
+        };
+        let dx = player_pos.x - comp_pos.x;
+        let dy = player_pos.y - comp_pos.y;
+        let chebyshev = dx.abs().max(dy.abs());
+        if chebyshev <= 3 {
+            continue;
+        }
+        let sx = dx.signum();
+        let sy = dy.signum();
+        for (cx, cy) in [(sx, sy), (sx, 0), (0, sy)] {
+            if cx == 0 && cy == 0 {
+                continue;
+            }
+            let nx = (comp_pos.x + cx).clamp(0, zone.cols as i32 - 1);
+            let ny = (comp_pos.y + cy).clamp(0, zone.rows as i32 - 1);
+            if zone.map.get(nx, ny).is_passable() {
+                if let Some(mut pos) = world.get_mut::<Position>(entity) {
+                    *pos = Position::new(nx, ny);
+                }
+                break;
+            }
+        }
+    }
+}
+
+/// Teleport each companion to a position adjacent to `spawn` within zone bounds.
+fn place_companions_near(
+    world: &mut World,
+    companion_entities: &[Entity],
+    spawn: (i32, i32),
+    cols: u32,
+    rows: u32,
+) {
+    for (i, &entity) in companion_entities.iter().enumerate() {
+        let ox = i as i32 + 1;
+        let nx = (spawn.0 + ox).clamp(0, cols as i32 - 1);
+        let ny = spawn.1.clamp(0, rows as i32 - 1);
+        if let Some(mut pos) = world.get_mut::<Position>(entity) {
+            *pos = Position::new(nx, ny);
+        }
+    }
+}
 
 /// Returns the position 1 tile inward from the door on `door_dir` side of `zone`.
 /// Used to place the player just inside a zone after transitioning.

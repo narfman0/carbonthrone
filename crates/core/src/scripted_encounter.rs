@@ -116,6 +116,13 @@ pub struct ScriptedEncounter {
 #[derive(Debug, Clone, Component)]
 pub struct ScriptedAlly;
 
+/// Marker for a permanent party companion entity.
+///
+/// Spawned at session start (or on recruitment) and persists through exploration
+/// and battle. Distinct from [`ScriptedAlly`] (one-off temporary AI combatants).
+#[derive(Debug, Clone, Component)]
+pub struct PartyCompanion;
+
 /// Bevy ECS component: instructs the AI to use the named ability on this
 /// entity's first combat turn before switching to normal tactical AI.
 ///
