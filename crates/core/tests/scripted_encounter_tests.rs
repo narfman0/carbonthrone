@@ -6,7 +6,7 @@ use carbonthrone::{
     health::Health,
     position::Position,
     scripted_encounter::{
-        CombatantPlacement, ScriptedAlly, ScriptedEncounter, ScriptedFirstAction, SpawnLocation,
+        CombatantPlacement, ScriptedAlly, ScriptedFirstAction, SpawnLocation,
         scripted_encounter_for,
     },
     stats::Stats,

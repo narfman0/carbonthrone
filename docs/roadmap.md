@@ -6,15 +6,9 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
-## HIGH PRIORITY — Core Gameplay Gaps
+## HIGH PRIORITY — Core Gameplay Gaps---
 
-### 2. ~~True Party Combat — Companions as Controllable Allies~~ ✓ DONE
-
-Companions (Orin, Doss, Kaleo) are now persistent `PartyCompanion` ECS entities spawned at session start and on recruitment. They follow the player during exploration (Chebyshev > 3 triggers one-step follow), teleport to spawn points on zone transitions, and participate as full player-controlled combatants in battle (`living_players()` picks them up automatically). HP is synced back to the party vec after battle and persisted to save data.
-
----
-
-### 3. Story Endings / Loop 5 Resolution
+### 3. Story Endings / continuity / Loop 5 Resolution
 
 **Why**: Five endings described in `docs/narrative.md` — unclear if any are implemented beyond loop 5 YAML dialog.
 **Files**:
@@ -111,7 +105,6 @@ Companions (Orin, Doss, Kaleo) are now persistent `PartyCompanion` ECS entities 
 **Task**: Track armor integrity per layer; add repair consumable to loot tables.
 
 ---
-
 
 ### 12. Aesthetic details
 
