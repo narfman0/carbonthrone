@@ -12,4 +12,6 @@ pub enum AppState {
     Dialog,
     /// Combat encounter active.
     Battle,
+    /// A story ending has been reached; shows the ending screen.
+    Ended,
 }
