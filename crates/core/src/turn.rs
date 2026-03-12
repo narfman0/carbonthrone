@@ -101,15 +101,21 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
             if from == (destination.x, destination.y) {
                 return None;
             }
-            let path = world
-                .get_resource::<LevelMap>()
-                .map(|map| map.bfs_path(from, (destination.x, destination.y), &occupied))
-                .unwrap_or_default();
-            if path.is_empty() {
-                return None;
-            }
+            let steps = if world.get_resource::<LevelMap>().is_some() {
+                let path = world
+                    .get_resource::<LevelMap>()
+                    .map(|map| map.bfs_path(from, (destination.x, destination.y), &occupied))
+                    .unwrap_or_default();
+                if path.is_empty() {
+                    return None;
+                }
+                path.len() as i32
+            } else {
+                // No map: use Manhattan distance (no obstacle checking).
+                (destination.x - from.0).abs() + (destination.y - from.1).abs()
+            };
 
-            let cost = move_ap_cost(path.len() as i32, speed);
+            let cost = move_ap_cost(steps, speed);
             let ap = world
                 .get::<ActionPoints>(actor)
                 .map(|ap| ap.current)
