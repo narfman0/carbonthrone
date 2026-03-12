@@ -21,6 +21,7 @@ fn save_for(zone: ZoneKind, loop_number: u32) -> SaveData {
         party_hp: vec![],
         completed_scenes: vec![],
         fought_scripted_encounters: vec![],
+        ending: None,
     }
 }
 
