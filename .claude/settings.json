@@ -24,6 +24,7 @@
       "Bash(ls *)",
       "Bash(rustc --version)",
       "Bash(rustfmt *)",
+      "Bash(rustup:*)",
       "Bash(timeout 120 cargo check:*)",
       "Bash(tasklist:*)",
       "Bash(taskkill:*)",
