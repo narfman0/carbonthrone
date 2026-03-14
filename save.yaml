@@ -1,0 +1,148 @@
+loop_number: 1
+flags:
+- loop1_opened
+active_companion: null
+current_zone: research_wing
+party_kinds:
+- researcher
+party_hp:
+- 75
+completed_scenes:
+- loop1_opening
+fought_scripted_encounters: []
+ending: null
+battle_snapshot:
+  round: 1
+  turn: Player
+  actor_queue:
+  - 0
+  - 3
+  - 4
+  combatants:
+  - role: Player
+    kind: researcher
+    level: 1
+    current_hp: 75
+    max_hp: 75
+    current_ap: 1
+    max_ap: 10
+    x: 3
+    y: 5
+    aggression: Friendly
+    scripted_first_action_name: null
+    scripted_first_action_executed: false
+  - role: Enemy
+    kind: zealot
+    level: 1
+    current_hp: 45
+    max_hp: 45
+    current_ap: 9
+    max_ap: 9
+    x: 2
+    y: 1
+    aggression: Aggressive
+    scripted_first_action_name: Zealot Strike
+    scripted_first_action_executed: false
+  - role: Enemy
+    kind: purifier
+    level: 1
+    current_hp: 55
+    max_hp: 55
+    current_ap: 7
+    max_ap: 7
+    x: 4
+    y: 0
+    aggression: Aggressive
+    scripted_first_action_name: Purifying Round
+    scripted_first_action_executed: false
+  - role: ScriptedAlly
+    kind: orin
+    level: 1
+    current_hp: 90
+    max_hp: 90
+    current_ap: 6
+    max_ap: 6
+    x: 2
+    y: 11
+    aggression: Friendly
+    scripted_first_action_name: Heal
+    scripted_first_action_executed: false
+  - role: ScriptedAlly
+    kind: doss
+    level: 1
+    current_hp: 120
+    max_hp: 120
+    current_ap: 6
+    max_ap: 6
+    x: 5
+    y: 11
+    aggression: Friendly
+    scripted_first_action_name: Power Strike
+    scripted_first_action_executed: false
+  - role: Enemy
+    kind: zealot
+    level: 1
+    current_hp: 45
+    max_hp: 45
+    current_ap: 9
+    max_ap: 9
+    x: 5
+    y: 1
+    aggression: Aggressive
+    scripted_first_action_name: null
+    scripted_first_action_executed: false
+  map_cols: 8
+  map_rows: 13
+  zone_kind: research_wing
+  map_tiles:
+  - - - 7
+      - 6
+    - Door
+  - - - 3
+      - 0
+    - Door
+  - - - 7
+      - 7
+    - Door
+  - - - 7
+      - 0
+    - Obstacle
+  - - - 1
+      - 6
+    - Obstacle
+  - - - 7
+      - 10
+    - Obstacle
+  - - - 1
+      - 10
+    - Obstacle
+  - - - 2
+      - 10
+    - Obstacle
+  - - - 3
+      - 3
+    - Obstacle
+  - - - 3
+      - 4
+    - Obstacle
+  - - - 5
+      - 0
+    - Door
+  - - - 7
+      - 5
+    - Door
+  - - - 7
+      - 4
+    - Door
+  - - - 2
+      - 9
+    - Obstacle
+  - - - 2
+      - 0
+    - Door
+  - - - 1
+      - 7
+    - Obstacle
+  - - - 4
+      - 0
+    - Door

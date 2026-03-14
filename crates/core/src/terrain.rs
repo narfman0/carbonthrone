@@ -3,12 +3,13 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use bevy::prelude::Resource;
 use rand::Rng;
 use rand::rngs::StdRng;
+use serde::{Deserialize, Serialize};
 
 use crate::zone::ZoneKind;
 
 /// The terrain type of a single map cell. Tiles are either passable or not;
 /// cover is derived from adjacency to obstacles, not stored on the tile itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Tile {
     /// Open ground — passable, no inherent cover.
     Open,
@@ -193,6 +194,31 @@ impl LevelMap {
             }
         }
         vec![]
+    }
+
+    /// Returns all non-Open tiles as a vec of `(position, tile)` pairs.
+    /// Used for serializing the map; only sparse (obstacle/door) tiles are stored.
+    pub fn non_default_tiles(&self) -> Vec<((i32, i32), Tile)> {
+        self.tiles.iter().map(|(&pos, &tile)| (pos, tile)).collect()
+    }
+
+    /// Construct a `LevelMap` from an explicit tile map, recomputing cover.
+    /// `tiles` should contain only non-Open entries (Open is the default).
+    pub fn from_tile_map(
+        cols: u32,
+        rows: u32,
+        zone_kind: ZoneKind,
+        tiles: HashMap<(i32, i32), Tile>,
+    ) -> Self {
+        let mut map = Self {
+            cols,
+            rows,
+            zone_kind,
+            tiles,
+            cover: HashMap::new(),
+        };
+        map.recompute_cover();
+        map
     }
 
     /// Terminal character for rendering, including cover hints:

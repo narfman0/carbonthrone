@@ -11,7 +11,8 @@ use crate::dialog::{DialogEngine, Trigger};
 use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
-use crate::save::SaveData;
+use crate::ability::character_abilities;
+use crate::save::{BattleSnapshot, CombatantRole, CombatantSnapshot, SaveData};
 use crate::scripted_encounter::{
     PartyCompanion, ScriptedAlly, ScriptedEncounter, ScriptedFirstAction, scripted_encounter_for,
 };
@@ -777,26 +778,60 @@ impl GameSession {
     }
 
     /// Capture the minimal state needed to reconstruct this session later.
-    pub fn to_save_data(&self) -> SaveData {
-        let ending = if let GamePhase::Ended(k) = &self.phase {
-            Some(k.clone())
-        } else {
-            None
-        };
-        let GamePhase::Exploration(exploration) = &self.phase else {
-            // Fall back to defaults if called mid-battle or after ending.
-            return SaveData {
-                loop_number: self.loop_number,
-                flags: vec![],
-                active_companion: None,
-                current_zone: ZoneKind::ResearchWing,
-                party_kinds: vec![CharacterKind::Researcher],
-                party_hp: vec![],
-                completed_scenes: vec![],
-                fought_scripted_encounters: vec![],
-                ending,
+    pub fn to_save_data(&mut self) -> SaveData {
+        // Extract the exploration state regardless of whether we are in
+        // Exploration or Battle phase. If Battle, also build a snapshot.
+        // Extract the exploration state. For Battle, also capture the entity
+        // identifiers we need for the snapshot (copy them out so we can release
+        // the borrow on self.phase before calling build_battle_snapshot).
+        let battle_info: Option<(Entity, Vec<Entity>, ZoneKind, u32, u32)> =
+            match &self.phase {
+                GamePhase::Battle(e) => Some((
+                    e.player_entity,
+                    e.companion_entities.clone(),
+                    e.zone.kind,
+                    e.zone.cols,
+                    e.zone.rows,
+                )),
+                _ => None,
             };
+        let battle_snapshot = battle_info.as_ref().map(|(p, c, zk, zc, zr)| {
+            self.build_battle_snapshot(*p, c, *zk, *zc, *zr)
+        });
+
+        let (exploration, battle_snapshot) = match &self.phase {
+            GamePhase::Exploration(e) => (e, None),
+            GamePhase::Battle(e) => (e, battle_snapshot),
+            GamePhase::Ended(k) => {
+                return SaveData {
+                    loop_number: self.loop_number,
+                    flags: vec![],
+                    active_companion: None,
+                    current_zone: ZoneKind::ResearchWing,
+                    party_kinds: vec![CharacterKind::Researcher],
+                    party_hp: vec![],
+                    completed_scenes: vec![],
+                    fought_scripted_encounters: vec![],
+                    ending: Some(k.clone()),
+                    battle_snapshot: None,
+                };
+            }
+            GamePhase::Transitioning => {
+                return SaveData {
+                    loop_number: self.loop_number,
+                    flags: vec![],
+                    active_companion: None,
+                    current_zone: ZoneKind::ResearchWing,
+                    party_kinds: vec![CharacterKind::Researcher],
+                    party_hp: vec![],
+                    completed_scenes: vec![],
+                    fought_scripted_encounters: vec![],
+                    ending: None,
+                    battle_snapshot: None,
+                };
+            }
         };
+
         let flags = exploration.dialog.export_flags();
         let active_companion = exploration.dialog.active_companion().map(str::to_string);
         let current_zone = exploration.zone.kind;
@@ -840,7 +875,159 @@ impl GameSession {
             party_hp,
             completed_scenes,
             fought_scripted_encounters,
-            ending,
+            ending: None,
+            battle_snapshot,
+        }
+    }
+
+    /// Build a full battle snapshot from the current battle state.
+    /// `player` and `companions` are passed in by the caller after they
+    /// have released the borrow on `self.phase`.
+    fn build_battle_snapshot(
+        &mut self,
+        player: Entity,
+        companions: &[Entity],
+        fallback_zone: ZoneKind,
+        fallback_cols: u32,
+        fallback_rows: u32,
+    ) -> BattleSnapshot {
+        let mut combatants: Vec<CombatantSnapshot> = Vec::new();
+        let mut entity_to_idx: std::collections::HashMap<Entity, usize> =
+            std::collections::HashMap::new();
+
+        // Player entity.
+        if let (Some(ch), Some(h), Some(ap), Some(pos)) = (
+            self.world.get::<crate::character::Character>(player),
+            self.world.get::<Health>(player),
+            self.world.get::<ActionPoints>(player),
+            self.world.get::<Position>(player),
+        ) {
+            entity_to_idx.insert(player, combatants.len());
+            combatants.push(CombatantSnapshot {
+                role: CombatantRole::Player,
+                kind: ch.kind.clone(),
+                level: ch.level,
+                current_hp: h.current,
+                max_hp: h.max,
+                current_ap: ap.current,
+                max_ap: ap.max,
+                x: pos.x,
+                y: pos.y,
+                aggression: ch.aggression.clone(),
+                scripted_first_action_name: None,
+                scripted_first_action_executed: false,
+            });
+        }
+
+        // Companion entities.
+        for &comp in companions {
+            if let (Some(ch), Some(h), Some(ap), Some(pos)) = (
+                self.world.get::<crate::character::Character>(comp),
+                self.world.get::<Health>(comp),
+                self.world.get::<ActionPoints>(comp),
+                self.world.get::<Position>(comp),
+            ) {
+                entity_to_idx.insert(comp, combatants.len());
+                combatants.push(CombatantSnapshot {
+                    role: CombatantRole::Companion,
+                    kind: ch.kind.clone(),
+                    level: ch.level,
+                    current_hp: h.current,
+                    max_hp: h.max,
+                    current_ap: ap.current,
+                    max_ap: ap.max,
+                    x: pos.x,
+                    y: pos.y,
+                    aggression: ch.aggression.clone(),
+                    scripted_first_action_name: None,
+                    scripted_first_action_executed: false,
+                });
+            }
+        }
+
+        // Enemies and scripted allies — all entities with Character that are
+        // not the player or a companion.
+        let party_entities: std::collections::HashSet<Entity> =
+            std::iter::once(player).chain(companions.iter().copied()).collect();
+        let others: Vec<Entity> = {
+            let mut q = self.world.query::<(Entity, &crate::character::Character)>();
+            q.iter(&self.world)
+                .filter(|(e, _)| !party_entities.contains(e))
+                .map(|(e, _)| e)
+                .collect()
+        };
+
+        for entity in others {
+            if let (Some(ch), Some(h), Some(ap), Some(pos)) = (
+                self.world.get::<crate::character::Character>(entity),
+                self.world.get::<Health>(entity),
+                self.world.get::<ActionPoints>(entity),
+                self.world.get::<Position>(entity),
+            ) {
+                let is_ally = self.world.get::<ScriptedAlly>(entity).is_some();
+                let (fa_name, fa_executed) =
+                    if let Some(fa) = self.world.get::<ScriptedFirstAction>(entity) {
+                        (Some(fa.ability_name.to_string()), fa.executed)
+                    } else {
+                        (None, false)
+                    };
+                entity_to_idx.insert(entity, combatants.len());
+                combatants.push(CombatantSnapshot {
+                    role: if is_ally {
+                        CombatantRole::ScriptedAlly
+                    } else {
+                        CombatantRole::Enemy
+                    },
+                    kind: ch.kind.clone(),
+                    level: ch.level,
+                    current_hp: h.current,
+                    max_hp: h.max,
+                    current_ap: ap.current,
+                    max_ap: ap.max,
+                    x: pos.x,
+                    y: pos.y,
+                    aggression: ch.aggression.clone(),
+                    scripted_first_action_name: fa_name,
+                    scripted_first_action_executed: fa_executed,
+                });
+            }
+        }
+
+        // Actor queue as stable indices into the combatants vec.
+        let actor_queue: Vec<usize> = self
+            .battle
+            .as_ref()
+            .map(|b| {
+                b.player_queue()
+                    .iter()
+                    .filter_map(|e| entity_to_idx.get(e).copied())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        // Map tiles.
+        let (map_cols, map_rows, zone_kind, map_tiles) =
+            if let Some(lm) = self.world.get_resource::<LevelMap>() {
+                (lm.cols, lm.rows, lm.zone_kind, lm.non_default_tiles())
+            } else {
+                (fallback_cols, fallback_rows, fallback_zone, vec![])
+            };
+
+        let (round, turn) = self
+            .battle
+            .as_ref()
+            .map(|b| (b.round, b.turn))
+            .unwrap_or((1, crate::combat::Turn::Player));
+
+        BattleSnapshot {
+            round,
+            turn,
+            actor_queue,
+            combatants,
+            map_cols,
+            map_rows,
+            zone_kind,
+            map_tiles,
         }
     }
 
@@ -906,8 +1093,13 @@ impl GameSession {
             last_event: None,
             loop_number,
         };
-        session.apply_pending_battle();
-        session.maybe_start_battle();
+        if let Some(snapshot) = data.battle_snapshot {
+            // Restore exact battle state — skip procedural battle generation.
+            restore_battle(&mut session, &snapshot);
+        } else {
+            session.apply_pending_battle();
+            session.maybe_start_battle();
+        }
         if let Some(ending) = data.ending {
             session.phase = GamePhase::Ended(ending);
         }
@@ -1112,6 +1304,139 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
     let battle_rng = StdRng::seed_from_u64(rand::random::<u64>());
     world.insert_resource(zone.map.clone());
     world.insert_resource(BattleRng(battle_rng));
+}
+
+// ── Battle restore ────────────────────────────────────────────────────────────
+
+/// Restore a full battle state from a saved [`BattleSnapshot`].
+///
+/// Called from `from_save_data` when a snapshot is present.  The session must
+/// already be in `GamePhase::Exploration` (setup_exploration already ran).
+fn restore_battle(session: &mut GameSession, snapshot: &BattleSnapshot) {
+    let GamePhase::Exploration(_) = &session.phase else {
+        return;
+    };
+    let player_entity = match &session.phase {
+        GamePhase::Exploration(e) => e.player_entity,
+        _ => return,
+    };
+    let companion_entities: Vec<Entity> = match &session.phase {
+        GamePhase::Exploration(e) => e.companion_entities.clone(),
+        _ => return,
+    };
+
+    // Maps snapshot index → spawned/updated Entity.
+    let mut entity_at_index: Vec<Option<Entity>> = vec![None; snapshot.combatants.len()];
+    let mut companion_idx = 0usize;
+
+    for (i, snap) in snapshot.combatants.iter().enumerate() {
+        match snap.role {
+            CombatantRole::Player => {
+                update_combatant_from_snapshot(&mut session.world, player_entity, snap);
+                entity_at_index[i] = Some(player_entity);
+            }
+            CombatantRole::Companion => {
+                if let Some(&comp) = companion_entities.get(companion_idx) {
+                    update_combatant_from_snapshot(&mut session.world, comp, snap);
+                    entity_at_index[i] = Some(comp);
+                    companion_idx += 1;
+                }
+            }
+            CombatantRole::Enemy | CombatantRole::ScriptedAlly => {
+                let entity = spawn_combatant_from_snapshot(&mut session.world, snap);
+                entity_at_index[i] = Some(entity);
+            }
+        }
+    }
+
+    // Rebuild the LevelMap from saved tiles.
+    let tiles: std::collections::HashMap<(i32, i32), crate::terrain::Tile> =
+        snapshot.map_tiles.iter().copied().collect();
+    session.world.insert_resource(LevelMap::from_tile_map(
+        snapshot.map_cols,
+        snapshot.map_rows,
+        snapshot.zone_kind,
+        tiles,
+    ));
+    session
+        .world
+        .insert_resource(BattleRng(StdRng::seed_from_u64(rand::random::<u64>())));
+
+    // Reconstruct the actor queue from stable indices.
+    let actor_queue: Vec<Entity> = snapshot
+        .actor_queue
+        .iter()
+        .filter_map(|&idx| entity_at_index.get(idx).and_then(|e| *e))
+        .collect();
+
+    session.battle = Some(BattleStep::restore(snapshot.round, snapshot.turn, actor_queue));
+
+    // Transition phase to Battle.
+    let GamePhase::Exploration(exploration) =
+        std::mem::replace(&mut session.phase, GamePhase::Transitioning)
+    else {
+        return;
+    };
+    session.phase = GamePhase::Battle(exploration);
+}
+
+/// Update position, HP, and AP on an existing entity from a snapshot.
+fn update_combatant_from_snapshot(
+    world: &mut World,
+    entity: Entity,
+    snap: &CombatantSnapshot,
+) {
+    if let Some(mut pos) = world.get_mut::<Position>(entity) {
+        pos.x = snap.x;
+        pos.y = snap.y;
+    }
+    if let Some(mut h) = world.get_mut::<Health>(entity) {
+        h.current = snap.current_hp;
+    }
+    if let Some(mut ap) = world.get_mut::<ActionPoints>(entity) {
+        ap.current = snap.current_ap;
+    }
+}
+
+/// Spawn a fresh enemy or scripted-ally entity from a snapshot.
+fn spawn_combatant_from_snapshot(
+    world: &mut World,
+    snap: &CombatantSnapshot,
+) -> Entity {
+    let ch = Character::new_character(snap.kind.clone(), snap.level);
+    let stats = ch.stats.clone();
+    let max_hp = ch.stats.max_hp;
+    let ap_max = ap_for_speed(ch.stats.speed);
+    let mut cmd = world.spawn((
+        ch,
+        stats,
+        Health {
+            current: snap.current_hp,
+            max: max_hp,
+        },
+        ActionPoints {
+            current: snap.current_ap,
+            max: ap_max,
+        },
+        Position::new(snap.x, snap.y),
+    ));
+    if matches!(snap.role, CombatantRole::ScriptedAlly) {
+        cmd.insert(ScriptedAlly);
+    }
+    if let Some(ref name) = snap.scripted_first_action_name {
+        if !snap.scripted_first_action_executed {
+            if let Some(ability) = character_abilities(&snap.kind)
+                .iter()
+                .find(|a| a.name == name.as_str())
+            {
+                cmd.insert(ScriptedFirstAction {
+                    ability_name: ability.name,
+                    executed: false,
+                });
+            }
+        }
+    }
+    cmd.id()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -1,8 +1,57 @@
 use serde::{Deserialize, Serialize};
 
-use crate::character::CharacterKind;
+use crate::character::{Aggression, CharacterKind};
+use crate::combat::Turn;
 use crate::game::EndingKind;
+use crate::terrain::Tile;
 use crate::zone::ZoneKind;
+
+/// Role a combatant plays in the battle, used to route save/restore logic.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CombatantRole {
+    /// The main player character (Researcher).
+    Player,
+    /// A persistent party companion.
+    Companion,
+    /// An enemy entity (despawned after combat).
+    Enemy,
+    /// A scripted temporary ally (despawned after combat).
+    ScriptedAlly,
+}
+
+/// Full state of one combatant entity during a battle.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CombatantSnapshot {
+    pub role: CombatantRole,
+    pub kind: CharacterKind,
+    pub level: u32,
+    pub current_hp: i32,
+    pub max_hp: i32,
+    pub current_ap: i32,
+    pub max_ap: i32,
+    pub x: i32,
+    pub y: i32,
+    pub aggression: Aggression,
+    /// Ability name for `ScriptedFirstAction`, if present.
+    pub scripted_first_action_name: Option<String>,
+    /// Whether the scripted first action has already been executed.
+    pub scripted_first_action_executed: bool,
+}
+
+/// Complete battle state snapshot — map, combatants, and turn order.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BattleSnapshot {
+    pub round: u32,
+    pub turn: Turn,
+    /// Indices into `combatants` for the remaining actor queue (front = currently active).
+    pub actor_queue: Vec<usize>,
+    pub combatants: Vec<CombatantSnapshot>,
+    pub map_cols: u32,
+    pub map_rows: u32,
+    pub zone_kind: ZoneKind,
+    /// Non-Open tiles only (Open is the default; omitting it keeps the list compact).
+    pub map_tiles: Vec<((i32, i32), Tile)>,
+}
 
 const SAVE_PATH: &str = "save.yaml";
 
@@ -33,6 +82,9 @@ pub struct SaveData {
     /// Story ending reached (if the game has ended).
     #[serde(default)]
     pub ending: Option<EndingKind>,
+    /// Full battle state snapshot (present only when saved mid-battle).
+    #[serde(default)]
+    pub battle_snapshot: Option<BattleSnapshot>,
 }
 
 /// Write a [`SaveData`] to `save.yaml` in the current directory.

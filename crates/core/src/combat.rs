@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     ability::{AbilityEffect, AbilityKind, character_abilities},
@@ -58,7 +59,7 @@ pub fn turn_order(speeds: &[i32]) -> Vec<usize> {
 pub const MAX_ROUNDS: u32 = 1000;
 
 /// Whose turn it is in the current combat round.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Turn {
     Player,
     Enemy,
@@ -119,6 +120,15 @@ impl BattleStep {
             round: 1,
             turn: Turn::Player,
             actor_queue: VecDeque::from(players),
+        }
+    }
+
+    /// Restore a battle step from saved state (round, turn, actor queue).
+    pub fn restore(round: u32, turn: Turn, actor_queue: Vec<Entity>) -> Self {
+        Self {
+            round,
+            turn,
+            actor_queue: VecDeque::from(actor_queue),
         }
     }
 

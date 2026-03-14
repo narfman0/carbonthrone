@@ -526,7 +526,7 @@ fn auto_advance_enemy_turn(
 
 fn escape_to_main_menu(
     keys: Res<ButtonInput<KeyCode>>,
-    session: Res<GameSessionRes>,
+    mut session: ResMut<GameSessionRes>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {

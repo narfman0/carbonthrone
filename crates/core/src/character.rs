@@ -387,7 +387,7 @@ pub fn loop_aggression(kind: &CharacterKind, loop_number: u32) -> Aggression {
 }
 
 /// Current disposition of this character toward the player party.
-#[derive(Debug, Clone, PartialEq, Component)]
+#[derive(Debug, Clone, PartialEq, Component, Serialize, Deserialize)]
 pub enum Aggression {
     /// Attacks the party on sight.
     Aggressive,
