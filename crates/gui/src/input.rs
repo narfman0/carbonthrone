@@ -7,7 +7,6 @@ use carbonthrone::{
     game::GamePhase,
     player_input::PlayerActionChoice,
     position::Position,
-    save::save_game,
     stats::Stats,
     turn::{Action, bfs_move_path, move_ap_cost},
 };
@@ -17,8 +16,8 @@ use super::{
     character_visuals::CharacterMoveAnim,
     grid::world_to_grid,
     resources::{
-        ExplorationRng, GameSessionRes, PendingAbilityTarget, PendingPath, PendingPlayerChoices,
-        SelectedChoiceIndex,
+        ExplorationRng, GameSessionRes, PauseMenuOpen, PendingAbilityTarget, PendingPath,
+        PendingPlayerChoices, SelectedChoiceIndex,
     },
     state::AppState,
     ui::terminal::terminal_closed,
@@ -31,7 +30,7 @@ impl Plugin for InputPlugin {
         app.add_systems(
             Update,
             (
-                escape_to_main_menu
+                toggle_pause_menu
                     .run_if(
                         in_state(AppState::Exploration)
                             .or(in_state(AppState::Dialog))
@@ -522,17 +521,14 @@ fn auto_advance_enemy_turn(
     }
 }
 
-// ── Escape: save and return to main menu ──────────────────────────────────────
+// ── Escape: toggle pause menu ─────────────────────────────────────────────────
 
-fn escape_to_main_menu(
+fn toggle_pause_menu(
     keys: Res<ButtonInput<KeyCode>>,
-    mut session: ResMut<GameSessionRes>,
-    mut next_state: ResMut<NextState<AppState>>,
+    mut pause: ResMut<PauseMenuOpen>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
-        let data = session.0.to_save_data();
-        let _ = save_game(&data);
-        next_state.set(AppState::MainMenu);
+        pause.0 = !pause.0;
     }
 }
 

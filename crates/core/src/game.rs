@@ -810,6 +810,7 @@ impl GameSession {
                     current_zone: ZoneKind::ResearchWing,
                     party_kinds: vec![CharacterKind::Researcher],
                     party_hp: vec![],
+                    party_levels: vec![],
                     completed_scenes: vec![],
                     fought_scripted_encounters: vec![],
                     ending: Some(k.clone()),
@@ -824,6 +825,7 @@ impl GameSession {
                     current_zone: ZoneKind::ResearchWing,
                     party_kinds: vec![CharacterKind::Researcher],
                     party_hp: vec![],
+                    party_levels: vec![],
                     completed_scenes: vec![],
                     fought_scripted_encounters: vec![],
                     ending: None,
@@ -856,6 +858,26 @@ impl GameSession {
                     .unwrap_or(1)
             })
             .collect();
+        let party_levels: Vec<u32> = exploration
+            .party
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let entity = if i == 0 {
+                    exploration.player_entity
+                } else {
+                    exploration
+                        .companion_entities
+                        .get(i - 1)
+                        .copied()
+                        .unwrap_or(Entity::PLACEHOLDER)
+                };
+                self.world
+                    .get::<Experience>(entity)
+                    .map(|e| e.level)
+                    .unwrap_or(1)
+            })
+            .collect();
         let completed_scenes = exploration.dialog.export_completed_scenes();
         let fought_scripted_encounters = {
             let mut v: Vec<String> = exploration
@@ -873,6 +895,7 @@ impl GameSession {
             current_zone,
             party_kinds,
             party_hp,
+            party_levels,
             completed_scenes,
             fought_scripted_encounters,
             ending: None,
@@ -1037,8 +1060,9 @@ impl GameSession {
             .party_kinds
             .iter()
             .zip(data.party_hp.iter().chain(std::iter::repeat(&i32::MAX)))
-            .map(|(kind, &hp)| {
-                let mut ch = Character::new_character(kind.clone(), 1);
+            .zip(data.party_levels.iter().chain(std::iter::repeat(&1u32)))
+            .map(|((kind, &hp), &level)| {
+                let mut ch = Character::new_character(kind.clone(), level);
                 if hp != i32::MAX {
                     ch.current_hp = hp;
                 }
@@ -1053,6 +1077,19 @@ impl GameSession {
 
         let mut world = World::new();
         let (player_entity, companion_entities) = setup_exploration(&mut world, &party);
+
+        // Restore saved experience levels on party entities.
+        let all_entities: Vec<Entity> = std::iter::once(player_entity)
+            .chain(companion_entities.iter().copied())
+            .collect();
+        for (entity, &level) in all_entities
+            .iter()
+            .zip(data.party_levels.iter().chain(std::iter::repeat(&1u32)))
+        {
+            if let Some(mut xp) = world.get_mut::<Experience>(*entity) {
+                xp.level = level;
+            }
+        }
 
         let mut dialog = DialogEngine::new();
         let loop_number = data.loop_number;

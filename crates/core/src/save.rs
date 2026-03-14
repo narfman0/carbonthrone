@@ -54,18 +54,17 @@ pub struct BattleSnapshot {
 }
 
 const SAVE_DIR: &str = "Carbonthrone";
-const SAVE_FILE: &str = "save.yaml";
 
-/// Returns the save file path: `{Documents}/Carbonthrone/save.yaml`.
-/// Falls back to `save.yaml` in the current directory if the Documents
+/// Returns the save file path: `{Documents}/Carbonthrone/save_{slot}.yaml`.
+/// Falls back to `save_{slot}.yaml` in the current directory if the Documents
 /// folder cannot be determined.
-fn save_path() -> std::path::PathBuf {
+fn save_path(slot: u8) -> std::path::PathBuf {
     if let Some(docs) = dirs::document_dir() {
         let dir = docs.join(SAVE_DIR);
         let _ = std::fs::create_dir_all(&dir);
-        dir.join(SAVE_FILE)
+        dir.join(format!("save_{slot}.yaml"))
     } else {
-        std::path::PathBuf::from(SAVE_FILE)
+        std::path::PathBuf::from(format!("save_{slot}.yaml"))
     }
 }
 
@@ -87,6 +86,9 @@ pub struct SaveData {
     pub party_kinds: Vec<CharacterKind>,
     /// Current HP per party member (parallel to `party_kinds`).
     pub party_hp: Vec<i32>,
+    /// Level per party member (parallel to `party_kinds`).
+    #[serde(default)]
+    pub party_levels: Vec<u32>,
     /// Scene ids fully seen by the player (for re-interact fallback).
     #[serde(default)]
     pub completed_scenes: Vec<String>,
@@ -101,16 +103,21 @@ pub struct SaveData {
     pub battle_snapshot: Option<BattleSnapshot>,
 }
 
-/// Write a [`SaveData`] to `{Documents}/Carbonthrone/save.yaml`.
-pub fn save_game(data: &SaveData) -> Result<(), Box<dyn std::error::Error>> {
+/// Write a [`SaveData`] to `{Documents}/Carbonthrone/save_{slot}.yaml`.
+pub fn save_game(data: &SaveData, slot: u8) -> Result<(), Box<dyn std::error::Error>> {
     let yaml = serde_yaml::to_string(data)?;
-    std::fs::write(save_path(), yaml)?;
+    std::fs::write(save_path(slot), yaml)?;
     Ok(())
 }
 
-/// Load a [`SaveData`] from `{Documents}/Carbonthrone/save.yaml`.
-pub fn load_game() -> Result<SaveData, Box<dyn std::error::Error>> {
-    let yaml = std::fs::read_to_string(save_path())?;
+/// Load a [`SaveData`] from `{Documents}/Carbonthrone/save_{slot}.yaml`.
+pub fn load_game(slot: u8) -> Result<SaveData, Box<dyn std::error::Error>> {
+    let yaml = std::fs::read_to_string(save_path(slot))?;
     let data: SaveData = serde_yaml::from_str(&yaml)?;
     Ok(data)
+}
+
+/// Read all 4 save slots. Returns `None` for missing or corrupt files.
+pub fn load_all_slots() -> [Option<SaveData>; 4] {
+    std::array::from_fn(|i| load_game(i as u8).ok())
 }
