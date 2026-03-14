@@ -53,7 +53,6 @@ fn each_character_has_three_abilities() {
 fn each_character_has_level_1_ability() {
     for character in [
         CharacterKind::Researcher,
-        CharacterKind::Orin,
         CharacterKind::Doss,
         CharacterKind::Kaleo,
     ] {
@@ -67,6 +66,17 @@ fn each_character_has_level_1_ability() {
             "{character:?} should have exactly one level-1 ability"
         );
     }
+
+    // Orin has two level-1 abilities: one heal (RangedAlly) and one ranged damage.
+    let orin_lvl1: Vec<_> = character_abilities(&CharacterKind::Orin)
+        .into_iter()
+        .filter(|a| a.level_required == 1)
+        .collect();
+    assert_eq!(
+        orin_lvl1.len(),
+        2,
+        "Orin should have exactly two level-1 abilities (heal + ranged damage)"
+    );
 }
 
 #[test]

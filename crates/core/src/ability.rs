@@ -178,9 +178,9 @@ fn orin_abilities() -> Vec<Ability> {
             kind: AbilityKind::RangedAlly,
         },
         Ability {
-            name: "Radiant Bolt",
-            description: "A focused beam of healing light fired at range, dealing light damage.",
-            level_required: 5,
+            name: "Bioelectric Pulse",
+            description: "Discharge a focused bioelectric field from her medical scanner at range, dealing light damage.",
+            level_required: 1,
             ap_cost: 2,
             effect: AbilityEffect::BonusDamage { bonus: 3 },
             kind: AbilityKind::Ranged,
