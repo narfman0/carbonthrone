@@ -2,6 +2,7 @@ pub mod combat;
 pub mod dialog;
 pub mod ending;
 pub mod hud;
+pub mod main_menu;
 pub mod terminal;
 pub mod turn_log;
 
@@ -12,6 +13,7 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
+            main_menu::MainMenuPlugin,
             hud::HudPlugin,
             dialog::DialogPlugin,
             combat::CombatUiPlugin,

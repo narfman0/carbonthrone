@@ -5,8 +5,10 @@ use bevy::prelude::*;
 /// `OnEnter`/`OnExit` hooks drive visual entity lifecycle.
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum AppState {
-    /// In-world exploration: player visible on zone map, NPCs present.
+    /// Main menu: new game, load game, or exit.
     #[default]
+    MainMenu,
+    /// In-world exploration: player visible on zone map, NPCs present.
     Exploration,
     /// Dialog overlay active on top of the exploration view.
     Dialog,

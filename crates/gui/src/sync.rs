@@ -10,7 +10,9 @@ impl Plugin for SyncPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (phase_sync_system, zone_change_detect_system).chain(),
+            (phase_sync_system, zone_change_detect_system)
+                .chain()
+                .run_if(not(in_state(AppState::MainMenu))),
         )
         .add_systems(
             Update,
