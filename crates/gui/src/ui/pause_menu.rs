@@ -54,7 +54,7 @@ fn update_pause_menu(
     pause: Res<PauseMenuOpen>,
     substate: Res<PauseSubstate>,
     root_q: Query<Entity, With<PauseMenuRoot>>,
-    session: Res<GameSessionRes>,
+    _session: Res<GameSessionRes>,
     active_slot: Res<ActiveSaveSlot>,
 ) {
     let needs_rebuild = pause.is_changed() || substate.is_changed();
@@ -156,7 +156,7 @@ fn update_pause_menu(
 }
 
 fn spawn_pause_btn<M: Component>(
-    parent: &mut ChildBuilder,
+    parent: &mut ChildSpawnerCommands,
     label: &str,
     bg: Color,
     marker: M,

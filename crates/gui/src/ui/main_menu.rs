@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 use carbonthrone::{
-    character::CharacterKind,
     game::GameSession,
-    save::{SaveData, load_all_slots, load_game},
+    save::{load_all_slots, load_game},
 };
 use rand::SeedableRng;
 
