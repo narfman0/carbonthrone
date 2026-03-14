@@ -7,6 +7,7 @@ use carbonthrone::{
     game::GamePhase,
     player_input::PlayerActionChoice,
     position::Position,
+    save::save_game,
     stats::Stats,
     turn::{Action, bfs_move_path, move_ap_cost},
 };
@@ -30,6 +31,13 @@ impl Plugin for InputPlugin {
         app.add_systems(
             Update,
             (
+                escape_to_main_menu
+                    .run_if(
+                        in_state(AppState::Exploration)
+                            .or(in_state(AppState::Dialog))
+                            .or(in_state(AppState::Battle)),
+                    )
+                    .run_if(terminal_closed),
                 right_click_navigate
                     .run_if(in_state(AppState::Exploration))
                     .run_if(terminal_closed),
@@ -511,6 +519,20 @@ fn auto_advance_enemy_turn(
             }
             choices_res.needs_refresh = true;
         }
+    }
+}
+
+// ── Escape: save and return to main menu ──────────────────────────────────────
+
+fn escape_to_main_menu(
+    keys: Res<ButtonInput<KeyCode>>,
+    session: Res<GameSessionRes>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    if keys.just_pressed(KeyCode::Escape) {
+        let data = session.0.to_save_data();
+        let _ = save_game(&data);
+        next_state.set(AppState::MainMenu);
     }
 }
 
