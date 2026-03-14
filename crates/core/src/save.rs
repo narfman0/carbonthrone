@@ -53,7 +53,21 @@ pub struct BattleSnapshot {
     pub map_tiles: Vec<((i32, i32), Tile)>,
 }
 
-const SAVE_PATH: &str = "save.yaml";
+const SAVE_DIR: &str = "Carbonthrone";
+const SAVE_FILE: &str = "save.yaml";
+
+/// Returns the save file path: `{Documents}/Carbonthrone/save.yaml`.
+/// Falls back to `save.yaml` in the current directory if the Documents
+/// folder cannot be determined.
+fn save_path() -> std::path::PathBuf {
+    if let Some(docs) = dirs::document_dir() {
+        let dir = docs.join(SAVE_DIR);
+        let _ = std::fs::create_dir_all(&dir);
+        dir.join(SAVE_FILE)
+    } else {
+        std::path::PathBuf::from(SAVE_FILE)
+    }
+}
 
 /// Minimal persistent state needed to reconstruct a game session.
 ///
@@ -87,16 +101,16 @@ pub struct SaveData {
     pub battle_snapshot: Option<BattleSnapshot>,
 }
 
-/// Write a [`SaveData`] to `save.yaml` in the current directory.
+/// Write a [`SaveData`] to `{Documents}/Carbonthrone/save.yaml`.
 pub fn save_game(data: &SaveData) -> Result<(), Box<dyn std::error::Error>> {
     let yaml = serde_yaml::to_string(data)?;
-    std::fs::write(SAVE_PATH, yaml)?;
+    std::fs::write(save_path(), yaml)?;
     Ok(())
 }
 
-/// Load a [`SaveData`] from `save.yaml` in the current directory.
+/// Load a [`SaveData`] from `{Documents}/Carbonthrone/save.yaml`.
 pub fn load_game() -> Result<SaveData, Box<dyn std::error::Error>> {
-    let yaml = std::fs::read_to_string(SAVE_PATH)?;
+    let yaml = std::fs::read_to_string(save_path())?;
     let data: SaveData = serde_yaml::from_str(&yaml)?;
     Ok(data)
 }
