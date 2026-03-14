@@ -18,10 +18,10 @@ cargo clippy                         # lint
 cargo fmt                            # format (run on any modified .rs files after changes)
 ```
 
-## HInts
+## Hints
 
 * Don't cd to another directory
-* Don't add game logic outisde of the core crate
+* Don't add game logic outside of the core crate
 
 ## Architecture
 
@@ -42,6 +42,7 @@ All gameplay logic lives in `crates/core/src/` as library modules. The engine us
 - **`experience.rs`** — `Experience` component; `level_up_system` Bevy system applies pending level-ups and syncs `Stats`/`Health`.
 - **`position.rs`** — `Position` component (integer x/y grid coords).
 - **`scripted_encounter.rs`** — `ScriptedEncounter` struct with `CombatantPlacement` and `SpawnLocation` for fixed enemy/ally positioning. `ScriptedAlly` marker component tags an entity as a scripted ally; `ScriptedFirstAction` component specifies the forced first action for a combatant. `scripted_encounter_for()` returns the scripted encounter definition for a given zone/trigger.
+- **`console.rs`** — Developer console: `ConsoleCommand` enum (Help, DefeatEnemies); `parse_command()` and `execute_command()` for cheat/debug commands during play.
 
 ### Combat
 
@@ -58,17 +59,17 @@ All gameplay logic lives in `crates/core/src/` as library modules. The engine us
 
 ### Game session & persistence
 
-- **`game.rs`** — `GameSession` (top-level owner of `World`, `GamePhase`, `BattleStep`) and `ExplorationState` (player entity, NPC list, dialog engine, current zone, travel state, scene display state). Drives phase transitions (`transition_to_battle`, `transition_to_exploration`), `move_player`, `initiate_travel`, `exit_hallway`, `backtrack_to_origin`, `reset_loop`, and save/load. `zone_npcs` and `sync_companion` are helpers here.
+- **`game.rs`** — `GameSession` (top-level owner of `World`, `GamePhase`, `BattleStep`) and `ExplorationState` (player entity, NPC list, dialog engine, current zone, travel state, scene display state). `GamePhase` includes `Exploration`, `Battle`, `Transitioning`, and `Ended(EndingKind)`. `EndingKind` enum covers 5 story endings (Default, SableDestroyed, SableStopped, KaleoCompromise, DossPreserved). Drives phase transitions (`transition_to_battle`, `transition_to_exploration`), `move_player`, `initiate_travel`, `exit_hallway`, `backtrack_to_origin`, `reset_loop`, and save/load. `zone_npcs` and `sync_companion` are helpers here.
 - **`dialog.rs`** — `DialogEngine` (YAML-driven scene state machine), `Scene`, `DialogLine`, `Choice`, `Trigger` (OnEnter/OnCombatEnd/OnInteract/OnChoice). Loads per-loop YAML from `crates/core/data/loops/`; evaluates companion + flag requirements; exposes flag import/export for saves.
-- **`save.rs`** — `SaveData` struct (loop_number, flags, active_companion, current_zone, party_kinds, party_hp); `save_game`/`load_game` serialize to `save.yaml`.
+- **`save.rs`** — `SaveData` struct (loop_number, flags, active_companion, current_zone, party_kinds, party_hp); `BattleSnapshot`, `CombatantSnapshot`, `CombatantRole` for mid-battle save/restore; `save_game`/`load_game`/`load_all_slots` serialize to `{Documents}/Carbonthrone/save_{slot}.yaml` (4 save slots).
 
 ### GUI (`crates/gui/src/`)
 
 Bevy app that drives the graphical frontend. Reads `GameSession` via `GameSessionRes` resource and renders it each frame.
 
 - **`main.rs`** — `App` entry point; registers all plugins, resources (`GameSessionRes`, `ExplorationRng`, `LastKnownZone`, `PendingPlayerChoices`, `SelectedChoiceIndex`), and `AppState`.
-- **`state.rs`** — `AppState` enum (`Exploration`, `Dialog`, `Battle`) drives visual lifecycle via `OnEnter`/`OnExit` hooks.
-- **`resources.rs`** — Bevy `Resource` wrappers: `GameSessionRes` (wraps `GameSession`), `ExplorationRng`, `LastKnownZone`, `PendingPlayerChoices`, `SelectedChoiceIndex`.
+- **`state.rs`** — `AppState` enum (`MainMenu`, `Exploration`, `Dialog`, `Battle`, `Ended`) drives visual lifecycle via `OnEnter`/`OnExit` hooks.
+- **`resources.rs`** — Bevy `Resource` wrappers: `GameSessionRes` (wraps `GameSession`), `ExplorationRng`, `LastKnownZone`, `PendingPlayerChoices`, `SelectedChoiceIndex`, `PendingAbilityTarget`, `PendingPath`, `TerminalState`, `PauseMenuOpen`, `ActiveSaveSlot`.
 - **`camera.rs`** — `CameraPlugin`; camera setup and follow logic.
 - **`tile_mesh.rs`** — `TilePlugin`; spawns/updates tile mesh entities from `LevelMap`.
 - **`character_visuals.rs`** — `CharacterVisualsPlugin`; spawns/despawns sprite entities for player and NPCs.
@@ -76,10 +77,15 @@ Bevy app that drives the graphical frontend. Reads `GameSession` via `GameSessio
 - **`sync.rs`** — `SyncPlugin`; syncs `GameSession` state changes into Bevy ECS each frame (zone changes, entity positions).
 - **`input.rs`** — `InputPlugin`; keyboard/mouse input → `GameSession` commands (move, interact, travel, combat choice selection).
 - **`ui/`** — `UiPlugin` with sub-modules:
+  - `main_menu.rs` — Main menu with New Game / Load Game / Exit; `MainMenuSubstate` (Normal, LoadSlots); save slot display and loading.
   - `hud.rs` — HUD overlay (HP bars, AP, party status).
-  - `combat.rs` — Combat UI panel (action list, turn order, targets).
+  - `combat.rs` — Combat UI panel (action list, turn order, targets); ability targeting and path preview.
   - `dialog.rs` — Dialog overlay (speaker name, lines, choice buttons).
   - `turn_log.rs` — Scrollable turn event log.
+  - `terminal.rs` — Developer console overlay (toggled with backtick); wraps `console.rs` command parsing.
+  - `ending.rs` — Story ending screen with title/body text and quit prompt; keyed on `EndingKind`.
+  - `pause_menu.rs` — In-game pause overlay: Resume / Save (4 slots) / Exit.
+  - `save_slot.rs` — `slot_label()` utility to format save slot display (loop, zone, character level).
 
 ## Design Documents
 
