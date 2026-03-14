@@ -12,14 +12,16 @@ pub struct PauseMenuPlugin;
 
 impl Plugin for PauseMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<PauseSubstate>().add_systems(
-            Update,
-            (update_pause_menu, handle_pause_buttons).run_if(
-                in_state(AppState::Exploration)
-                    .or(in_state(AppState::Dialog))
-                    .or(in_state(AppState::Battle)),
-            ),
-        );
+        app.init_resource::<PauseSubstate>()
+            .add_systems(OnEnter(AppState::MainMenu), despawn_pause_menu)
+            .add_systems(
+                Update,
+                (update_pause_menu, handle_pause_buttons).run_if(
+                    in_state(AppState::Exploration)
+                        .or(in_state(AppState::Dialog))
+                        .or(in_state(AppState::Battle)),
+                ),
+            );
     }
 }
 
@@ -48,6 +50,19 @@ struct SlotSaveButton(u8);
 
 #[derive(Component)]
 struct SaveSlotsBackButton;
+
+fn despawn_pause_menu(
+    mut commands: Commands,
+    root_q: Query<Entity, With<PauseMenuRoot>>,
+    mut pause: ResMut<PauseMenuOpen>,
+    mut substate: ResMut<PauseSubstate>,
+) {
+    for e in &root_q {
+        commands.entity(e).despawn();
+    }
+    pause.0 = false;
+    *substate = PauseSubstate::Main;
+}
 
 fn update_pause_menu(
     mut commands: Commands,
