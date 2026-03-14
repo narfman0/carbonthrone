@@ -19,6 +19,7 @@ fn save_for(zone: ZoneKind, loop_number: u32) -> SaveData {
         current_zone: zone,
         party_kinds: vec![CharacterKind::Researcher],
         party_hp: vec![],
+        party_levels: vec![],
         completed_scenes: vec![],
         fought_scripted_encounters: vec![],
         ending: None,
