@@ -150,8 +150,12 @@ fn spawn_main_menu(mut commands: Commands) {
         });
 }
 
-fn despawn_main_menu(mut commands: Commands, roots: Query<Entity, With<StateUiRoot>>) {
-    for e in &roots {
+fn despawn_main_menu(
+    mut commands: Commands,
+    roots: Query<Entity, With<StateUiRoot>>,
+    panels: Query<Entity, With<LoadSlotsPanel>>,
+) {
+    for e in roots.iter().chain(panels.iter()) {
         commands.entity(e).despawn();
     }
 }
