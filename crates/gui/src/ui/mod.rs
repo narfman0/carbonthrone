@@ -3,6 +3,8 @@ pub mod dialog;
 pub mod ending;
 pub mod hud;
 pub mod main_menu;
+pub mod pause_menu;
+pub mod save_slot;
 pub mod terminal;
 pub mod turn_log;
 
@@ -20,6 +22,7 @@ impl Plugin for UiPlugin {
             turn_log::TurnLogPlugin,
             terminal::TerminalPlugin,
             ending::EndingPlugin,
+            pause_menu::PauseMenuPlugin,
         ));
     }
 }

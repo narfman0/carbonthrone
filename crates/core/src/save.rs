@@ -53,7 +53,9 @@ pub struct BattleSnapshot {
     pub map_tiles: Vec<((i32, i32), Tile)>,
 }
 
-const SAVE_PATH: &str = "save.yaml";
+fn save_path(slot: u8) -> String {
+    format!("save_{slot}.yaml")
+}
 
 /// Minimal persistent state needed to reconstruct a game session.
 ///
@@ -73,6 +75,9 @@ pub struct SaveData {
     pub party_kinds: Vec<CharacterKind>,
     /// Current HP per party member (parallel to `party_kinds`).
     pub party_hp: Vec<i32>,
+    /// Level per party member (parallel to `party_kinds`).
+    #[serde(default)]
+    pub party_levels: Vec<u32>,
     /// Scene ids fully seen by the player (for re-interact fallback).
     #[serde(default)]
     pub completed_scenes: Vec<String>,
@@ -87,16 +92,21 @@ pub struct SaveData {
     pub battle_snapshot: Option<BattleSnapshot>,
 }
 
-/// Write a [`SaveData`] to `save.yaml` in the current directory.
-pub fn save_game(data: &SaveData) -> Result<(), Box<dyn std::error::Error>> {
+/// Write a [`SaveData`] to `save_{slot}.yaml` in the current directory.
+pub fn save_game(data: &SaveData, slot: u8) -> Result<(), Box<dyn std::error::Error>> {
     let yaml = serde_yaml::to_string(data)?;
-    std::fs::write(SAVE_PATH, yaml)?;
+    std::fs::write(save_path(slot), yaml)?;
     Ok(())
 }
 
-/// Load a [`SaveData`] from `save.yaml` in the current directory.
-pub fn load_game() -> Result<SaveData, Box<dyn std::error::Error>> {
-    let yaml = std::fs::read_to_string(SAVE_PATH)?;
+/// Load a [`SaveData`] from `save_{slot}.yaml` in the current directory.
+pub fn load_game(slot: u8) -> Result<SaveData, Box<dyn std::error::Error>> {
+    let yaml = std::fs::read_to_string(save_path(slot))?;
     let data: SaveData = serde_yaml::from_str(&yaml)?;
     Ok(data)
+}
+
+/// Read all 4 save slots. Returns `None` for missing or corrupt files.
+pub fn load_all_slots() -> [Option<SaveData>; 4] {
+    std::array::from_fn(|i| load_game(i as u8).ok())
 }

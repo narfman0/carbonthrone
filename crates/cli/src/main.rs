@@ -149,13 +149,13 @@ fn main() {
                             }
                             KeyCode::Char('f') => {
                                 let data = session.to_save_data();
-                                if let Err(e) = save_game(&data) {
+                                if let Err(e) = save_game(&data, 0) {
                                     let _ = write!(stdout, "\r\nSave failed: {e}\r\n");
                                 }
                                 break;
                             }
                             KeyCode::Char('l') => {
-                                match load_game() {
+                                match load_game(0) {
                                     Ok(data) => {
                                         session = GameSession::from_save_data(data, &mut rng);
                                     }
