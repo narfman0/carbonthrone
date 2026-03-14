@@ -504,6 +504,7 @@ fn update_battle_outcome(
     mut outcome_label_q: Query<&mut Text, (With<OutcomeLabel>, Without<OutcomeContinueButton>)>,
     continue_q: Query<&Interaction, (With<OutcomeContinueButton>, Changed<Interaction>)>,
     mut session_res: ResMut<GameSessionRes>,
+    mut next_state: ResMut<NextState<crate::state::AppState>>,
 ) {
     // Show outcome panel when battle is over.
     if session_res.is_changed() {
@@ -527,13 +528,25 @@ fn update_battle_outcome(
         }
     }
 
-    // Continue button: transition back to exploration.
+    // Continue button: on victory/draw return to exploration; on defeat return to main menu.
     // Guard on still being in Battle phase so the button can't double-fire
-    // on the frame after transition_to_exploration() already ran.
+    // on the frame after the transition already ran.
     if matches!(&session_res.0.phase, GamePhase::Battle(_)) {
         if let Ok(interaction) = continue_q.single() {
             if *interaction == Interaction::Pressed {
-                session_res.0.transition_to_exploration();
+                let defeated = session_res
+                    .0
+                    .last_event
+                    .as_ref()
+                    .and_then(|e| e.outcome.as_ref())
+                    .map(|o| matches!(o, BattleOutcome::PlayerDefeated))
+                    .unwrap_or(false);
+                if defeated {
+                    session_res.0 = carbonthrone::game::GameSession::new();
+                    next_state.set(crate::state::AppState::MainMenu);
+                } else {
+                    session_res.0.transition_to_exploration();
+                }
             }
         }
     }
