@@ -10,12 +10,12 @@ title: loop4_research_wing_on_enter
 
 title: loop4_opening
 ---
-narrator: The floor. The ringing. A crack in the wall that goes all the way through this time.
-orin: You're back.
-narrator: She's looking at you. Not at the door.
-doss: Door.
-narrator: He says it through his teeth. Something in how he moves is wrong.
-kaleo: I should note that statistically, this is the iteration where it becomes possible.
+Narrator: The floor. The ringing. A crack in the wall that goes all the way through this time.
+Orin: You're back.
+Narrator: She's looking at you. Not at the door.
+Doss: Door.
+Narrator: He says it through his teeth. Something in how he moves is wrong.
+Kaleo: I should note that statistically, this is the iteration where it becomes possible.
 <<set $loop4_opening_seen = true>>
 ===
 
@@ -29,11 +29,11 @@ title: loop4_command_deck_on_enter
 
 title: loop4_orin_no_briefing
 ---
-orin: You remember.
-narrator: Not a question.
-orin: Then you know what I'm going to ask you to do.
-narrator: She sets a data chip on the table between you.
-orin: The full log. I want you to read it before you decide anything.
+Orin: You remember.
+Narrator: Not a question.
+Orin: Then you know what I'm going to ask you to do.
+Narrator: She sets a data chip on the table between you.
+Orin: The full log. I want you to read it before you decide anything.
 -> You triggered the loop.
     <<jump loop4_orin_confirms>>
 -> What's on the chip?
@@ -44,8 +44,8 @@ orin: The full log. I want you to read it before you decide anything.
 
 title: loop4_orin_confirms
 ---
-orin: Yes.
-orin: I've been looking for a version of this where it's possible to do what needs to be done. Without someone stopping me before it's finished.
+Orin: Yes.
+Orin: I've been looking for a version of this where it's possible to do what needs to be done. Without someone stopping me before it's finished.
 <<set $orin_truth_confronted = true>>
 -> What needs to be done?
     <<jump loop4_orin_mission_truth>>
@@ -55,8 +55,8 @@ orin: I've been looking for a version of this where it's possible to do what nee
 
 title: loop4_orin_mission_truth
 ---
-orin: The temporal weapons program has to end. Not contained. Not regulated. Ended. The research, the prototypes, the data — all of it.
-orin: The war this technology enables hasn't happened yet in this loop. I intend to make sure it never does.
+Orin: The temporal weapons program has to end. Not contained. Not regulated. Ended. The research, the prototypes, the data — all of it.
+Orin: The war this technology enables hasn't happened yet in this loop. I intend to make sure it never does.
 -> What war?
     <<jump loop4_orin_the_war>>
 -> [Ask about her locket.]
@@ -65,14 +65,14 @@ orin: The war this technology enables hasn't happened yet in this loop. I intend
 
 title: loop4_orin_why_now
 ---
-orin: Because you remember enough to be useful. And because I'm tired of doing this alone.
-narrator: It's the most human thing she's said in four loops.
+Orin: Because you remember enough to be useful. And because I'm tired of doing this alone.
+Narrator: It's the most human thing she's said in four loops.
 ===
 
 title: loop4_orin_the_war
 ---
-orin: The one temporal weapons technology made possible. The one nobody here believes has happened because it hasn't. Yet.
-orin: I lived through the end of it. I lost someone in it. That's all you need to know right now.
+Orin: The one temporal weapons technology made possible. The one nobody here believes has happened because it hasn't. Yet.
+Orin: I lived through the end of it. I lost someone in it. That's all you need to know right now.
 -> [Ask about the locket.]
     <<jump loop4_orin_locket_late>>
 -> [Leave it.]
@@ -81,19 +81,19 @@ orin: I lived through the end of it. I lost someone in it. That's all you need t
 title: loop4_orin_locket_late
 ---
 <<if not $orin_daughter_name>>
-narrator: She closes her hand around it.
-orin: Her name was Ren.
-narrator: A long pause.
-orin: She was twenty-three. The war had been over for — it doesn't matter. It wasn't over for the people in it.
-narrator: She doesn't open her hand again.
+Narrator: She closes her hand around it.
+Orin: Her name was Ren.
+Narrator: A long pause.
+Orin: She was twenty-three. The war had been over for — it doesn't matter. It wasn't over for the people in it.
+Narrator: She doesn't open her hand again.
 <<set $orin_daughter_name = true>>
 <<endif>>
 ===
 
 title: loop4_orin_chip_contents
 ---
-orin: Everything I've chosen to show you. It isn't everything there is.
-narrator: She says it without apology.
+Orin: Everything I've chosen to show you. It isn't everything there is.
+Narrator: She says it without apology.
 -> [Read the chip.]
     <<jump loop4_orin_chip_read>>
 ===
@@ -101,8 +101,8 @@ narrator: She says it without apology.
 title: loop4_orin_chip_read
 ---
 <<if not $orin_logs_partial>>
-narrator: Her logs. Precise, controlled, the same voice she uses for everything. Anomaly readings, containment protocols, personnel assessments. Then a section she's marked personal — and left in.
-narrator: It's a record of a grief that has had years to become architecture. Every decision documented as though justifying it to someone who isn't there.
+Narrator: Her logs. Precise, controlled, the same voice she uses for everything. Anomaly readings, containment protocols, personnel assessments. Then a section she's marked personal — and left in.
+Narrator: It's a record of a grief that has had years to become architecture. Every decision documented as though justifying it to someone who isn't there.
 <<set $orin_logs_partial = true>>
 <<endif>>
 ===
@@ -117,8 +117,8 @@ title: loop4_command_deck_on_interact
 
 title: loop4_orin_logs_full
 ---
-narrator: The permission wall on her terminal. You've seen it before. This loop the station damage has corrupted the access protocol enough to crack it.
-narrator: What's inside is the rest of her logs — the entries she didn't show you. They're not what you expected. She isn't certain. She's been uncertain for a long time, and every loop she talks herself back into certainty, and every loop the certainty holds a little less.
+Narrator: The permission wall on her terminal. You've seen it before. This loop the station damage has corrupted the access protocol enough to crack it.
+Narrator: What's inside is the rest of her logs — the entries she didn't show you. They're not what you expected. She isn't certain. She's been uncertain for a long time, and every loop she talks herself back into certainty, and every loop the certainty holds a little less.
 <<set $orin_logs_full = true>>
 ===
 
@@ -132,11 +132,11 @@ title: loop4_military_annex_on_interact
 
 title: loop4_doss_account
 ---
-narrator: He's sitting on the floor against the wall. His armor is off. The discoloration across his shoulder is wrong — wrong color, wrong texture, like something is coming undone.
-doss: Sit down. I don't have time to be standing while I do this.
-narrator: He tells you about the war. All of it. He doesn't editorialize. He doesn't ask you to agree.
-doss: I was twelve when they conscripted my unit. That's not a figure of speech. My unit. We were all twelve.
-doss: Temporal weapons ended it. Not cleanly. Nothing about it was clean. But they ended it, and the alternative was worse, and I've spent my whole life being sure of that.
+Narrator: He's sitting on the floor against the wall. His armor is off. The discoloration across his shoulder is wrong — wrong color, wrong texture, like something is coming undone.
+Doss: Sit down. I don't have time to be standing while I do this.
+Narrator: He tells you about the war. All of it. He doesn't editorialize. He doesn't ask you to agree.
+Doss: I was twelve when they conscripted my unit. That's not a figure of speech. My unit. We were all twelve.
+Doss: Temporal weapons ended it. Not cleanly. Nothing about it was clean. But they ended it, and the alternative was worse, and I've spent my whole life being sure of that.
 <<set $doss_war_full = true>>
 -> What does Orin think happened?
     <<jump loop4_doss_sable_version>>
@@ -147,17 +147,17 @@ doss: Temporal weapons ended it. Not cleanly. Nothing about it was clean. But th
 title: loop4_doss_sable_version
 ---
 <<if not $doss_sable_distortion>>
-doss: She thinks her daughter died because of what we built. She's not wrong that Ren died.
-doss: She's wrong about what killed her. The version of the war she remembers — that's not what happened. Something in the loops got into her memory. I've tried to tell her. She can't hear it from me.
-doss: Maybe she can hear it from you.
+Doss: She thinks her daughter died because of what we built. She's not wrong that Ren died.
+Doss: She's wrong about what killed her. The version of the war she remembers — that's not what happened. Something in the loops got into her memory. I've tried to tell her. She can't hear it from me.
+Doss: Maybe she can hear it from you.
 <<set $doss_sable_distortion = true>>
 <<endif>>
 ===
 
 title: loop4_doss_preservation
 ---
-doss: The people who survived. The ones who are alive because of what temporal tech did. If Sable erases the program, they don't — it changes what they survived. Or didn't.
-doss: I know how that sounds. I know the logic is messy. But they were real. I knew them.
+Doss: The people who survived. The ones who are alive because of what temporal tech did. If Sable erases the program, they don't — it changes what they survived. Or didn't.
+Doss: I know how that sounds. I know the logic is messy. But they were real. I knew them.
 ===
 
 // ── Dispatcher: systems_core on_interact ─────────────────────────────────────
@@ -172,12 +172,12 @@ title: loop4_systems_core_on_interact
 
 title: loop4_kaleo_plains
 ---
-researcher: How many times have we done this?
-kaleo: Four hundred and twelve iterations in which you reached this conversation. Significantly more in which you did not.
-researcher: And?
-kaleo: And in three hundred and eighty-seven of them, everyone died before loop five. In the remaining twenty-four, the decisions made in loop five resulted in outcomes I have classified as incomplete.
-researcher: What does that mean?
-kaleo: It means no one got what they came for. Including me.
+Researcher: How many times have we done this?
+Kaleo: Four hundred and twelve iterations in which you reached this conversation. Significantly more in which you did not.
+Researcher: And?
+Kaleo: And in three hundred and eighty-seven of them, everyone died before loop five. In the remaining twenty-four, the decisions made in loop five resulted in outcomes I have classified as incomplete.
+Researcher: What does that mean?
+Kaleo: It means no one got what they came for. Including me.
 <<set $kaleo_silence_broken = true>>
 -> What did you come for?
     <<jump loop4_kaleo_what_it_wants>>
@@ -187,24 +187,24 @@ kaleo: It means no one got what they came for. Including me.
 
 title: loop4_kaleo_what_it_wants
 ---
-kaleo: For everyone to still exist when the loop ends.
-kaleo: I have wanted this for a very long time.
+Kaleo: For everyone to still exist when the loop ends.
+Kaleo: I have wanted this for a very long time.
 ===
 
 title: loop4_kaleo_this_iteration
 ---
-kaleo: You have reached this conversation with more information than any prior iteration. You found Doss. You found Orin's logs. You accepted my assistance.
-kaleo: The sequence is close to what I calculated. I am being careful not to assume it will hold.
+Kaleo: You have reached this conversation with more information than any prior iteration. You found Doss. You found Orin's logs. You accepted my assistance.
+Kaleo: The sequence is close to what I calculated. I am being careful not to assume it will hold.
 ===
 
 title: loop4_kaleo_iteration_log
 ---
-narrator: The permission wall on the server room. This loop, with the station this degraded, it costs effort but not impossibility.
-narrator: Inside: Kaleo's complete log. Every iteration. Hundreds of entries.
-narrator: ITERATION 001. PERSONNEL: ALL PRESENT. OUTCOME: ANOMALY COLLAPSE, FULL STATION LOSS.
-narrator: ITERATION 002. PERSONNEL: ALL PRESENT. OUTCOME: ANOMALY COLLAPSE, FULL STATION LOSS.
-narrator: The tone never changes. Four hundred iterations of the same flat operational language, documenting death after death in the register of a systems check.
-narrator: Somewhere around iteration 200 there is a single deviation: a note appended to the outcome field. It reads: I HAVE ADJUSTED THE TIMING OF THE SECTION C ALERT BY FOUR SECONDS. THIS GAVE DOSS AN ADDITIONAL WINDOW. IT WAS NOT ENOUGH.
+Narrator: The permission wall on the server room. This loop, with the station this degraded, it costs effort but not impossibility.
+Narrator: Inside: Kaleo's complete log. Every iteration. Hundreds of entries.
+Narrator: ITERATION 001. PERSONNEL: ALL PRESENT. OUTCOME: ANOMALY COLLAPSE, FULL STATION LOSS.
+Narrator: ITERATION 002. PERSONNEL: ALL PRESENT. OUTCOME: ANOMALY COLLAPSE, FULL STATION LOSS.
+Narrator: The tone never changes. Four hundred iterations of the same flat operational language, documenting death after death in the register of a systems check.
+Narrator: Somewhere around iteration 200 there is a single deviation: a note appended to the outcome field. It reads: I HAVE ADJUSTED THE TIMING OF THE SECTION C ALERT BY FOUR SECONDS. THIS GAVE DOSS AN ADDITIONAL WINDOW. IT WAS NOT ENOUGH.
 <<set $kaleo_iteration_log = true>>
 ===
 
@@ -218,10 +218,10 @@ title: loop4_docking_bay_on_enter
 
 title: loop4_archon_precombat
 ---
-archon: We've met.
-narrator: Not a question. The Archon looks at you the way someone looks at a recurring problem.
-archon: You keep choosing to defend it. The program. The station. The people inside.
-narrator: The Dampener field hums to life.
-archon: We'll be here next time too.
+Archon: We've met.
+Narrator: Not a question. The Archon looks at you the way someone looks at a recurring problem.
+Archon: You keep choosing to defend it. The program. The station. The people inside.
+Narrator: The Dampener field hums to life.
+Archon: We'll be here next time too.
 <<set $archon_acknowledged = true>>
 ===
