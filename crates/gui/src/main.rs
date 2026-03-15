@@ -24,7 +24,8 @@ use tile_mesh::TilePlugin;
 use ui::UiPlugin;
 
 fn main() {
-    App::new()
+    let mut app = App::new();
+    app
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Carbonthrone".into(),
@@ -54,6 +55,10 @@ fn main() {
             SyncPlugin,
             InputPlugin,
             UiPlugin,
-        ))
-        .run();
+        ));
+
+    #[cfg(feature = "dev")]
+    app.add_plugins(bevy_inspector_egui::quick::WorldInspectorPlugin::new());
+
+    app.run();
 }

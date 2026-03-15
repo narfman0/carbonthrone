@@ -7,7 +7,11 @@ edition = "2024"
 name = "carbonthrone_gui"
 path = "src/main.rs"
 
+[features]
+dev = ["bevy-inspector-egui"]
+
 [dependencies]
 carbonthrone = { path = "../core" }
 bevy = "0.18.1"
 rand = "0.8"
+bevy-inspector-egui = { version = "0.36", optional = true }
