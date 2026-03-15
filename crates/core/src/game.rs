@@ -7,7 +7,7 @@ use rand::rngs::StdRng;
 use crate::action_points::{ActionPoints, ap_for_speed};
 use crate::character::{Character, CharacterKind};
 use crate::combat::{BattleStep, TurnEvent};
-use crate::dialog::{DialogEngine, Trigger};
+use crate::dialog::DialogFlags;
 use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
@@ -61,19 +61,19 @@ pub struct ExplorationState {
     /// One entity per companion in `party[1..]`; spawned persistently at session start.
     pub companion_entities: Vec<Entity>,
     pub npcs: Vec<NpcData>,
-    pub dialog: DialogEngine,
+    /// Dialog flag state for game-logic queries (NPC spawning, ending resolution, saves).
+    /// Variable state inside active dialog is owned by the GUI's `DialogueRunner`.
+    pub flags: DialogFlags,
+    /// Which companion is currently travelling with the player ("orin", "doss", "kaleo").
+    pub active_companion: Option<String>,
     pub zone: Zone,
     pub party: Vec<Character>,
-    /// Lines in the active scene as (speaker, text).
-    pub scene_lines: Vec<(String, String)>,
-    /// Choice texts in the active scene (empty when no choices).
-    pub scene_choices: Vec<String>,
-    /// Index of the currently displayed line.
-    pub line_index: usize,
-    /// Index of the highlighted choice (only meaningful at choice screen).
-    pub choice_index: usize,
-    /// Whether dialog is currently displayed.
+    /// Whether a Yarn dialog node is currently being displayed.
+    /// Set to `true` by `set_pending_dialog_node`; cleared by `end_dialog` or `dismiss_dialog`.
     pub in_dialog: bool,
+    /// Yarn node name the GUI should start next frame, if any.
+    /// Cleared by the GUI after calling `DialogueRunner::start_node`.
+    pub pending_dialog_node: Option<String>,
     /// Set while the player is traveling between named zones via hallways.
     pub travel: Option<TravelState>,
     /// A combat encounter is waiting to start (set on zone entry when the zone
@@ -84,99 +84,19 @@ pub struct ExplorationState {
 }
 
 impl ExplorationState {
-    /// Fire a trigger at the current location and load the resulting scene, if any.
-    pub fn fire_trigger(&mut self, trigger: Trigger) {
+    /// Set the pending dialog node for the given trigger kind at the current zone.
+    /// Marks `in_dialog = true` so battles and movement are blocked until the
+    /// GUI advances the dialog and calls `end_dialog`.
+    pub fn set_pending_dialog_node(&mut self, trigger: &str, loop_number: u32) {
         let location = self.zone.kind.location_id();
-        // Collect lines inside a scoped block so the borrow on self.dialog is
-        // released before we call current_available_choice_texts().
-        let triggered = {
-            if let Some(scene) = self.dialog.trigger(&trigger, location) {
-                self.scene_lines = scene
-                    .lines
-                    .iter()
-                    .map(|l| (l.speaker.clone(), l.text.clone()))
-                    .collect();
-                self.line_index = 0;
-                self.choice_index = 0;
-                self.in_dialog = !self.scene_lines.is_empty();
-                true
-            } else {
-                false
-            }
-        }; // borrow on self.dialog released here
-
-        if triggered {
-            // Now filter choices with the post-activation flag state.
-            self.scene_choices = self.dialog.current_available_choice_texts();
-        } else if trigger == Trigger::OnInteract {
-            if let Some(scene) = self.dialog.last_completed_interact_scene(location) {
-                if let Some(last_line) = scene.lines.last() {
-                    self.scene_lines = vec![(last_line.speaker.clone(), last_line.text.clone())];
-                    self.scene_choices = vec![];
-                    self.line_index = 0;
-                    self.choice_index = 0;
-                    self.in_dialog = true;
-                }
-            }
-        }
+        let node = format!("loop{loop_number}_{location}_on_{trigger}");
+        self.pending_dialog_node = Some(node);
+        self.in_dialog = true;
     }
 
-    /// True when the player is at the last line and choices are visible.
-    pub fn at_choice_screen(&self) -> bool {
-        self.in_dialog
-            && self.line_index + 1 >= self.scene_lines.len()
-            && !self.scene_choices.is_empty()
-    }
-
-    /// Advance one dialog line. Returns `true` when the dialog closes.
-    pub fn advance_dialog(&mut self) -> bool {
-        if self.line_index + 1 < self.scene_lines.len() {
-            self.line_index += 1;
-            false
-        } else if !self.scene_choices.is_empty() {
-            // Stay at the choice screen — handled by select_choice().
-            false
-        } else {
-            if let Some(scene_id) = self.dialog.current_scene_id().map(str::to_string) {
-                self.dialog.mark_scene_complete(&scene_id);
-            }
-            self.in_dialog = false;
-            true
-        }
-    }
-
-    /// Confirm the highlighted choice.
-    pub fn select_choice(&mut self) {
-        // Collect lines in a scoped block so the borrow on self.dialog is
-        // released before we call current_available_choice_texts().
-        // DialogEngine::select_choice commits any sets_flag before returning,
-        // so the post-commit flag state is used when filtering below.
-        let scene_found = {
-            if let Some(scene) = self.dialog.select_choice(self.choice_index) {
-                self.scene_lines = scene
-                    .lines
-                    .iter()
-                    .map(|l| (l.speaker.clone(), l.text.clone()))
-                    .collect();
-                self.line_index = 0;
-                self.choice_index = 0;
-                self.in_dialog = !self.scene_lines.is_empty();
-                true
-            } else {
-                false
-            }
-        }; // borrow on self.dialog released here
-
-        if scene_found {
-            // Filter with the post-commit flag state (includes any flag set by
-            // the choice we just resolved).
-            self.scene_choices = self.dialog.current_available_choice_texts();
-        } else {
-            if let Some(scene_id) = self.dialog.current_scene_id().map(str::to_string) {
-                self.dialog.mark_scene_complete(&scene_id);
-            }
-            self.in_dialog = false;
-        }
+    /// Fire an interact trigger at the current location.
+    pub fn fire_interact(&mut self, loop_number: u32) {
+        self.set_pending_dialog_node("interact", loop_number);
     }
 
     /// Try to move the player by (dx, dy). Blocked by NPCs and map edges.
@@ -220,36 +140,25 @@ impl ExplorationState {
 
 // ── Helper functions ─────────────────────────────────────────────────────────
 
-/// Determine if a story ending has been reached based on completed dialog
-/// scenes and flags. Returns `None` if the game should continue normally.
-fn resolve_ending(dialog: &crate::dialog::DialogEngine, loop_number: u32) -> Option<EndingKind> {
+/// Determine if a story ending has been reached based on flags set by Yarn dialog.
+/// Returns `None` if the game should continue normally.
+fn resolve_ending(flags: &DialogFlags, loop_number: u32) -> Option<EndingKind> {
     if loop_number < 5 {
         return None;
     }
-    if dialog.is_scene_complete("loop5_ending_doss") {
+    if flags.is_flag_set("ending_doss") {
         return Some(EndingKind::DossPreserved);
     }
-    if dialog.is_scene_complete("loop5_ending_kaleo") {
+    if flags.is_flag_set("ending_kaleo") {
         return Some(EndingKind::KaleoCompromise);
     }
-    if dialog.is_scene_complete("loop5_orin_player_agrees") {
+    if flags.is_flag_set("orin_helped") {
         return Some(EndingKind::SableDestroyed);
     }
-    if dialog.is_flag_set("orin_stopped") && !dialog.is_flag_set("convergence_triggered") {
+    if flags.is_flag_set("orin_stopped") && !flags.is_flag_set("convergence_triggered") {
         return Some(EndingKind::SableStopped);
     }
     None
-}
-
-/// Return the embedded YAML source for the given loop number (1–5).
-pub fn loop_yaml(loop_number: u32) -> &'static str {
-    match loop_number {
-        1 => include_str!("../data/loops/loop1.yaml"),
-        2 => include_str!("../data/loops/loop2.yaml"),
-        3 => include_str!("../data/loops/loop3.yaml"),
-        4 => include_str!("../data/loops/loop4.yaml"),
-        _ => include_str!("../data/loops/loop5.yaml"),
-    }
 }
 
 // ── Game session ──────────────────────────────────────────────────────────────
@@ -271,33 +180,28 @@ impl GameSession {
         let party = vec![Character::new_character(CharacterKind::Researcher, 1)];
         let (player_entity, companion_entities) = setup_exploration(&mut world, &party);
 
-        let mut dialog = DialogEngine::new();
+        let flags = DialogFlags::new();
         let loop_number = 1u32;
-        dialog
-            .load_script(loop_yaml(loop_number))
-            .expect("load loop yaml");
 
         let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
         let zone = Zone::enter(ZoneKind::ResearchWing, 1, loop_number, &mut rng);
-        let npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, dialog.flags());
+        let npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, flags.flags());
 
         let mut exploration = ExplorationState {
             player_entity,
             companion_entities,
             npcs,
-            dialog,
+            flags,
+            active_companion: None,
             zone,
             party,
-            scene_lines: Vec::new(),
-            scene_choices: Vec::new(),
-            line_index: 0,
-            choice_index: 0,
             in_dialog: false,
+            pending_dialog_node: None,
             travel: None,
             pending_battle: false,
             fought_scripted_encounters: HashSet::new(),
         };
-        exploration.fire_trigger(Trigger::OnEnter);
+        exploration.set_pending_dialog_node("enter", loop_number);
 
         let mut session = Self {
             phase: GamePhase::Exploration(exploration),
@@ -307,7 +211,8 @@ impl GameSession {
             loop_number: 1,
         };
         session.apply_pending_battle();
-        session.maybe_start_battle();
+        // Note: maybe_start_battle is blocked until in_dialog is cleared by
+        // the GUI after the opening Yarn dialog completes.
         session
     }
 
@@ -361,46 +266,47 @@ impl GameSession {
         }
     }
 
-    /// Advance one line of active dialog. Returns `true` when the dialog
-    /// window closes. If a battle was pending and the dialog just closed,
-    /// the battle starts automatically.
-    pub fn advance_dialog(&mut self) -> bool {
-        let closed = {
+    /// Called by the GUI when a Yarn dialog node completes.
+    ///
+    /// `new_flags` are the boolean variable names (without `$`) that were set
+    /// to `true` during the dialog — read from `DialogueRunner::variable_storage()`.
+    /// Flags are merged into `ExplorationState::flags`, the active companion is
+    /// re-derived, companions are recruited, and ending resolution is attempted.
+    /// If a battle was pending, it starts automatically.
+    pub fn end_dialog(&mut self, new_flags: Vec<String>) {
+        {
             let GamePhase::Exploration(e) = &mut self.phase else {
-                return false;
+                return;
             };
-            e.advance_dialog()
-        };
-        if closed {
-            self.maybe_start_battle();
+            e.flags.import_flags(new_flags);
+            e.active_companion = derive_companion(&e.flags);
+            e.in_dialog = false;
+            e.pending_dialog_node = None;
         }
-        closed
+        self.sync_and_recruit_companions();
+        let ending = if let GamePhase::Exploration(e) = &self.phase {
+            resolve_ending(&e.flags, self.loop_number)
+        } else {
+            None
+        };
+        if let Some(ending) = ending {
+            self.phase = GamePhase::Ended(ending);
+            return;
+        }
+        self.maybe_start_battle();
     }
 
-    /// Confirm the highlighted choice. If this choice closes the dialog and
-    /// a battle was pending, the battle starts automatically.
-    pub fn select_choice(&mut self) {
-        let dialog_closed = {
+    /// Dismiss pending dialog without processing it (used by the CLI and other
+    /// non-Yarn frontends to unblock game state).
+    pub fn dismiss_dialog(&mut self) {
+        {
             let GamePhase::Exploration(e) = &mut self.phase else {
                 return;
             };
-            let was_in = e.in_dialog;
-            e.select_choice();
-            was_in && !e.in_dialog
-        };
-        self.sync_and_recruit_companions();
-        if dialog_closed {
-            let ending = if let GamePhase::Exploration(e) = &self.phase {
-                resolve_ending(&e.dialog, self.loop_number)
-            } else {
-                None
-            };
-            if let Some(ending) = ending {
-                self.phase = GamePhase::Ended(ending);
-                return;
-            }
-            self.maybe_start_battle();
+            e.in_dialog = false;
+            e.pending_dialog_node = None;
         }
+        self.maybe_start_battle();
     }
 
     /// Advance the battle by one step. Returns a reference to the new event.
@@ -460,7 +366,7 @@ impl GameSession {
                 .fought_scripted_encounters
                 .insert(enc.id.to_string());
         }
-        exploration.fire_trigger(Trigger::OnCombatEnd);
+        exploration.set_pending_dialog_node("combat_end", self.loop_number);
         self.phase = GamePhase::Exploration(exploration);
     }
 
@@ -541,11 +447,11 @@ impl GameSession {
                     e.zone.cols,
                     e.zone.rows,
                     loop_number,
-                    e.dialog.flags(),
+                    e.flags.flags(),
                 );
                 // Spawn 1 tile inward from the entry door (faces back toward origin).
                 let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
-                e.fire_trigger(Trigger::OnEnter);
+                e.set_pending_dialog_node("enter", loop_number);
                 (
                     spawn,
                     e.companion_entities.clone(),
@@ -658,11 +564,11 @@ impl GameSession {
                 e.zone.cols,
                 e.zone.rows,
                 loop_number,
-                e.dialog.flags(),
+                e.flags.flags(),
             );
             // Spawn 1 tile inward from the door that leads toward the destination.
             let spawn = spawn_pos_near_door(&e.zone, travel_dir);
-            e.fire_trigger(Trigger::OnEnter);
+            e.set_pending_dialog_node("enter", loop_number);
             (
                 spawn,
                 e.companion_entities.clone(),
@@ -739,11 +645,7 @@ impl GameSession {
             let GamePhase::Exploration(e) = &mut self.phase else {
                 return;
             };
-            // Reload scenes for the new loop; flags are preserved.
-            e.dialog.clear_scenes();
-            e.dialog
-                .load_script(loop_yaml(loop_number))
-                .expect("load loop yaml");
+            // Flags are preserved across loops; Yarn handles per-loop scenes.
             e.zone = Zone::enter(ZoneKind::ResearchWing, 1, loop_number, rng);
             e.travel = None;
             e.npcs = zone_npcs(
@@ -751,9 +653,9 @@ impl GameSession {
                 e.zone.cols,
                 e.zone.rows,
                 loop_number,
-                e.dialog.flags(),
+                e.flags.flags(),
             );
-            e.fire_trigger(Trigger::OnEnter);
+            e.set_pending_dialog_node("enter", loop_number);
             (
                 e.player_entity,
                 e.companion_entities.clone(),
@@ -834,8 +736,8 @@ impl GameSession {
             }
         };
 
-        let flags = exploration.dialog.export_flags();
-        let active_companion = exploration.dialog.active_companion().map(str::to_string);
+        let flags = exploration.flags.export_flags();
+        let active_companion = exploration.active_companion.clone();
         let current_zone = exploration.zone.kind;
         let party_kinds = exploration.party.iter().map(|c| c.kind.clone()).collect();
         let party_hp: Vec<i32> = exploration
@@ -878,7 +780,6 @@ impl GameSession {
                     .unwrap_or(1)
             })
             .collect();
-        let completed_scenes = exploration.dialog.export_completed_scenes();
         let fought_scripted_encounters = {
             let mut v: Vec<String> = exploration
                 .fought_scripted_encounters
@@ -896,7 +797,7 @@ impl GameSession {
             party_kinds,
             party_hp,
             party_levels,
-            completed_scenes,
+            completed_scenes: vec![],
             fought_scripted_encounters,
             ending: None,
             battle_snapshot,
@@ -1091,37 +992,29 @@ impl GameSession {
             }
         }
 
-        let mut dialog = DialogEngine::new();
         let loop_number = data.loop_number;
-        dialog
-            .load_script(loop_yaml(loop_number))
-            .expect("load loop yaml");
-        dialog.import_flags(data.flags);
-        dialog.import_completed_scenes(data.completed_scenes);
-        if let Some(companion) = data.active_companion {
-            dialog.set_companion(companion);
-        }
+        let mut flags = DialogFlags::new();
+        flags.import_flags(data.flags);
+        let active_companion = data.active_companion.or_else(|| derive_companion(&flags));
 
         let zone = Zone::enter(data.current_zone, 1, loop_number, rng);
-        let npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, dialog.flags());
+        let npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, flags.flags());
 
         let mut exploration = ExplorationState {
             player_entity,
             companion_entities,
             npcs,
-            dialog,
+            flags,
+            active_companion,
             zone,
             party,
-            scene_lines: Vec::new(),
-            scene_choices: Vec::new(),
-            line_index: 0,
-            choice_index: 0,
             in_dialog: false,
+            pending_dialog_node: None,
             travel: None,
             pending_battle: false,
             fought_scripted_encounters: data.fought_scripted_encounters.into_iter().collect(),
         };
-        exploration.fire_trigger(Trigger::OnEnter);
+        exploration.set_pending_dialog_node("enter", loop_number);
 
         let mut session = Self {
             phase: GamePhase::Exploration(exploration),
@@ -1153,18 +1046,9 @@ impl Default for GameSession {
 // ── Companion management ──────────────────────────────────────────────────────
 
 impl GameSession {
-    /// Sync the dialog engine's active companion from flags, then spawn any
-    /// newly recruited companions that are flagged but not yet in the party.
+    /// Spawn any newly recruited companions that are flagged but not yet in the party.
     pub fn sync_and_recruit_companions(&mut self) {
-        // Step 1: update dialog active_companion pointer.
-        {
-            let GamePhase::Exploration(e) = &mut self.phase else {
-                return;
-            };
-            sync_companion(&mut e.dialog);
-        }
-
-        // Step 2: collect which companion kinds need to be spawned.
+        // Step 1: collect which companion kinds need to be spawned.
         let (to_spawn, researcher_level, researcher_pos, zone_cols, zone_rows, companion_count) = {
             let GamePhase::Exploration(e) = &self.phase else {
                 return;
@@ -1183,7 +1067,7 @@ impl GameSession {
             let to_spawn: Vec<CharacterKind> = recruits
                 .iter()
                 .filter(|(flag, kind)| {
-                    e.dialog.is_flag_set(flag) && !e.party.iter().any(|c| &c.kind == kind)
+                    e.flags.is_flag_set(flag) && !e.party.iter().any(|c| &c.kind == kind)
                 })
                 .map(|(_, kind)| kind.clone())
                 .collect();
@@ -1597,14 +1481,15 @@ pub fn zone_npcs(
     }
 }
 
-/// Sync the dialog engine's active companion from the flag state.
-/// Should be called whenever the player arrives in a new zone.
-pub fn sync_companion(dialog: &mut DialogEngine) {
-    if dialog.is_flag_set("companion_orin") {
-        dialog.set_companion("orin");
-    } else if dialog.is_flag_set("companion_doss") {
-        dialog.set_companion("doss");
-    } else if dialog.is_flag_set("kaleo_recruited") {
-        dialog.set_companion("kaleo");
+/// Derive the active companion name from the current flag state.
+pub fn derive_companion(flags: &DialogFlags) -> Option<String> {
+    if flags.is_flag_set("companion_orin") {
+        Some("orin".to_string())
+    } else if flags.is_flag_set("companion_doss") {
+        Some("doss".to_string())
+    } else if flags.is_flag_set("kaleo_recruited") {
+        Some("kaleo".to_string())
+    } else {
+        None
     }
 }

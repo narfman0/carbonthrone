@@ -1,7 +1,9 @@
 use bevy::prelude::*;
+use bevy_yarnspinner::prelude::*;
 use carbonthrone::game::GamePhase;
 
 use super::{StateUiRoot, accent_text, panel_bg, text_font, white_text};
+use crate::dialog_runner::{CurrentDialogLine, CurrentDialogOptions, GameDialogueRunner};
 use crate::resources::GameSessionRes;
 use crate::state::AppState;
 
@@ -10,10 +12,10 @@ pub struct DialogPlugin;
 impl Plugin for DialogPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Dialog), spawn_dialog_panel)
-            .add_systems(OnExit(AppState::Dialog), despawn_dialog_panel)
+            .add_systems(OnExit(AppState::Dialog), (despawn_dialog_panel, reset_dialog_resources))
             .add_systems(
                 Update,
-                (update_dialog_text, handle_choice_buttons).run_if(in_state(AppState::Dialog)),
+                (update_dialog_text, handle_dialog_input).run_if(in_state(AppState::Dialog)),
             );
     }
 }
@@ -112,6 +114,8 @@ fn spawn_dialog_panel(mut commands: Commands) {
 
 fn update_dialog_text(
     session: Res<GameSessionRes>,
+    line_res: Res<CurrentDialogLine>,
+    opts_res: Res<CurrentDialogOptions>,
     mut zone_q: Query<
         &mut Text,
         (
@@ -140,33 +144,26 @@ fn update_dialog_text(
     choices_container_q: Query<Entity, With<DialogChoicesContainer>>,
     mut commands: Commands,
 ) {
-    if !session.is_changed() {
-        return;
-    }
-    let GamePhase::Exploration(state) = &session.0.phase else {
-        return;
-    };
-
     // Update zone label.
-    if let Ok(mut t) = zone_q.single_mut() {
-        *t = Text::new(format!("[{}]", state.zone.kind.location_id()));
-    }
-
-    // Update speaker + text.
-    if let Some((speaker, text)) = state.scene_lines.get(state.line_index) {
-        if let Ok(mut t) = speaker_q.single_mut() {
-            *t = Text::new(speaker.clone());
-        }
-        if let Ok(mut t) = text_q.single_mut() {
-            *t = Text::new(text.clone());
+    if let GamePhase::Exploration(state) = &session.0.phase {
+        if let Ok(mut t) = zone_q.single_mut() {
+            *t = Text::new(format!("[{}]", state.zone.kind.location_id()));
         }
     }
 
-    let at_choices = state.at_choice_screen();
+    // Update speaker + text from resource.
+    if let Ok(mut t) = speaker_q.single_mut() {
+        *t = Text::new(line_res.speaker.clone());
+    }
+    if let Ok(mut t) = text_q.single_mut() {
+        *t = Text::new(line_res.text.clone());
+    }
+
+    let showing_choices = opts_res.waiting;
 
     // Toggle continue button.
     if let Ok(mut vis) = continue_q.single_mut() {
-        *vis = if at_choices {
+        *vis = if showing_choices || !line_res.waiting {
             Visibility::Hidden
         } else {
             Visibility::Inherited
@@ -178,9 +175,9 @@ fn update_dialog_text(
         commands
             .entity(container_entity)
             .despawn_related::<Children>();
-        if at_choices {
+        if showing_choices {
             commands.entity(container_entity).with_children(|parent| {
-                for (i, choice_text) in state.scene_choices.iter().enumerate() {
+                for (i, (_id, choice_text)) in opts_res.options.iter().enumerate() {
                     parent
                         .spawn((
                             ChoiceButton(i),
@@ -193,7 +190,7 @@ fn update_dialog_text(
                         ))
                         .with_children(|parent| {
                             parent.spawn((
-                                Text::new(format!("> {}", choice_text)),
+                                Text::new(format!("> {choice_text}")),
                                 text_font(13.0),
                                 white_text(),
                             ));
@@ -204,23 +201,36 @@ fn update_dialog_text(
     }
 }
 
-fn handle_choice_buttons(
-    mut session: ResMut<GameSessionRes>,
+fn handle_dialog_input(
     choice_q: Query<(&ChoiceButton, &Interaction), Changed<Interaction>>,
     continue_q: Query<&Interaction, (With<ContinueButton>, Changed<Interaction>)>,
+    mut runner_q: Query<&mut DialogueRunner, With<GameDialogueRunner>>,
+    mut opts_res: ResMut<CurrentDialogOptions>,
+    mut line_res: ResMut<CurrentDialogLine>,
 ) {
     for (choice_btn, interaction) in &choice_q {
         if *interaction == Interaction::Pressed {
-            if let GamePhase::Exploration(e) = &mut session.0.phase {
-                e.choice_index = choice_btn.0;
+            let id = opts_res.options.get(choice_btn.0).map(|(id, _)| *id);
+            if let Some(id) = id {
+                if let Ok(mut runner) = runner_q.single_mut() {
+                    if runner.is_running() {
+                        let _ = runner.select_option(id);
+                    }
+                }
+                opts_res.waiting = false;
+                opts_res.options.clear();
             }
-            session.0.select_choice();
         }
     }
 
     if let Ok(interaction) = continue_q.single() {
         if *interaction == Interaction::Pressed {
-            session.0.advance_dialog();
+            if let Ok(mut runner) = runner_q.single_mut() {
+                if runner.is_running() && !runner.is_waiting_for_option_selection() {
+                    runner.continue_in_next_update();
+                    line_res.waiting = false;
+                }
+            }
         }
     }
 }
@@ -229,4 +239,12 @@ fn despawn_dialog_panel(mut commands: Commands, q: Query<Entity, With<StateUiRoo
     for e in &q {
         commands.entity(e).despawn();
     }
+}
+
+fn reset_dialog_resources(
+    mut line_res: ResMut<CurrentDialogLine>,
+    mut opts_res: ResMut<CurrentDialogOptions>,
+) {
+    *line_res = CurrentDialogLine::default();
+    *opts_res = CurrentDialogOptions::default();
 }

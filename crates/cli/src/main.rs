@@ -92,32 +92,14 @@ fn main() {
 
                 // ── Exploration input ─────────────────────────────────────
                 GamePhase::Exploration(state) => {
-                    if state.in_dialog {
-                        match k.code {
-                            KeyCode::Char(' ') | KeyCode::Enter => {
-                                if state.at_choice_screen() {
-                                    state.select_choice();
-                                } else {
-                                    state.advance_dialog();
-                                }
-                                break;
-                            }
-                            KeyCode::Up => {
-                                if state.at_choice_screen() && state.choice_index > 0 {
-                                    state.choice_index -= 1;
-                                }
-                                break;
-                            }
-                            KeyCode::Down => {
-                                if state.at_choice_screen()
-                                    && state.choice_index + 1 < state.scene_choices.len()
-                                {
-                                    state.choice_index += 1;
-                                }
-                                break;
-                            }
-                            _ => {}
-                        }
+                    let in_dialog = state.in_dialog;
+                    let adjacent = state.adjacent_to_npc(&session.world);
+                    drop(state);
+                    if in_dialog {
+                        // Dialog is handled by the GUI (bevy_yarnspinner).
+                        // In the CLI, dismiss on any keypress to unblock movement.
+                        session.dismiss_dialog();
+                        break;
                     } else {
                         match k.code {
                             KeyCode::Up | KeyCode::Char('w') => {
@@ -137,9 +119,13 @@ fn main() {
                                 break;
                             }
                             KeyCode::Char('e') => {
-                                use carbonthrone::dialog::Trigger;
-                                if state.adjacent_to_npc(&session.world) {
-                                    state.fire_trigger(Trigger::OnInteract);
+                                if adjacent {
+                                    let loop_number = session.loop_number;
+                                    if let GamePhase::Exploration(s) = &mut session.phase {
+                                        s.fire_interact(loop_number);
+                                    }
+                                    // Immediately dismiss since CLI has no Yarn runner.
+                                    session.dismiss_dialog();
                                 }
                                 break;
                             }
@@ -349,18 +335,8 @@ fn render_exploration(state: &ExplorationState, world: &World) -> String {
 
     // Dialog area
     out += &format!("  {}\r\n", "-".repeat(WIDTH - 2));
-    if state.in_dialog && !state.scene_lines.is_empty() {
-        let (speaker, text) = &state.scene_lines[state.line_index];
-        out += &format!("  [{speaker}]: {text}\r\n");
-        out += "\r\n";
-
-        if state.at_choice_screen() {
-            for (i, choice) in state.scene_choices.iter().enumerate() {
-                let cursor = if i == state.choice_index { ">" } else { " " };
-                out += &format!("  {cursor} {choice}\r\n");
-            }
-            out += "\r\n";
-        }
+    if state.in_dialog {
+        out += "  (dialog — press any key to skip; use the GUI for full dialog)\r\n";
     } else {
         out += "  (explore the zone)\r\n";
     }
@@ -369,13 +345,9 @@ fn render_exploration(state: &ExplorationState, world: &World) -> String {
     out += "\r\n";
     out += &format!("{}\r\n", bar);
     let controls_str = if state.in_dialog {
-        if state.at_choice_screen() {
-            "[UP/DOWN] choose  [ENTER] confirm"
-        } else {
-            "[SPACE] continue"
-        }
+        "[any key] dismiss dialog"
     } else if state.adjacent_to_npc(world) {
-        "[WASD/Arrows] move  [E] talk  [B] battle  [Q] quit"
+        "[WASD/Arrows] move  [E] interact  [B] battle  [Q] quit"
     } else {
         "[WASD/Arrows] move  [B] battle  [Q] quit"
     };

@@ -36,6 +36,8 @@ pub fn phase_sync_system(
         GamePhase::Battle(_) => AppState::Battle,
         GamePhase::Transitioning | GamePhase::Ended(_) => return,
     };
+    // Note: in_dialog is set when pending_dialog_node is Some;
+    // cleared by the dialog runner system when the Yarn node completes.
     if *current_state.get() != desired {
         next_state.set(desired);
     }
