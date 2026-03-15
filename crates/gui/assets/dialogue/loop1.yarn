@@ -13,21 +13,21 @@ title: loop1_research_wing_on_enter
 
 title: loop1_opening
 ---
-narrator: You come to on the floor. Ears ringing. Emergency lighting.
-narrator: The bulkhead door is being cut through from the outside — Constancy Zealots and Purifiers, their suppression fields already active, Flux readings dropping as they breach.
-orin: On your feet. They're almost through.
-doss: Cover left. Don't let them flank.
-kaleo: I am calculating optimal engagement zones.
+Narrator: You come to on the floor. Ears ringing. Emergency lighting.
+Narrator: The bulkhead door is being cut through from the outside — Constancy Zealots and Purifiers, their suppression fields already active, Flux readings dropping as they breach.
+Orin: On your feet. They're almost through.
+Doss: Cover left. Don't let them flank.
+Kaleo: I am calculating optimal engagement zones.
 <<set $loop1_opened = true>>
 ===
 
 title: loop1_split
 ---
-orin: Stay with me. I know what has to be done.
-doss: You want to survive this? Stick with me. I've been in worse.
-kaleo: I should note that statistically, your survival odds are highest if —
-narrator: [Kaleo's terminal cuts out as its section seals.]
-narrator: The others don't protest. They just go. Efficient. Like they expected it.
+Orin: Stay with me. I know what has to be done.
+Doss: You want to survive this? Stick with me. I've been in worse.
+Kaleo: I should note that statistically, your survival odds are highest if —
+Narrator: [Kaleo's terminal cuts out as its section seals.]
+Narrator: The others don't protest. They just go. Efficient. Like they expected it.
 -> [Follow Orin.]
     <<set $companion = "orin">>
     <<set $companion_orin = true>>
@@ -50,11 +50,11 @@ title: loop1_research_wing_on_combat_end
 
 title: loop1_tutorial_end
 ---
-narrator: The last Purifier goes down. The suppression field collapses. Flux readings climb back to normal.
-orin: Containment is failing. The anomaly readings are spiking.
-kaleo: Emergency bulkhead protocols are activating. Sections will seal in approximately thirty seconds.
-doss: Then we move.
-narrator: The corridor splits three ways. The bulkheads are closing. Someone presses a Flux sidearm into your hand.
+Narrator: The last Purifier goes down. The suppression field collapses. Flux readings climb back to normal.
+Orin: Containment is failing. The anomaly readings are spiking.
+Kaleo: Emergency bulkhead protocols are activating. Sections will seal in approximately thirty seconds.
+Doss: Then we move.
+Narrator: The corridor splits three ways. The bulkheads are closing. Someone presses a Flux sidearm into your hand.
 <<set $loop1_tutorial_end_seen = true>>
 ===
 
@@ -68,8 +68,8 @@ title: loop1_command_deck_on_enter
 
 title: loop1_post_split_orin
 ---
-orin: Good. Stay close and follow my lead. The mission hasn't changed — we contain the anomaly.
-orin: I'll brief you fully at the command terminal. Right now we move.
+Orin: Good. Stay close and follow my lead. The mission hasn't changed — we contain the anomaly.
+Orin: I'll brief you fully at the command terminal. Right now we move.
 <<set $loop1_post_split_orin_seen = true>>
 ===
 
@@ -83,8 +83,8 @@ title: loop1_command_deck_on_interact
 
 title: loop1_orin_briefing
 ---
-orin: The anomaly is a self-sustaining spacetime loop. Our job is to collapse it before it expands beyond the lab. Everything else is secondary.
-orin: The Constancy attacked us because they want to destroy the program before we can weaponize the anomaly. That is not going to happen.
+Orin: The anomaly is a self-sustaining spacetime loop. Our job is to collapse it before it expands beyond the lab. Everything else is secondary.
+Orin: The Constancy attacked us because they want to destroy the program before we can weaponize the anomaly. That is not going to happen.
 <<set $loop1_orin_briefing_seen = true>>
 -> Who are the Constancy?
     <<jump loop1_orin_constancy>>
@@ -94,13 +94,13 @@ orin: The Constancy attacked us because they want to destroy the program before 
 
 title: loop1_orin_constancy
 ---
-orin: Extremists. They believe temporal research is inherently dangerous. They're not entirely wrong, which makes them more difficult to dismiss than they should be.
-orin: But dangerous ideas managed carefully are still manageable. That's what we're here to do.
+Orin: Extremists. They believe temporal research is inherently dangerous. They're not entirely wrong, which makes them more difficult to dismiss than they should be.
+Orin: But dangerous ideas managed carefully are still manageable. That's what we're here to do.
 ===
 
 title: loop1_orin_mission_start
 ---
-orin: The anomaly chamber. We need to run a containment sequence before the readings get any worse.
+Orin: The anomaly chamber. We need to run a containment sequence before the readings get any worse.
 ===
 
 // ── Dispatcher: military_annex on_enter ───────────────────────────────────────
@@ -115,14 +115,14 @@ title: loop1_military_annex_on_enter
 
 title: loop1_post_split_doss
 ---
-doss: Armory first. You're not going anywhere with just a sidearm.
-doss: Orin will run her mission. We'll run ours.
+Doss: Armory first. You're not going anywhere with just a sidearm.
+Doss: Orin will run her mission. We'll run ours.
 <<set $doss_arrived_annex = true>>
 ===
 
 title: loop1_doss_armory
 ---
-doss: Take what you need. Leave the heavy kinetics — those are mine.
+Doss: Take what you need. Leave the heavy kinetics — those are mine.
 <<set $loop1_doss_armory_seen = true>>
 -> What do you know about the Constancy?
     <<jump loop1_doss_constancy>>
@@ -131,6 +131,6 @@ doss: Take what you need. Leave the heavy kinetics — those are mine.
 
 title: loop1_doss_constancy
 ---
-doss: Enough to know they're serious. They don't hit a station like this without a reason and a plan.
-doss: They think temporal tech is wrong. Fine. They're entitled to their opinion. They don't get to act on it.
+Doss: Enough to know they're serious. They don't hit a station like this without a reason and a plan.
+Doss: They think temporal tech is wrong. Fine. They're entitled to their opinion. They don't get to act on it.
 ===

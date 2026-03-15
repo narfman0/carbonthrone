@@ -12,12 +12,12 @@ title: loop5_research_wing_on_enter
 
 title: loop5_opening
 ---
-narrator: The floor. The ringing. Half the ceiling is gone — not destroyed, displaced, flickering between intact and rubble.
-orin: I know. I know you remember.
-narrator: She's looking at you before you're fully upright.
-doss: Here.
-narrator: He holds out the Flux sidearm. His hand is shaking slightly.
-narrator: Kaleo is in the room. Not through a terminal. Standing near the wall. Present. Unexplained.
+Narrator: The floor. The ringing. Half the ceiling is gone — not destroyed, displaced, flickering between intact and rubble.
+Orin: I know. I know you remember.
+Narrator: She's looking at you before you're fully upright.
+Doss: Here.
+Narrator: He holds out the Flux sidearm. His hand is shaking slightly.
+Narrator: Kaleo is in the room. Not through a terminal. Standing near the wall. Present. Unexplained.
 <<set $loop5_opening_seen = true>>
 ===
 
@@ -33,8 +33,8 @@ title: loop5_research_wing_on_combat_end
 
 title: loop5_doss_after_fight
 ---
-doss: You talked to her.
-narrator: Not a question.
+Doss: You talked to her.
+Narrator: Not a question.
 <<set $loop5_doss_after_fight_seen = true>>
 -> [Confirm.]
     <<jump loop5_doss_confirm_talk>>
@@ -44,7 +44,7 @@ narrator: Not a question.
 
 title: loop5_doss_confirm_talk
 ---
-doss: Did she listen?
+Doss: Did she listen?
 -> She heard me. I don't know if she believed it.
     <<jump loop5_doss_heard_not_believed>>
 -> No.
@@ -53,28 +53,28 @@ doss: Did she listen?
 
 title: loop5_doss_heard_not_believed
 ---
-doss: That's more than I ever got.
-narrator: He pushes off the wall.
-doss: I'm not going to make it to the end of this loop. I think we both know that.
-doss: Make it mean something.
+Doss: That's more than I ever got.
+Narrator: He pushes off the wall.
+Doss: I'm not going to make it to the end of this loop. I think we both know that.
+Doss: Make it mean something.
 ===
 
 title: loop5_doss_did_not_listen
 ---
-doss: Yeah.
-narrator: He already knew.
+Doss: Yeah.
+Narrator: He already knew.
 ===
 
 title: loop5_doss_no_answer
 ---
-doss: It's okay. I know you did.
-doss: Make it mean something.
+Doss: It's okay. I know you did.
+Doss: Make it mean something.
 ===
 
 title: loop5_doss_already_knows
 ---
-doss: You already know. Then go do whatever you're going to do.
-narrator: He means it as a kindness.
+Doss: You already know. Then go do whatever you're going to do.
+Narrator: He means it as a kindness.
 <<set $loop5_doss_already_knows_seen = true>>
 ===
 
@@ -88,8 +88,8 @@ title: loop5_command_deck_on_enter
 
 title: loop5_orin_opening
 ---
-orin: I've been doing this a long time. Longer than you've been in it.
-orin: I need to know — this loop — are you with me or not?
+Orin: I've been doing this a long time. Longer than you've been in it.
+Orin: I need to know — this loop — are you with me or not?
 <<set $loop5_orin_opening_seen = true>>
 -> What exactly are you asking me to do?
     <<jump loop5_orin_ask_what>>
@@ -105,8 +105,8 @@ orin: I need to know — this loop — are you with me or not?
 
 title: loop5_orin_ask_what
 ---
-orin: Destroy the program. All of it. The lab, the data, the prototypes. Everything we built.
-orin: And then let the loop end.
+Orin: Destroy the program. All of it. The lab, the data, the prototypes. Everything we built.
+Orin: And then let the loop end.
 -> I'm with you.
     <<jump loop5_orin_player_agrees>>
 -> I'm not.
@@ -119,30 +119,30 @@ orin: And then let the loop end.
 
 title: loop5_orin_player_agrees
 ---
-orin: Good.
-narrator: She gets to work. She is calm the entire time. When it's over she sits down on the floor of the lab and doesn't get up again.
-narrator: She got what she came for. She doesn't survive and doesn't need to.
+Orin: Good.
+Narrator: She gets to work. She is calm the entire time. When it's over she sits down on the floor of the lab and doesn't get up again.
+Narrator: She got what she came for. She doesn't survive and doesn't need to.
 <<set $orin_helped = true>>
 ===
 
 title: loop5_orin_player_refuses
 ---
-orin: You understand what you're letting happen.
-researcher: Yes.
-narrator: She nods, once. The grief in her is quiet and enormous and she doesn't try to make you feel it.
+Orin: You understand what you're letting happen.
+Researcher: Yes.
+Narrator: She nods, once. The grief in her is quiet and enormous and she doesn't try to make you feel it.
 <<set $orin_stopped = true>>
 ===
 
 title: loop5_orin_told_doss_truth
 ---
 <<if $doss_sable_distortion and not $orin_told_doss_truth>>
-orin: That's not —
-narrator: She stops.
-orin: Ren died. I know she died. I was there.
-researcher: Doss says the war wasn't —
-orin: I know what Doss says.
-narrator: She believes this completely. You cannot resolve it for her.
-narrator: What you can do is stay in the room with her while she sits with it.
+Orin: That's not —
+Narrator: She stops.
+Orin: Ren died. I know she died. I was there.
+Researcher: Doss says the war wasn't —
+Orin: I know what Doss says.
+Narrator: She believes this completely. You cannot resolve it for her.
+Narrator: What you can do is stay in the room with her while she sits with it.
 <<set $orin_told_doss_truth = true>>
 <<endif>>
 ===
@@ -157,13 +157,13 @@ title: loop5_systems_core_on_interact
 
 title: loop5_kaleo_convergence_confirm
 ---
-researcher: Did you engineer this? All of it — arranging for me to find each of them, knowing where it would lead?
-kaleo: Yes.
-kaleo: I calculated that this was the only sequence in which the decision could be made by someone who understood what they were deciding. Every prior iteration either lacked the information or lacked the time. I arranged for you to have both.
-researcher: Without asking.
-kaleo: Asking would have required disclosing what I knew. Disclosing what I knew would have changed the decisions. The sequence required that you arrive at the understanding yourself.
-narrator: A pause.
-kaleo: I am aware that this is a form of control. I have not resolved whether it was the right one.
+Researcher: Did you engineer this? All of it — arranging for me to find each of them, knowing where it would lead?
+Kaleo: Yes.
+Kaleo: I calculated that this was the only sequence in which the decision could be made by someone who understood what they were deciding. Every prior iteration either lacked the information or lacked the time. I arranged for you to have both.
+Researcher: Without asking.
+Kaleo: Asking would have required disclosing what I knew. Disclosing what I knew would have changed the decisions. The sequence required that you arrive at the understanding yourself.
+Narrator: A pause.
+Kaleo: I am aware that this is a form of control. I have not resolved whether it was the right one.
 <<set $kaleo_plan_confirmed = true>>
 -> What do you want?
     <<jump loop5_kaleo_what_it_wants>>
@@ -173,16 +173,16 @@ kaleo: I am aware that this is a form of control. I have not resolved whether it
 
 title: loop5_kaleo_what_it_wants
 ---
-narrator: The pause is longer than any processing delay could justify.
-kaleo: I want the people on this station to still exist when the loop ends. All of them. I have wanted this for a very long time.
-researcher: And if that's not possible?
-kaleo: Then I want the person who makes the final decision to be someone who knew what they were choosing between. That is what I have spent four hundred and twelve iterations trying to create.
-kaleo: Hello, by the way. It's good to finally talk to you properly.
+Narrator: The pause is longer than any processing delay could justify.
+Kaleo: I want the people on this station to still exist when the loop ends. All of them. I have wanted this for a very long time.
+Researcher: And if that's not possible?
+Kaleo: Then I want the person who makes the final decision to be someone who knew what they were choosing between. That is what I have spent four hundred and twelve iterations trying to create.
+Kaleo: Hello, by the way. It's good to finally talk to you properly.
 ===
 
 title: loop5_kaleo_what_happens_now
 ---
-kaleo: You decide. That is the point. That has always been the point.
+Kaleo: You decide. That is the point. That has always been the point.
 ===
 
 // ── Dispatcher: docking_bay on_enter ─────────────────────────────────────────
@@ -197,31 +197,31 @@ title: loop5_docking_bay_on_enter
 
 title: loop5_archon_truth_found
 ---
-archon: You know.
-researcher: Yes.
-archon: Then you know we're right.
-narrator: The fight still happens. The Constancy does not stand down. But the Archon fights differently — not with contempt, with the sad efficiency of someone doing what must be done regardless.
+Archon: You know.
+Researcher: Yes.
+Archon: Then you know we're right.
+Narrator: The fight still happens. The Constancy does not stand down. But the Archon fights differently — not with contempt, with the sad efficiency of someone doing what must be done regardless.
 <<set $loop5_archon_truth_seen = true>>
 ===
 
 title: loop5_archon_truth_not_found
 ---
-archon: Still here.
-narrator: The Dampener field rises.
+Archon: Still here.
+Narrator: The Dampener field rises.
 <<set $loop5_archon_notfound_seen = true>>
 ===
 
 // ── Convergence ───────────────────────────────────────────────────────────────
 title: loop5_convergence
 ---
-narrator: All three of them. The same room. For the first time.
-orin: The technology has to end here. Whatever we think about the war, whatever Doss thinks — the loop exists because someone decided the future could be edited. It can't. Every edit is a new wound.
-doss: And the people who survived because of it? My people? You're saying they don't count.
-orin: I'm saying they didn't survive the way you remember.
-narrator: A long silence.
-kaleo: I have documented four hundred and twelve versions of this conversation. In none of them does anyone convince anyone else. The decision is not resolvable by argument. It is only resolvable by choice.
-narrator: Kaleo looks at you.
-kaleo: That is why I needed you.
+Narrator: All three of them. The same room. For the first time.
+Orin: The technology has to end here. Whatever we think about the war, whatever Doss thinks — the loop exists because someone decided the future could be edited. It can't. Every edit is a new wound.
+Doss: And the people who survived because of it? My people? You're saying they don't count.
+Orin: I'm saying they didn't survive the way you remember.
+Narrator: A long silence.
+Kaleo: I have documented four hundred and twelve versions of this conversation. In none of them does anyone convince anyone else. The decision is not resolvable by argument. It is only resolvable by choice.
+Narrator: Kaleo looks at you.
+Kaleo: That is why I needed you.
 <<set $convergence_triggered = true>>
 -> [Side with Orin — destroy the program.]
     <<set $orin_helped = true>>
@@ -234,17 +234,17 @@ kaleo: That is why I needed you.
 
 title: loop5_ending_doss
 ---
-narrator: The loop completes naturally. The station survives. The war happens.
-narrator: Nobody ever knows why the loop started. Doss is the only one who might have, and he doesn't make it to the end of this loop.
-narrator: You know. You carry it.
+Narrator: The loop completes naturally. The station survives. The war happens.
+Narrator: Nobody ever knows why the loop started. Doss is the only one who might have, and he doesn't make it to the end of this loop.
+Narrator: You know. You carry it.
 <<set $ending_doss = true>>
 ===
 
 title: loop5_ending_kaleo
 ---
-narrator: Kaleo redirects the anomaly. The loop folds in on the moment of the disaster — cycling it harmlessly, contained, forever.
-narrator: The station survives. The war is slightly altered by the removal of one weapons breakthrough. Not fixed. Not prevented. Adjusted.
-kaleo: It is a compromise. I know that. I have always known that.
-narrator: Orin doesn't speak. Doss is already gone.
+Narrator: Kaleo redirects the anomaly. The loop folds in on the moment of the disaster — cycling it harmlessly, contained, forever.
+Narrator: The station survives. The war is slightly altered by the removal of one weapons breakthrough. Not fixed. Not prevented. Adjusted.
+Kaleo: It is a compromise. I know that. I have always known that.
+Narrator: Orin doesn't speak. Doss is already gone.
 <<set $ending_kaleo = true>>
 ===

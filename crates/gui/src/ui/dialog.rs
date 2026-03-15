@@ -147,7 +147,7 @@ fn update_dialog_text(
     // Update zone label.
     if let GamePhase::Exploration(state) = &session.0.phase {
         if let Ok(mut t) = zone_q.single_mut() {
-            *t = Text::new(format!("[{}]", state.zone.kind.location_id()));
+            *t = Text::new(format!("[{}]", state.zone.kind.display_name()));
         }
     }
 
