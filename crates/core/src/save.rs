@@ -89,7 +89,8 @@ pub struct SaveData {
     /// Level per party member (parallel to `party_kinds`).
     #[serde(default)]
     pub party_levels: Vec<u32>,
-    /// Scene ids fully seen by the player (for re-interact fallback).
+    /// Scene ids fully seen by the player — kept for save compatibility but
+    /// no longer actively used; .yarn nodes track their own "seen" state via flags.
     #[serde(default)]
     pub completed_scenes: Vec<String>,
     /// Scripted encounter ids the player has already fought.

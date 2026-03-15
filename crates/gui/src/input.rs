@@ -46,9 +46,6 @@ impl Plugin for InputPlugin {
                 left_click_npc
                     .run_if(in_state(AppState::Exploration))
                     .run_if(terminal_closed),
-                advance_dialog_click
-                    .run_if(in_state(AppState::Dialog))
-                    .run_if(terminal_closed),
                 apply_player_choice
                     .run_if(in_state(AppState::Battle))
                     .run_if(terminal_closed),
@@ -211,24 +208,9 @@ fn left_click_npc(
         && (gx - player_pos.x).abs() + (gy - player_pos.y).abs() <= 1;
 
     if should_interact {
+        let loop_number = session.0.loop_number;
         if let GamePhase::Exploration(e) = &mut session.0.phase {
-            e.fire_trigger(carbonthrone::dialog::Trigger::OnInteract);
-        }
-    }
-}
-
-// ── Dialog: advance / select choice ──────────────────────────────────────────
-
-/// Left-click in dialog state advances to the next line.
-/// Choice selection is handled by UI buttons in `ui/dialog.rs`.
-fn advance_dialog_click(mouse: Res<ButtonInput<MouseButton>>, mut session: ResMut<GameSessionRes>) {
-    if mouse.just_pressed(MouseButton::Left) {
-        let at_choice = match &session.0.phase {
-            GamePhase::Exploration(e) => e.at_choice_screen(),
-            _ => false,
-        };
-        if !at_choice {
-            session.0.advance_dialog();
+            e.fire_interact(loop_number);
         }
     }
 }

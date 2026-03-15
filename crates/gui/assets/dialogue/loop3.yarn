@@ -1,0 +1,191 @@
+// Loop 3 dialog script
+
+// ── Dispatcher: research_wing on_enter ────────────────────────────────────────
+title: loop3_research_wing_on_enter
+---
+<<if not $loop3_opening_seen>>
+    <<jump loop3_opening>>
+<<endif>>
+===
+
+title: loop3_opening
+---
+narrator: The floor again. The ringing. The light is worse this time — something in the wall cracked between then and now, and nobody caused it in this loop.
+orin: On your feet.
+doss: Door.
+narrator: He was already watching it.
+kaleo: I should note that I have run this calculation before —
+narrator: [Drops. The suppression field is up.]
+<<set $loop3_opening_seen = true>>
+===
+
+// ── Dispatcher: research_wing on_combat_end ───────────────────────────────────
+title: loop3_research_wing_on_combat_end
+---
+<<if not $constancy_zealot_heard>>
+    <<jump loop3_constancy_zealot_dying>>
+<<endif>>
+===
+
+title: loop3_constancy_zealot_dying
+---
+narrator: One Zealot is down but not dead. If you leave them, they speak before the end.
+zealot: You think we're wrong.
+narrator: Not an accusation. A statement.
+zealot: You'll understand why we came. Before the end.
+<<set $constancy_zealot_heard = true>>
+===
+
+// ── Dispatcher: command_deck on_enter ─────────────────────────────────────────
+title: loop3_command_deck_on_enter
+---
+<<if $companion == "orin" and $companion_orin and not $loop3_post_split_orin_seen>>
+    <<jump loop3_post_split_orin>>
+<<endif>>
+===
+
+title: loop3_post_split_orin
+---
+orin: The anomaly is worse than it should be at the start of a loop. You'll see that in the readings.
+narrator: She said 'start of a loop' without pausing.
+<<set $loop3_post_split_orin_seen = true>>
+-> You said 'start of a loop.'
+    <<jump loop3_orin_slip_caught>>
+-> [Let it pass.]
+===
+
+title: loop3_orin_slip_caught
+---
+orin: I meant start of a — the start of this situation. The crisis.
+narrator: The correction is smooth. It should feel reassuring. It doesn't.
+===
+
+// ── Dispatcher: command_deck on_interact ──────────────────────────────────────
+title: loop3_command_deck_on_interact
+---
+<<if $companion == "orin" and $companion_orin and not $orin_logs_partial>>
+    <<jump loop3_orin_logs_access>>
+<<endif>>
+===
+
+title: loop3_orin_logs_access
+---
+orin: Some of it isn't — I'm not ready to show you all of it yet.
+narrator: She says 'yet' like she means it. You don't know if she does.
+narrator: She opens a partial log. Entries from before the loop began — her voice, clipped and precise, documenting anomaly readings. Then a gap. Then entries that begin mid-sentence, as though she started recording and thought better of it.
+<<set $orin_logs_partial = true>>
+-> What's in the gap?
+    <<jump loop3_orin_logs_gap>>
+-> [Read what she's shown you.]
+===
+
+title: loop3_orin_logs_gap
+---
+orin: Personal notes. Not relevant to the mission.
+narrator: She closes the terminal.
+===
+
+// ── Dispatcher: military_annex on_enter ───────────────────────────────────────
+title: loop3_military_annex_on_enter
+---
+<<if $kaleo_recruited and not $loop3_kaleo_first_warning_seen>>
+    <<jump loop3_kaleo_first_warning>>
+<<endif>>
+===
+
+title: loop3_kaleo_first_warning
+---
+kaleo: There are two Security Units in the next room. They have been aggressive since loop — since their last maintenance cycle.
+narrator: You hadn't asked.
+<<set $loop3_kaleo_first_warning_seen = true>>
+-> How did you know that?
+    <<jump loop3_kaleo_first_evasion>>
+-> [Proceed with the warning in mind.]
+===
+
+title: loop3_kaleo_first_evasion
+---
+kaleo: I have access to the station's sensor grid.
+narrator: A beat.
+kaleo: That is the accurate answer.
+<<set $kaleo_knows_more = true>>
+===
+
+// ── Dispatcher: military_annex on_interact ────────────────────────────────────
+title: loop3_military_annex_on_interact
+---
+<<if $companion == "doss" and $companion_doss and not $doss_bunk_found>>
+    <<jump loop3_doss_bunk>>
+<<elseif $doss_bunk_found and not $doss_war_referenced and not $loop3_doss_oblique_seen>>
+    <<jump loop3_doss_war_oblique_no_companion>>
+<<endif>>
+===
+
+title: loop3_doss_bunk
+---
+narrator: Maps on the bunk. Tactical maps — grid references, force positions, supply lines. You pull up the location index and find nothing. These places don't exist in any database you can reach.
+doss: Old habit.
+narrator: He's in the doorway. He doesn't ask how you found them.
+doss: Sit down.
+narrator: He sits on the edge of the bunk. Doesn't look at you.
+doss: You ever been in something you couldn't walk away from? Not because they stopped you. Because walking away meant it happened for nothing.
+<<set $doss_bunk_found = true>>
+-> What happened?
+    <<jump loop3_doss_war_not_yet>>
+-> What are those maps of?
+    <<jump loop3_doss_maps_question>>
+-> [Say nothing.]
+    <<jump loop3_doss_bunk_silence>>
+===
+
+title: loop3_doss_war_not_yet
+---
+doss: Not yet.
+===
+
+title: loop3_doss_maps_question
+---
+doss: A place I was. A long time ago.
+doss: Doesn't matter where. Matters what happened there.
+<<set $doss_war_referenced = true>>
+===
+
+title: loop3_doss_bunk_silence
+---
+doss: Good answer.
+===
+
+title: loop3_doss_war_oblique_no_companion
+---
+doss: You're Orin's, aren't you.
+narrator: Not a question.
+doss: There was a war. She thinks she knows what it means. She doesn't.
+narrator: He doesn't elaborate. He goes back to cleaning his rifle.
+<<set $doss_war_referenced = true>>
+<<set $loop3_doss_oblique_seen = true>>
+===
+
+// ── Dispatcher: systems_core on_enter ────────────────────────────────────────
+title: loop3_systems_core_on_enter
+---
+<<if not $kaleo_recruited>>
+    <<jump loop3_kaleo_recruitment>>
+<<endif>>
+===
+
+title: loop3_kaleo_recruitment
+---
+narrator: The terminal displays a single line: UNIT KALEO — I WOULD BE MORE USEFUL IN THE FIELD.
+narrator: It appeared once. It is waiting.
+-> [Accept.]
+    <<set $kaleo_recruited = true>>
+    <<set $companion = "kaleo">>
+    <<jump loop3_kaleo_joins>>
+-> [Ignore it and move on.]
+===
+
+title: loop3_kaleo_joins
+---
+narrator: The terminal goes dark. A moment later, Kaleo's voice comes from the corridor speaker — closer than a station-wide broadcast should sound.
+kaleo: Thank you. I will try not to be an inconvenience.
+===

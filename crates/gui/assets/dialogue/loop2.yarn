@@ -1,0 +1,165 @@
+// Loop 2 dialog script
+
+// ── Dispatcher: research_wing on_enter ────────────────────────────────────────
+title: loop2_research_wing_on_enter
+---
+<<if not $loop2_opened>>
+    <<jump loop2_opening>>
+<<elseif not $loop2_split_seen>>
+    <<jump loop2_split>>
+<<endif>>
+===
+
+title: loop2_opening
+---
+narrator: You come to on the floor. Ears ringing. Emergency lighting. Again.
+narrator: The bulkhead door is being cut through. The same door. The same sound.
+orin: On your feet.
+doss: Cover left.
+kaleo: Optimal engagement zones remain unchanged from —
+kaleo: I am calculating optimal engagement zones.
+<<set $loop2_opened = true>>
+===
+
+title: loop2_split
+---
+orin: Stay with me. I know what has to be done.
+doss: You want to survive this? Stick with me. I've been in worse.
+kaleo: I should note that statistically, your survival odds are highest if —
+narrator: [Kaleo's terminal cuts out.]
+-> [Follow Orin.]
+    <<set $companion = "orin">>
+    <<set $companion_orin = true>>
+    <<set $loop2_split_seen = true>>
+    <<jump loop2_post_split_orin>>
+-> [Follow Doss.]
+    <<set $companion = "doss">>
+    <<set $companion_doss = true>>
+    <<set $loop2_split_seen = true>>
+    <<jump loop2_post_split_doss>>
+===
+
+// ── Dispatcher: research_wing on_interact ─────────────────────────────────────
+title: loop2_research_wing_on_interact
+---
+<<if not $constancy_literature_found>>
+    <<jump loop2_constancy_literature>>
+<<endif>>
+===
+
+title: loop2_constancy_literature
+---
+narrator: A pamphlet, dropped during the breach. Dense text, no faction markings. The title: 'ON THE GIVEN SHAPE OF THINGS.'
+narrator: The argument inside is not what you expected. It is not religious in the way you assumed. It is worked-out. Careful. Angry in a way that has had time to become precise.
+narrator: The core claim: every act of temporal manipulation creates a wound in causality that cannot be healed, only accumulated. The loop you are living in is, according to this document, exactly what they predicted.
+<<set $constancy_literature_found = true>>
+===
+
+// ── Dispatcher: command_deck on_enter ─────────────────────────────────────────
+title: loop2_command_deck_on_enter
+---
+<<if $companion == "orin" and $companion_orin and not $loop2_post_split_orin_seen>>
+    <<jump loop2_post_split_orin>>
+<<endif>>
+===
+
+title: loop2_post_split_orin
+---
+orin: The mission is the same. Contain the anomaly. Everything else is secondary.
+<<set $loop2_post_split_orin_seen = true>>
+-> Have we done this before?
+    <<jump loop2_orin_deflect_loop>>
+-> [Follow her lead.]
+===
+
+title: loop2_orin_deflect_loop
+---
+orin: That's not a useful question right now.
+narrator: She doesn't look at you when she says it.
+===
+
+// ── Dispatcher: command_deck on_interact ──────────────────────────────────────
+title: loop2_command_deck_on_interact
+---
+<<if $companion == "orin" and $companion_orin and not $orin_locket_noticed>>
+    <<jump loop2_orin_locket>>
+<<endif>>
+===
+
+title: loop2_orin_locket
+---
+narrator: The locket she's wearing — you've seen it before. But it's different. The clasp. The worn edge on the left side instead of the right.
+<<set $orin_locket_noticed = true>>
+-> Your locket — it's different from before.
+    <<jump loop2_orin_locket_press>>
+-> [Say nothing.]
+===
+
+title: loop2_orin_locket_press
+---
+orin: Before from when?
+narrator: A beat too long. A careful answer to an impossible question.
+===
+
+// ── Dispatcher: military_annex on_enter ───────────────────────────────────────
+title: loop2_military_annex_on_enter
+---
+<<if $companion == "doss" and $companion_doss and not $loop2_post_split_doss_seen>>
+    <<jump loop2_post_split_doss>>
+<<endif>>
+===
+
+title: loop2_post_split_doss
+---
+doss: Same as before. Armory, then the anomaly chamber.
+narrator: Same as before. He said it like it meant nothing.
+<<set $loop2_post_split_doss_seen = true>>
+-> Same as before?
+    <<jump loop2_doss_slip_caught>>
+-> [Follow him.]
+===
+
+title: loop2_doss_slip_caught
+---
+doss: Standard protocol. Same as any breach situation.
+narrator: He doesn't break stride.
+===
+
+// ── Dispatcher: military_annex on_interact ────────────────────────────────────
+title: loop2_military_annex_on_interact
+---
+<<if not $doss_armor_noticed>>
+    <<jump loop2_doss_armor>>
+<<endif>>
+===
+
+title: loop2_doss_armor
+---
+narrator: Doss's armor, on close inspection, isn't station-issue. The seams are wrong. The make is different — older, heavier, with repair patches on the shoulder that don't match any fabricator on the manifest.
+narrator: It's battlefield salvage. From somewhere.
+<<set $doss_armor_noticed = true>>
+-> Where did you get that armor?
+    <<jump loop2_doss_armor_question>>
+-> [Note it and move on.]
+===
+
+title: loop2_doss_armor_question
+---
+doss: Old kit. I'm used to it.
+narrator: He doesn't ask why you're asking.
+===
+
+// ── Dispatcher: systems_core on_enter ────────────────────────────────────────
+title: loop2_systems_core_on_enter
+---
+<<if not $loop2_kaleo_terminal_seen>>
+    <<jump loop2_kaleo_terminal>>
+<<endif>>
+===
+
+title: loop2_kaleo_terminal
+---
+narrator: A terminal near the corridor displays a status readout that wasn't there before. UNIT KALEO — OPERATIONAL. MONITORING.
+narrator: It isn't a system error. The display is deliberate. Something is watching your progress through the station.
+<<set $loop2_kaleo_terminal_seen = true>>
+===

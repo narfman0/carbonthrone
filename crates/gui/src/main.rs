@@ -1,5 +1,6 @@
 mod camera;
 mod character_visuals;
+mod dialog_runner;
 mod grid;
 mod input;
 mod resources;
@@ -9,10 +10,12 @@ mod tile_mesh;
 mod ui;
 
 use bevy::prelude::*;
+use bevy_yarnspinner::prelude::*;
 use carbonthrone::game::GameSession;
 
 use camera::CameraPlugin;
 use character_visuals::CharacterVisualsPlugin;
+use dialog_runner::DialogRunnerPlugin;
 use input::InputPlugin;
 use resources::{
     ActiveSaveSlot, ExplorationRng, GameSessionRes, LastKnownZone, PauseMenuOpen,
@@ -34,6 +37,8 @@ fn main() {
             }),
             ..default()
         }))
+        // Yarn Spinner
+        .add_plugins(YarnSpinnerPlugin::new())
         // State machine
         .init_state::<AppState>()
         // Core resources
@@ -55,6 +60,7 @@ fn main() {
             SyncPlugin,
             InputPlugin,
             UiPlugin,
+            DialogRunnerPlugin,
         ));
 
     #[cfg(feature = "dev")]
