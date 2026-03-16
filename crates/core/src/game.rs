@@ -626,6 +626,17 @@ impl GameSession {
             .is_some()
     }
 
+    /// Jump to a specific loop (1–5): set loop_number, restore party HP, and
+    /// restart the player in ResearchWing with the appropriate opening scene.
+    pub fn goto_loop(&mut self, target: u32) {
+        if matches!(self.phase, GamePhase::Ended(_)) {
+            return;
+        }
+        self.loop_number = target.clamp(1, 5);
+        let mut rng = StdRng::from_entropy();
+        self.enter_loop_start(&mut rng);
+    }
+
     /// Advance to the next loop: increment loop_number, restore party HP, and
     /// restart the player in ResearchWing with the appropriate opening scene.
     pub fn reset_loop(&mut self, rng: &mut impl rand::Rng) {
@@ -633,6 +644,13 @@ impl GameSession {
             return;
         }
         self.loop_number = (self.loop_number + 1).min(5);
+        self.enter_loop_start(rng);
+    }
+
+    /// Shared body for `reset_loop` / `goto_loop`: restores HP, enters
+    /// ResearchWing, repositions the party, and fires opening dialog.
+    /// Assumes `self.loop_number` is already set to the target value.
+    fn enter_loop_start(&mut self, rng: &mut impl rand::Rng) {
         let loop_number = self.loop_number;
 
         // Restore party HP to max.
