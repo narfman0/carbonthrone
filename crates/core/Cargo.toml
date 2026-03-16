@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 bevy = "0.18.1"
 dirs = "5"
-indexmap = "2.13.0"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"

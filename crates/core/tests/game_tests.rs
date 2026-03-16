@@ -20,10 +20,18 @@ fn save_for(zone: ZoneKind, loop_number: u32) -> SaveData {
         party_kinds: vec![CharacterKind::Researcher],
         party_hp: vec![],
         party_levels: vec![],
-        completed_scenes: vec![],
         fought_scripted_encounters: vec![],
         ending: None,
         battle_snapshot: None,
+    }
+}
+
+/// Dismiss any active dialog so movement/battle is unblocked.
+fn dismiss_dialog(session: &mut GameSession) {
+    if let GamePhase::Exploration(e) = &mut session.phase {
+        if e.in_dialog {
+            e.in_dialog = false;
+        }
     }
 }
 
@@ -73,34 +81,17 @@ fn pending_battle_false_when_zone_has_no_encounter() {
     panic!("no seed produced a zone without encounter in 500 tries");
 }
 
-// ── immediate battle when no dialog blocks ────────────────────────────────────
+// ── end_dialog triggers battle when pending ───────────────────────────────────
 
 #[test]
-fn encounter_starts_battle_immediately_when_no_dialog() {
-    // Loop 4 MilitaryAnnex: no on_enter dialog in loop4 YAML, 85% encounter chance.
-    // If encounter rolled → battle starts right away (no dialog to block it).
-    for seed in 0u64..500 {
-        let mut rng = StdRng::seed_from_u64(seed);
-        let session = GameSession::from_save_data(save_for(ZoneKind::MilitaryAnnex, 4), &mut rng);
-        if matches!(session.phase, GamePhase::Battle(_)) {
-            return; // encounter + no dialog → immediate battle, as expected
-        }
-    }
-    panic!("no seed produced immediate battle at loop 4 MilitaryAnnex in 500 tries");
-}
-
-// ── advance_dialog wrapper triggers battle ────────────────────────────────────
-
-#[test]
-fn advance_dialog_triggers_battle_when_pending() {
-    // Loop 1 ResearchWing always fires an on_enter dialog.
-    // Scan for a seed where the zone also has an encounter.
+fn end_dialog_triggers_battle_when_pending() {
+    // Find a session with pending_battle active and dialog open,
+    // then verify that end_dialog starts the battle.
     for seed in 0u64..1000 {
         let mut rng = StdRng::seed_from_u64(seed);
         let mut session =
             GameSession::from_save_data(save_for(ZoneKind::ResearchWing, 1), &mut rng);
 
-        // Must be in Exploration with dialog open and a pending battle.
         let ok = match &session.phase {
             GamePhase::Exploration(e) => e.pending_battle && e.in_dialog,
             _ => false,
@@ -109,85 +100,15 @@ fn advance_dialog_triggers_battle_when_pending() {
             continue;
         }
 
-        // Advance through all dialog lines via the GameSession wrapper.
-        loop {
-            match &session.phase {
-                GamePhase::Battle(_) => break,
-                GamePhase::Exploration(e) if !e.in_dialog => break,
-                GamePhase::Exploration(e) if e.at_choice_screen() => {
-                    session.select_choice();
-                    break;
-                }
-                _ => {
-                    session.advance_dialog();
-                }
-            }
-        }
+        session.end_dialog(vec![]);
 
         assert!(
             matches!(session.phase, GamePhase::Battle(_)),
-            "battle should start after all dialog lines are advanced with pending_battle"
+            "battle should start after end_dialog when pending_battle is set"
         );
         return;
     }
     panic!("no seed produced pending_battle+in_dialog at loop 1 ResearchWing in 1000 tries");
-}
-
-// ── select_choice wrapper triggers battle ─────────────────────────────────────
-
-#[test]
-fn select_choice_triggers_battle_when_pending() {
-    // Find a session with pending_battle active, navigate to a choice screen,
-    // and verify that selecting a terminal choice (no leads_to) starts battle.
-    for seed in 0u64..2000 {
-        let mut rng = StdRng::seed_from_u64(seed);
-        let mut session =
-            GameSession::from_save_data(save_for(ZoneKind::ResearchWing, 1), &mut rng);
-
-        let has_pending = match &session.phase {
-            GamePhase::Exploration(e) => e.pending_battle && e.in_dialog,
-            _ => false,
-        };
-        if !has_pending {
-            continue;
-        }
-
-        // Advance to the choice screen (or end of dialog).
-        loop {
-            match &session.phase {
-                GamePhase::Battle(_) => break,
-                GamePhase::Exploration(e) if e.at_choice_screen() => break,
-                GamePhase::Exploration(e) if !e.in_dialog => break,
-                _ => {
-                    session.advance_dialog();
-                }
-            }
-        }
-
-        match &session.phase {
-            GamePhase::Battle(_) => return, // dialog advanced to battle directly
-            GamePhase::Exploration(e) if e.at_choice_screen() => {}
-            _ => continue, // dialog ended without battle and no choices — wrong seed
-        }
-
-        session.select_choice();
-
-        // Either we're in Battle, or the choice led to a continuation scene.
-        // If continuation, keep advancing until battle or dialog ends.
-        loop {
-            match &session.phase {
-                GamePhase::Battle(_) => return,
-                GamePhase::Exploration(e) if !e.in_dialog => break,
-                GamePhase::Exploration(e) if e.at_choice_screen() => {
-                    session.select_choice();
-                }
-                _ => {
-                    session.advance_dialog();
-                }
-            }
-        }
-    }
-    panic!("no seed produced a choice-closes-to-battle scenario in 2000 tries");
 }
 
 // ── reset_loop respects encounter ─────────────────────────────────────────────
@@ -195,16 +116,7 @@ fn select_choice_triggers_battle_when_pending() {
 #[test]
 fn reset_loop_sets_pending_battle_on_encounter() {
     let mut session = GameSession::new();
-    // Dismiss startup dialog via inner method (won't trigger battle).
-    loop {
-        let GamePhase::Exploration(e) = &mut session.phase else {
-            break;
-        };
-        if !e.in_dialog {
-            break;
-        }
-        e.advance_dialog();
-    }
+    dismiss_dialog(&mut session);
 
     // Only callable in Exploration phase; if somehow in Battle, skip.
     let GamePhase::Exploration(_) = &session.phase else {
@@ -248,16 +160,7 @@ fn exit_hallway_arrival_at_encounter_zone_starts_battle_or_sets_pending() {
         let mut session = GameSession::new();
         session.loop_number = 4;
 
-        // Dismiss initial dialog via inner method.
-        loop {
-            let GamePhase::Exploration(e) = &mut session.phase else {
-                break;
-            };
-            if !e.in_dialog {
-                break;
-            }
-            e.advance_dialog();
-        }
+        dismiss_dialog(&mut session);
         let GamePhase::Exploration(_) = &session.phase else {
             continue;
         };
@@ -296,26 +199,17 @@ fn exit_hallway_arrival_at_encounter_zone_starts_battle_or_sets_pending() {
 #[test]
 fn companion_spawned_in_exploration_on_flag() {
     let mut session = GameSession::new();
-    // Dismiss startup dialog.
-    loop {
-        let GamePhase::Exploration(e) = &mut session.phase else {
-            break;
-        };
-        if !e.in_dialog {
-            break;
-        }
-        e.advance_dialog();
-    }
+    dismiss_dialog(&mut session);
     let GamePhase::Exploration(_) = &session.phase else {
         return;
     };
 
-    // Set companion_orin flag directly via dialog engine, then sync.
+    // Set companion_orin flag directly, then sync.
     {
         let GamePhase::Exploration(e) = &mut session.phase else {
             return;
         };
-        e.dialog.set_flag("companion_orin");
+        e.flags.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
 
@@ -344,16 +238,7 @@ fn companion_follows_player() {
     let mut rng = StdRng::seed_from_u64(42);
     let mut session = GameSession::new();
 
-    // Dismiss dialog.
-    loop {
-        let GamePhase::Exploration(e) = &mut session.phase else {
-            break;
-        };
-        if !e.in_dialog {
-            break;
-        }
-        e.advance_dialog();
-    }
+    dismiss_dialog(&mut session);
     let GamePhase::Exploration(_) = &session.phase else {
         return;
     };
@@ -363,7 +248,7 @@ fn companion_follows_player() {
         let GamePhase::Exploration(e) = &mut session.phase else {
             return;
         };
-        e.dialog.set_flag("companion_orin");
+        e.flags.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
 
@@ -403,19 +288,8 @@ fn companion_follows_player() {
 #[test]
 fn companion_in_battle_queue() {
     // Check that companion appears in the battle's initial player queue.
-    // living_players() queries all is_player() && is_alive() entities, so
-    // counting those after transition_to_battle verifies queue size.
     let mut session = GameSession::new();
-    // Dismiss dialog.
-    loop {
-        let GamePhase::Exploration(e) = &mut session.phase else {
-            break;
-        };
-        if !e.in_dialog {
-            break;
-        }
-        e.advance_dialog();
-    }
+    dismiss_dialog(&mut session);
     let GamePhase::Exploration(_) = &session.phase else {
         return;
     };
@@ -424,7 +298,7 @@ fn companion_in_battle_queue() {
         let GamePhase::Exploration(e) = &mut session.phase else {
             return;
         };
-        e.dialog.set_flag("companion_orin");
+        e.flags.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
 
@@ -446,15 +320,7 @@ fn companion_in_battle_queue() {
 #[test]
 fn companion_hp_persists_after_battle() {
     let mut session = GameSession::new();
-    loop {
-        let GamePhase::Exploration(e) = &mut session.phase else {
-            break;
-        };
-        if !e.in_dialog {
-            break;
-        }
-        e.advance_dialog();
-    }
+    dismiss_dialog(&mut session);
     let GamePhase::Exploration(_) = &session.phase else {
         return;
     };
@@ -463,7 +329,7 @@ fn companion_hp_persists_after_battle() {
         let GamePhase::Exploration(e) = &mut session.phase else {
             return;
         };
-        e.dialog.set_flag("companion_orin");
+        e.flags.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
 
@@ -496,15 +362,7 @@ fn companion_hp_persists_after_battle() {
 #[test]
 fn dead_companion_revived_at_1_hp() {
     let mut session = GameSession::new();
-    loop {
-        let GamePhase::Exploration(e) = &mut session.phase else {
-            break;
-        };
-        if !e.in_dialog {
-            break;
-        }
-        e.advance_dialog();
-    }
+    dismiss_dialog(&mut session);
     let GamePhase::Exploration(_) = &session.phase else {
         return;
     };
@@ -513,7 +371,7 @@ fn dead_companion_revived_at_1_hp() {
         let GamePhase::Exploration(e) = &mut session.phase else {
             return;
         };
-        e.dialog.set_flag("companion_orin");
+        e.flags.set_flag("companion_orin");
     }
     session.sync_and_recruit_companions();
 

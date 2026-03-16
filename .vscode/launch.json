@@ -13,6 +13,7 @@
           "carbonthrone_gui"
         ]
       },
+      "preLaunchTask": "rust: cargo build carbonthrone-gui",
       "args": []
     }
   ]

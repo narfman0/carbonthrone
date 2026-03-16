@@ -147,14 +147,8 @@ fn exit_hallway_increments_hallways_traversed_on_miss() {
 
 /// Dismiss any active dialog so movement is unblocked.
 fn dismiss_dialog(session: &mut GameSession) {
-    loop {
-        let GamePhase::Exploration(s) = &mut session.phase else {
-            break;
-        };
-        if !s.in_dialog {
-            break;
-        }
-        s.advance_dialog();
+    if let GamePhase::Exploration(s) = &mut session.phase {
+        s.in_dialog = false;
     }
 }
 
