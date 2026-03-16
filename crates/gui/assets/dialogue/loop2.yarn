@@ -23,13 +23,13 @@ title: loop2_split
 Orin: Stay with me. I know what has to be done.
 Doss: You want to survive this? Stick with me. I've been in worse.
 Kaleo: I should note that statistically, your survival odds are highest if —
-Narrator: [Kaleo's terminal cuts out.]
--> [Follow Orin.]
+Narrator: \[Kaleo's terminal cuts out.\]
+-> \[Follow Orin.\]
     <<set $companion = "orin">>
     <<set $companion_orin = true>>
     <<set $loop2_split_seen = true>>
     <<jump loop2_post_split_orin>>
--> [Follow Doss.]
+-> \[Follow Doss.\]
     <<set $companion = "doss">>
     <<set $companion_doss = true>>
     <<set $loop2_split_seen = true>>
@@ -64,7 +64,7 @@ Orin: The mission is the same. Contain the anomaly. Everything else is secondary
 <<set $loop2_post_split_orin_seen = true>>
 -> Have we done this before?
     <<jump loop2_orin_deflect_loop>>
--> [Follow her lead.]
+-> \[Follow her lead.\]
 ===
 
 title: loop2_orin_deflect_loop
@@ -86,7 +86,7 @@ Narrator: The locket she's wearing — you've seen it before. But it's different
 <<set $orin_locket_noticed = true>>
 -> Your locket — it's different from before.
     <<jump loop2_orin_locket_press>>
--> [Say nothing.]
+-> \[Say nothing.\]
 ===
 
 title: loop2_orin_locket_press
@@ -109,7 +109,7 @@ Narrator: Same as before. He said it like it meant nothing.
 <<set $loop2_post_split_doss_seen = true>>
 -> Same as before?
     <<jump loop2_doss_slip_caught>>
--> [Follow him.]
+-> \[Follow him.\]
 ===
 
 title: loop2_doss_slip_caught
@@ -132,7 +132,7 @@ Narrator: It's battlefield salvage. From somewhere.
 <<set $doss_armor_noticed = true>>
 -> Where did you get that armor?
     <<jump loop2_doss_armor_question>>
--> [Note it and move on.]
+-> \[Note it and move on.\]
 ===
 
 title: loop2_doss_armor_question

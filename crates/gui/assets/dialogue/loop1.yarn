@@ -22,14 +22,14 @@ title: loop1_split
 Orin: Stay with me. I know what has to be done.
 Doss: You want to survive this? Stick with me. I've been in worse.
 Kaleo: I should note that statistically, your survival odds are highest if —
-Narrator: [Kaleo's terminal cuts out as its section seals.]
+Narrator: \[Kaleo's terminal cuts out as its section seals.\]
 Narrator: The others don't protest. They just go. Efficient. Like they expected it.
--> [Follow Orin.]
+-> \[Follow Orin.\]
     <<set $companion = "orin">>
     <<set $companion_orin = true>>
     <<set $loop1_split_seen = true>>
     <<jump loop1_post_split_orin>>
--> [Follow Doss.]
+-> \[Follow Doss.\]
     <<set $companion = "doss">>
     <<set $companion_doss = true>>
     <<set $loop1_split_seen = true>>
@@ -118,7 +118,7 @@ Doss: Take what you need. Leave the heavy kinetics — those are mine.
 <<set $loop1_doss_armory_seen = true>>
 -> What do you know about the Constancy?
     <<jump loop1_doss_constancy>>
--> [Take equipment and move on.]
+-> \[Take equipment and move on.\]
 ===
 
 title: loop1_doss_constancy

@@ -34,7 +34,7 @@ Orin: The full log. I want you to read it before you decide anything.
     <<jump loop4_orin_confirms>>
 -> What's on the chip?
     <<jump loop4_orin_chip_contents>>
--> [Read the chip.]
+-> \[Read the chip.\]
     <<jump loop4_orin_chip_read>>
 ===
 
@@ -55,7 +55,7 @@ Orin: The temporal weapons program has to end. Not contained. Not regulated. End
 Orin: The war this technology enables hasn't happened yet in this loop. I intend to make sure it never does.
 -> What war?
     <<jump loop4_orin_the_war>>
--> [Ask about her locket.]
+-> \[Ask about her locket.\]
     <<jump loop4_orin_locket_late>>
 ===
 
@@ -69,9 +69,9 @@ title: loop4_orin_the_war
 ---
 Orin: The one temporal weapons technology made possible. The one nobody here believes has happened because it hasn't. Yet.
 Orin: I lived through the end of it. I lost someone in it. That's all you need to know right now.
--> [Ask about the locket.]
+-> \[Ask about the locket.\]
     <<jump loop4_orin_locket_late>>
--> [Leave it.]
+-> \[Leave it.\]
 ===
 
 title: loop4_orin_locket_late
@@ -90,7 +90,7 @@ title: loop4_orin_chip_contents
 ---
 Orin: Everything I've chosen to show you. It isn't everything there is.
 Narrator: She says it without apology.
--> [Read the chip.]
+-> \[Read the chip.\]
     <<jump loop4_orin_chip_read>>
 ===
 

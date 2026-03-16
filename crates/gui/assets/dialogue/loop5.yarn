@@ -32,9 +32,9 @@ title: loop5_doss_after_fight
 Doss: You talked to her.
 Narrator: Not a question.
 <<set $loop5_doss_after_fight_seen = true>>
--> [Confirm.]
+-> \[Confirm.\]
     <<jump loop5_doss_confirm_talk>>
--> [Don't answer.]
+-> \[Don't answer.\]
     <<jump loop5_doss_no_answer>>
 ===
 
@@ -215,12 +215,12 @@ Kaleo: I have documented four hundred and twelve versions of this conversation. 
 Narrator: Kaleo looks at you.
 Kaleo: That is why I needed you.
 <<set $convergence_triggered = true>>
--> [Side with Orin — destroy the program.]
+-> \[Side with Orin — destroy the program.\]
     <<set $orin_helped = true>>
     <<jump loop5_orin_player_agrees>>
--> [Side with Doss — preserve the timeline.]
+-> \[Side with Doss — preserve the timeline.\]
     <<jump loop5_ending_doss>>
--> [Side with Kaleo — redirect the anomaly.]
+-> \[Side with Kaleo — redirect the anomaly.\]
     <<jump loop5_ending_kaleo>>
 ===
 

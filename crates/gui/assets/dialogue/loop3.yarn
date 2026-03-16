@@ -12,7 +12,7 @@ Orin: On your feet.
 Doss: Door.
 Narrator: He was already watching it.
 Kaleo: I should note that I have run this calculation before —
-Narrator: [Drops. The suppression field is up.]
+Narrator: \[Drops. The suppression field is up.\]
 <<set $loop3_opening_seen = true>>
 ===
 
@@ -46,7 +46,7 @@ Narrator: She said 'start of a loop' without pausing.
 <<set $loop3_post_split_orin_seen = true>>
 -> You said 'start of a loop.'
     <<jump loop3_orin_slip_caught>>
--> [Let it pass.]
+-> \[Let it pass.\]
 ===
 
 title: loop3_orin_slip_caught
@@ -70,7 +70,7 @@ Narrator: She opens a partial log. Entries from before the loop began — her vo
 <<set $orin_logs_partial = true>>
 -> What's in the gap?
     <<jump loop3_orin_logs_gap>>
--> [Read what she's shown you.]
+-> \[Read what she's shown you.\]
 ===
 
 title: loop3_orin_logs_gap
@@ -93,7 +93,7 @@ Narrator: You hadn't asked.
 <<set $loop3_kaleo_first_warning_seen = true>>
 -> How did you know that?
     <<jump loop3_kaleo_first_evasion>>
--> [Proceed with the warning in mind.]
+-> \[Proceed with the warning in mind.\]
 ===
 
 title: loop3_kaleo_first_evasion
@@ -126,7 +126,7 @@ Doss: You ever been in something you couldn't walk away from? Not because they s
     <<jump loop3_doss_war_not_yet>>
 -> What are those maps of?
     <<jump loop3_doss_maps_question>>
--> [Say nothing.]
+-> \[Say nothing.\]
     <<jump loop3_doss_bunk_silence>>
 ===
 
@@ -168,11 +168,11 @@ title: loop3_kaleo_recruitment
 ---
 Narrator: The terminal displays a single line: UNIT KALEO — I WOULD BE MORE USEFUL IN THE FIELD.
 Narrator: It appeared once. It is waiting.
--> [Accept.]
+-> \[Accept.\]
     <<set $kaleo_recruited = true>>
     <<set $companion = "kaleo">>
     <<jump loop3_kaleo_joins>>
--> [Ignore it and move on.]
+-> \[Ignore it and move on.\]
 ===
 
 title: loop3_kaleo_joins
