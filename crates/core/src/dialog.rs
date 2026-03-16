@@ -43,4 +43,9 @@ impl DialogFlags {
     pub fn import_flags(&mut self, flags: Vec<String>) {
         self.flags.extend(flags);
     }
+
+    /// Clear a named flag. Returns `true` if the flag was present.
+    pub fn clear_flag(&mut self, flag: &str) -> bool {
+        self.flags.remove(flag)
+    }
 }
