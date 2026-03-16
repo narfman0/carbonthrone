@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use carbonthrone::zone::ZoneKind;
+use carbonthrone::{game::GamePhase, zone::ZoneKind};
 
 use super::{StateUiRoot, panel_bg, text_font, white_text};
 use crate::resources::{GameSessionRes, MinimapOpen};
@@ -22,6 +22,9 @@ struct MinimapRoot;
 
 #[derive(Component)]
 struct MinimapZoneBox(ZoneKind);
+
+#[derive(Component)]
+struct MinimapConnectionLine(ZoneKind, ZoneKind);
 
 // Layout constants
 const CELL_W: f32 = 48.0;
@@ -91,6 +94,7 @@ const CONNECTIONS: &[(ZoneKind, ZoneKind)] = &[
 const DIM_GRAY: Color = Color::srgba(0.3, 0.3, 0.35, 0.9);
 const ACTIVE_COLOR: Color = Color::srgb(0.4, 0.8, 1.0);
 const LINE_COLOR: Color = Color::srgba(0.5, 0.5, 0.55, 0.7);
+const ACTIVE_LINE_COLOR: Color = Color::srgb(0.4, 0.8, 1.0);
 
 fn box_center(col: f32, row: f32) -> (f32, f32) {
     let x = PAD + col * CELL_W + CELL_W / 2.0;
@@ -144,6 +148,7 @@ fn spawn_minimap(mut commands: Commands, minimap_open: Res<MinimapOpen>) {
                 };
 
                 parent.spawn((
+                    MinimapConnectionLine(*a, *b),
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(left),
@@ -206,16 +211,44 @@ fn update_minimap(
     session: Res<GameSessionRes>,
     minimap_open: Res<MinimapOpen>,
     mut zone_q: Query<(&MinimapZoneBox, &mut BackgroundColor)>,
+    mut line_q: Query<(&MinimapConnectionLine, &mut BackgroundColor), Without<MinimapZoneBox>>,
 ) {
     if !minimap_open.0 {
         return;
     }
     let current = session.current_zone_kind();
+
+    // Check if we're in a hallway and get travel origin/destination
+    let hallway_connection: Option<(ZoneKind, ZoneKind)> =
+        if current == Some(ZoneKind::Hallway) {
+            match &session.0.phase {
+                GamePhase::Exploration(e) => e
+                    .travel
+                    .as_ref()
+                    .map(|t| (t.origin, t.destination)),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
     for (MinimapZoneBox(kind), mut bg) in &mut zone_q {
         bg.0 = if current == Some(*kind) {
             ACTIVE_COLOR
         } else {
             DIM_GRAY
+        };
+    }
+
+    for (MinimapConnectionLine(a, b), mut bg) in &mut line_q {
+        bg.0 = if let Some((origin, dest)) = hallway_connection {
+            if (*a == origin && *b == dest) || (*a == dest && *b == origin) {
+                ACTIVE_LINE_COLOR
+            } else {
+                LINE_COLOR
+            }
+        } else {
+            LINE_COLOR
         };
     }
 }
