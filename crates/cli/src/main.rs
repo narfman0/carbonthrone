@@ -1,3 +1,5 @@
+mod yarn_runner;
+
 use std::collections::HashMap;
 use std::io::{self, Write};
 
@@ -9,8 +11,8 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 use carbonthrone::character::{Aggression, Character};
 use carbonthrone::combat::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
@@ -30,6 +32,16 @@ fn main() {
     terminal::enable_raw_mode().expect("enable raw mode");
 
     loop {
+        // Run any pending dialog before rendering the exploration screen.
+        let needs_dialog = matches!(
+            &session.phase,
+            GamePhase::Exploration(s) if s.in_dialog && s.pending_dialog_node.is_some()
+        );
+        if needs_dialog {
+            run_dialog(&mut session, &mut stdout);
+            continue;
+        }
+
         execute!(
             stdout,
             terminal::Clear(ClearType::All),
@@ -96,8 +108,8 @@ fn main() {
                     let adjacent = state.adjacent_to_npc(&session.world);
                     drop(state);
                     if in_dialog {
-                        // Dialog is handled by the GUI (bevy_yarnspinner).
-                        // In the CLI, dismiss on any keypress to unblock movement.
+                        // pending_dialog_node is None here (already consumed at
+                        // the top of the outer loop); just dismiss to unblock.
                         session.dismiss_dialog();
                         break;
                     } else {
@@ -124,8 +136,8 @@ fn main() {
                                     if let GamePhase::Exploration(s) = &mut session.phase {
                                         s.fire_interact(loop_number);
                                     }
-                                    // Immediately dismiss since CLI has no Yarn runner.
-                                    session.dismiss_dialog();
+                                    // Dialog will be picked up at the top of the
+                                    // outer loop on the next iteration.
                                 }
                                 break;
                             }
@@ -279,6 +291,38 @@ fn ending_text(ending: &EndingKind) -> (&'static str, &'static str) {
     }
 }
 
+// ── Dialog runner ─────────────────────────────────────────────────────────────
+
+/// Execute the pending Yarn dialog node, then call `session.end_dialog`.
+fn run_dialog(session: &mut GameSession, stdout: &mut io::Stdout) {
+    // Snapshot the state we need before running (avoids borrow issues).
+    let (node_name, loop_number, companion, flags) = {
+        let GamePhase::Exploration(e) = &session.phase else {
+            session.dismiss_dialog();
+            return;
+        };
+        let Some(node) = e.pending_dialog_node.clone() else {
+            session.dismiss_dialog();
+            return;
+        };
+        (
+            node,
+            session.loop_number,
+            e.active_companion.clone(),
+            e.flags.flags().clone(),
+        )
+    };
+
+    let mut runner = yarn_runner::YarnRunner::new(loop_number, &flags, companion.as_deref());
+
+    if runner.has_node(&node_name) {
+        runner.run(&node_name, stdout);
+    }
+    // Collect any flags set during the dialog and commit them.
+    let new_flags = runner.new_flags();
+    session.end_dialog(new_flags);
+}
+
 // ── Exploration rendering ─────────────────────────────────────────────────────
 
 const WIDTH: usize = 58;
@@ -335,18 +379,12 @@ fn render_exploration(state: &ExplorationState, world: &World) -> String {
 
     // Dialog area
     out += &format!("  {}\r\n", "-".repeat(WIDTH - 2));
-    if state.in_dialog {
-        out += "  (dialog — press any key to skip; use the GUI for full dialog)\r\n";
-    } else {
-        out += "  (explore the zone)\r\n";
-    }
+    out += "  (explore the zone)\r\n";
 
     // Controls footer
     out += "\r\n";
     out += &format!("{}\r\n", bar);
-    let controls_str = if state.in_dialog {
-        "[any key] dismiss dialog"
-    } else if state.adjacent_to_npc(world) {
+    let controls_str = if state.adjacent_to_npc(world) {
         "[WASD/Arrows] move  [E] interact  [B] battle  [Q] quit"
     } else {
         "[WASD/Arrows] move  [B] battle  [Q] quit"
