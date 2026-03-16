@@ -1,6 +1,3 @@
-// Loop 5 dialog script
-
-// ── Dispatcher: research_wing on_enter ────────────────────────────────────────
 title: loop5_research_wing_on_enter
 ---
 <<if not $loop5_opening_seen>>
@@ -21,7 +18,6 @@ Narrator: Kaleo is in the room. Not through a terminal. Standing near the wall. 
 <<set $loop5_opening_seen = true>>
 ===
 
-// ── Dispatcher: research_wing on_combat_end ───────────────────────────────────
 title: loop5_research_wing_on_combat_end
 ---
 <<if $doss_war_full and not $loop5_doss_after_fight_seen>>
@@ -78,7 +74,6 @@ Narrator: He means it as a kindness.
 <<set $loop5_doss_already_knows_seen = true>>
 ===
 
-// ── Dispatcher: command_deck on_enter ─────────────────────────────────────────
 title: loop5_command_deck_on_enter
 ---
 <<if not $loop5_orin_opening_seen>>
@@ -147,7 +142,6 @@ Narrator: What you can do is stay in the room with her while she sits with it.
 <<endif>>
 ===
 
-// ── Dispatcher: systems_core on_interact ─────────────────────────────────────
 title: loop5_systems_core_on_interact
 ---
 <<if $kaleo_recruited and not $kaleo_plan_confirmed>>
@@ -185,7 +179,6 @@ title: loop5_kaleo_what_happens_now
 Kaleo: You decide. That is the point. That has always been the point.
 ===
 
-// ── Dispatcher: docking_bay on_enter ─────────────────────────────────────────
 title: loop5_docking_bay_on_enter
 ---
 <<if $orin_logs_full and $orin_daughter_name and not $loop5_archon_truth_seen>>
@@ -211,7 +204,6 @@ Narrator: The Dampener field rises.
 <<set $loop5_archon_notfound_seen = true>>
 ===
 
-// ── Convergence ───────────────────────────────────────────────────────────────
 title: loop5_convergence
 ---
 Narrator: All three of them. The same room. For the first time.

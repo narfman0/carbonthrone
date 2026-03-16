@@ -1,6 +1,3 @@
-// Loop 2 dialog script
-
-// ── Dispatcher: research_wing on_enter ────────────────────────────────────────
 title: loop2_research_wing_on_enter
 ---
 <<if not $loop2_opened>>
@@ -39,7 +36,6 @@ Narrator: [Kaleo's terminal cuts out.]
     <<jump loop2_post_split_doss>>
 ===
 
-// ── Dispatcher: research_wing on_interact ─────────────────────────────────────
 title: loop2_research_wing_on_interact
 ---
 <<if not $constancy_literature_found>>
@@ -55,7 +51,6 @@ Narrator: The core claim: every act of temporal manipulation creates a wound in 
 <<set $constancy_literature_found = true>>
 ===
 
-// ── Dispatcher: command_deck on_enter ─────────────────────────────────────────
 title: loop2_command_deck_on_enter
 ---
 <<if $companion == "orin" and $companion_orin and not $loop2_post_split_orin_seen>>
@@ -78,7 +73,6 @@ Orin: That's not a useful question right now.
 Narrator: She doesn't look at you when she says it.
 ===
 
-// ── Dispatcher: command_deck on_interact ──────────────────────────────────────
 title: loop2_command_deck_on_interact
 ---
 <<if $companion == "orin" and $companion_orin and not $orin_locket_noticed>>
@@ -101,7 +95,6 @@ Orin: Before from when?
 Narrator: A beat too long. A careful answer to an impossible question.
 ===
 
-// ── Dispatcher: military_annex on_enter ───────────────────────────────────────
 title: loop2_military_annex_on_enter
 ---
 <<if $companion == "doss" and $companion_doss and not $loop2_post_split_doss_seen>>
@@ -125,7 +118,6 @@ Doss: Standard protocol. Same as any breach situation.
 Narrator: He doesn't break stride.
 ===
 
-// ── Dispatcher: military_annex on_interact ────────────────────────────────────
 title: loop2_military_annex_on_interact
 ---
 <<if not $doss_armor_noticed>>
@@ -149,7 +141,6 @@ Doss: Old kit. I'm used to it.
 Narrator: He doesn't ask why you're asking.
 ===
 
-// ── Dispatcher: systems_core on_enter ────────────────────────────────────────
 title: loop2_systems_core_on_enter
 ---
 <<if not $loop2_kaleo_terminal_seen>>

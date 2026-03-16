@@ -1,7 +1,3 @@
-// Loop 1 dialog script
-// Triggers: on_enter, on_combat_end, on_interact per location
-
-// ── Dispatcher: research_wing on_enter ────────────────────────────────────────
 title: loop1_research_wing_on_enter
 ---
 <<if not $loop1_opened>>
@@ -40,7 +36,6 @@ Narrator: The others don't protest. They just go. Efficient. Like they expected 
     <<jump loop1_post_split_doss>>
 ===
 
-// ── Dispatcher: research_wing on_combat_end ───────────────────────────────────
 title: loop1_research_wing_on_combat_end
 ---
 <<if not $loop1_tutorial_end_seen>>
@@ -58,7 +53,6 @@ Narrator: The corridor splits three ways. The bulkheads are closing. Someone pre
 <<set $loop1_tutorial_end_seen = true>>
 ===
 
-// ── Dispatcher: command_deck on_enter ─────────────────────────────────────────
 title: loop1_command_deck_on_enter
 ---
 <<if $companion == "orin" and $companion_orin and not $loop1_post_split_orin_seen>>
@@ -73,7 +67,6 @@ Orin: I'll brief you fully at the command terminal. Right now we move.
 <<set $loop1_post_split_orin_seen = true>>
 ===
 
-// ── Dispatcher: command_deck on_interact ──────────────────────────────────────
 title: loop1_command_deck_on_interact
 ---
 <<if $companion == "orin" and $companion_orin and not $loop1_orin_briefing_seen>>
@@ -103,7 +96,6 @@ title: loop1_orin_mission_start
 Orin: The anomaly chamber. We need to run a containment sequence before the readings get any worse.
 ===
 
-// ── Dispatcher: military_annex on_enter ───────────────────────────────────────
 title: loop1_military_annex_on_enter
 ---
 <<if $companion == "doss" and $companion_doss and not $doss_arrived_annex>>
