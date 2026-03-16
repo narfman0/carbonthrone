@@ -3,6 +3,7 @@ pub mod dialog;
 pub mod ending;
 pub mod hud;
 pub mod main_menu;
+pub mod minimap;
 pub mod pause_menu;
 pub mod save_slot;
 pub mod terminal;
@@ -23,6 +24,7 @@ impl Plugin for UiPlugin {
             terminal::TerminalPlugin,
             ending::EndingPlugin,
             pause_menu::PauseMenuPlugin,
+            minimap::MinimapPlugin,
         ));
     }
 }

@@ -11,6 +11,8 @@ use crate::{
     resources::{GameSessionRes, TerminalState},
     state::AppState,
 };
+#[cfg(feature = "dev")]
+use crate::resources::InspectorOpen;
 
 use super::{panel_bg, text_font, white_text};
 
@@ -31,6 +33,9 @@ impl Plugin for TerminalPlugin {
             Update,
             spawn_terminal_panel.run_if(resource_changed::<TerminalState>),
         );
+
+        #[cfg(feature = "dev")]
+        app.add_systems(Update, handle_inspector_command.run_if(terminal_open));
     }
 }
 
@@ -79,6 +84,7 @@ fn handle_terminal_keyboard(
             }
             Key::Enter => {
                 let input = state.input.clone();
+                state.last_command = input.trim().to_string();
                 let cmd = parse_command(&input);
                 let output = execute_command(cmd, &mut session.0);
                 state.last_output = output;
@@ -177,4 +183,23 @@ fn spawn_terminal_panel(
                 white_text(),
             ));
         });
+}
+
+#[cfg(feature = "dev")]
+fn handle_inspector_command(
+    mut state: ResMut<TerminalState>,
+    mut inspector: ResMut<InspectorOpen>,
+) {
+    if !state.is_changed() {
+        return;
+    }
+    if state.last_command == "inspector" {
+        inspector.0 = !inspector.0;
+        state.last_output = if inspector.0 {
+            "Inspector opened.".to_string()
+        } else {
+            "Inspector closed.".to_string()
+        };
+        state.last_command.clear();
+    }
 }

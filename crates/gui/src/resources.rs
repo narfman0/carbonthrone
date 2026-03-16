@@ -66,15 +66,25 @@ pub struct TerminalState {
     pub open: bool,
     pub input: String,
     pub last_output: String,
+    pub last_command: String,
 }
 
 /// Whether the pause menu overlay is visible.
 #[derive(Resource, Default)]
 pub struct PauseMenuOpen(pub bool);
 
+/// Whether the ECS world inspector panel is visible (dev builds only).
+#[cfg(feature = "dev")]
+#[derive(Resource, Default)]
+pub struct InspectorOpen(pub bool);
+
 /// Tracks which save slot the current session was loaded from / last saved to.
 #[derive(Resource, Default)]
 pub struct ActiveSaveSlot(pub Option<u8>);
+
+/// Whether the minimap overlay is visible.
+#[derive(Resource, Default)]
+pub struct MinimapOpen(pub bool);
 
 /// Queued movement path used in both exploration and combat.
 /// In combat, `actor` identifies who is moving and `total_ap_cost` is charged on completion.

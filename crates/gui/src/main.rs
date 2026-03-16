@@ -18,9 +18,11 @@ use character_visuals::CharacterVisualsPlugin;
 use dialog_runner::DialogRunnerPlugin;
 use input::InputPlugin;
 use resources::{
-    ActiveSaveSlot, ExplorationRng, GameSessionRes, LastKnownZone, PauseMenuOpen,
+    ActiveSaveSlot, ExplorationRng, GameSessionRes, LastKnownZone, MinimapOpen, PauseMenuOpen,
     PendingAbilityTarget, PendingPath, PendingPlayerChoices, SelectedChoiceIndex, TerminalState,
 };
+#[cfg(feature = "dev")]
+use resources::InspectorOpen;
 use state::AppState;
 use sync::SyncPlugin;
 use tile_mesh::TilePlugin;
@@ -51,6 +53,7 @@ fn main() {
         .init_resource::<PendingPath>()
         .init_resource::<TerminalState>()
         .init_resource::<PauseMenuOpen>()
+        .init_resource::<MinimapOpen>()
         .init_resource::<ActiveSaveSlot>()
         // Plugins
         .add_plugins((
@@ -64,7 +67,13 @@ fn main() {
         ));
 
     #[cfg(feature = "dev")]
-    app.add_plugins(bevy_inspector_egui::quick::WorldInspectorPlugin::new());
+    {
+        app.init_resource::<InspectorOpen>();
+        app.add_plugins(
+            bevy_inspector_egui::quick::WorldInspectorPlugin::new()
+                .run_if(|r: Res<InspectorOpen>| r.0),
+        );
+    }
 
     app.run();
 }
