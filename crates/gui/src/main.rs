@@ -69,6 +69,7 @@ fn main() {
     #[cfg(feature = "dev")]
     {
         app.init_resource::<InspectorOpen>();
+        app.add_plugins(bevy_egui::EguiPlugin::default());
         app.add_plugins(
             bevy_inspector_egui::quick::WorldInspectorPlugin::new()
                 .run_if(|r: Res<InspectorOpen>| r.0),

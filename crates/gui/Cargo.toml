@@ -9,11 +9,12 @@ path = "src/main.rs"
 
 [features]
 default = ["dev"]
-dev = ["bevy-inspector-egui"]
+dev = ["bevy-inspector-egui", "bevy_egui"]
 
 [dependencies]
 carbonthrone = { path = "../core" }
 bevy = "0.18.1"
 rand = "0.8"
 bevy-inspector-egui = { version = "0.36", optional = true }
+bevy_egui = { version = "0.39", optional = true }
 bevy_yarnspinner = "0.8"
