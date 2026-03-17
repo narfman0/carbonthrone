@@ -8,7 +8,7 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ## HIGH PRIORITY — Core Gameplay Gaps---
 
-### 3. Story Endings / continuity / Loop 5 Resolution
+### Story Endings / continuity / Loop 5 Resolution
 
 **Why**: Five endings described in `docs/narrative.md` — unclear if any are implemented beyond loop 5 YAML dialog.
 **Files**:
@@ -19,7 +19,7 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
-### 4. Dynamic NPC Placement and interaction by Zone and loop
+### Dynamic NPC Placement and interaction by Zone and loop
 
 **Why**: `zone_npcs()` in `game.rs` hardcodes 4 NPCs at map center, ignoring `docs/world.md` zone-specific NPC lists.
 **Files**:
@@ -32,7 +32,7 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ## MEDIUM PRIORITY — Depth & Progression
 
-### 5. Temporal Flux Resource System
+### Temporal Flux Resource System
 
 **Why**: Core thematic mechanic described in `docs/weapons_and_abilities.md`; currently absent from code.
 **Files**:
@@ -45,7 +45,7 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
-### 6. Advanced Temporal Abilities
+### Advanced Temporal Abilities
 
 **Why**: Docs describe 6 temporal abilities; only basic analogs (Stasis=DrainAP, Rewind=Heal) are implemented.
 **Files**: `crates/core/src/ability.rs` — `AbilityEffect` enum and Researcher ability table
@@ -58,7 +58,7 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
-### 8. Loop-Based Zone State Changes
+### Loop-Based Zone State Changes
 
 **Why**: `docs/world.md` and loop docs describe zones changing between loops (collapsed sections open, relay array signals change).
 **Files**:
@@ -69,7 +69,7 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
-### 12. Aesthetic details
+### Aesthetic details
 
 **Why**: player enjoyment and engagement
 
@@ -80,7 +80,7 @@ What: need consistent and good looking: menus, environment, meshes, textures, li
 
 ## LOW PRIORITY — Advanced Systems
 
-### 9. Layered Armor System
+### Layered Armor System
 
 **Why**: Rich mechanic in `docs/armor_and_shields.md`; substantial design work already done.
 **Files**: New `crates/core/src/armor.rs`, modify `health.rs` and `turn.rs`
@@ -88,7 +88,7 @@ What: need consistent and good looking: menus, environment, meshes, textures, li
 
 ---
 
-### 10. Directional Shields
+### Directional Shields
 
 **Why**: Described in `docs/armor_and_shields.md`; requires facing/direction concept.
 **Dependency**: Requires armor system (#9) first.
@@ -96,7 +96,7 @@ What: need consistent and good looking: menus, environment, meshes, textures, li
 
 ---
 
-### 11. Equipment Degradation & Consumables
+### Equipment Degradation & Consumables
 
 **Why**: Described in `docs/weapons_and_abilities.md` (repair kits, weapon heat).
 **Dependency**: Armor system (#9) first; inventory system needed.
