@@ -219,18 +219,14 @@ fn update_minimap(
     let current = session.current_zone_kind();
 
     // Check if we're in a hallway and get travel origin/destination
-    let hallway_connection: Option<(ZoneKind, ZoneKind)> =
-        if current == Some(ZoneKind::Hallway) {
-            match &session.0.phase {
-                GamePhase::Exploration(e) => e
-                    .travel
-                    .as_ref()
-                    .map(|t| (t.origin, t.destination)),
-                _ => None,
-            }
-        } else {
-            None
-        };
+    let hallway_connection: Option<(ZoneKind, ZoneKind)> = if current == Some(ZoneKind::Hallway) {
+        match &session.0.phase {
+            GamePhase::Exploration(e) => e.travel.as_ref().map(|t| (t.origin, t.destination)),
+            _ => None,
+        }
+    } else {
+        None
+    };
 
     for (MinimapZoneBox(kind), mut bg) in &mut zone_q {
         bg.0 = if current == Some(*kind) {

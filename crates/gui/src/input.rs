@@ -522,10 +522,7 @@ fn auto_advance_enemy_turn(
 
 // ── Escape: toggle pause menu ─────────────────────────────────────────────────
 
-fn toggle_pause_menu(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut pause: ResMut<PauseMenuOpen>,
-) {
+fn toggle_pause_menu(keys: Res<ButtonInput<KeyCode>>, mut pause: ResMut<PauseMenuOpen>) {
     if keys.just_pressed(KeyCode::Escape) {
         pause.0 = !pause.0;
     }

@@ -9,9 +9,6 @@ pub const FLOOR_HEIGHT: f32 = 0.1;
 pub const OBSTACLE_HEIGHT: f32 = 1.0;
 /// Y-extent of a door tile mesh.
 pub const DOOR_HEIGHT: f32 = 0.4;
-/// Y-extent of a character box mesh.
-pub const CHARACTER_HEIGHT: f32 = 0.7;
-
 /// Convert integer grid coordinates to a world-space Vec3 (on the XZ plane).
 ///
 /// Grid x runs west→east, grid y runs north→south.

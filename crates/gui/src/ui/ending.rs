@@ -9,9 +9,13 @@ pub struct EndingPlugin;
 impl Plugin for EndingPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Ended), spawn_ending_ui)
-            .add_systems(OnExit(AppState::Ended), despawn_ending_ui);
+            .add_systems(OnExit(AppState::Ended), despawn_ending_ui)
+            .add_systems(Update, blink_press_key.run_if(in_state(AppState::Ended)));
     }
 }
+
+#[derive(Component)]
+struct PressAnyKeyPrompt;
 
 fn spawn_ending_ui(mut commands: Commands, session: Res<GameSessionRes>) {
     let GamePhase::Ended(ending) = &session.0.phase else {
@@ -28,6 +32,7 @@ fn spawn_ending_ui(mut commands: Commands, session: Res<GameSessionRes>) {
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
+                row_gap: Val::Px(12.0),
                 ..default()
             },
             panel_bg(),
@@ -35,7 +40,7 @@ fn spawn_ending_ui(mut commands: Commands, session: Res<GameSessionRes>) {
         .with_children(|parent| {
             parent.spawn((
                 Text::new("C A R B O N T H R O N E"),
-                text_font(36.0),
+                text_font(48.0),
                 accent_text(),
             ));
             parent.spawn((
@@ -52,17 +57,25 @@ fn spawn_ending_ui(mut commands: Commands, session: Res<GameSessionRes>) {
                 height: Val::Px(16.0),
                 ..default()
             });
-            parent.spawn((Text::new(body), text_font(16.0), white_text()));
+            parent.spawn((Text::new(body), text_font(15.0), white_text()));
             parent.spawn(Node {
                 height: Val::Px(40.0),
                 ..default()
             });
             parent.spawn((
+                PressAnyKeyPrompt,
                 Text::new("Press any key to quit"),
-                text_font(14.0),
-                white_text(),
+                text_font(13.0),
+                TextColor(Color::WHITE),
             ));
         });
+}
+
+fn blink_press_key(time: Res<Time>, mut q: Query<&mut TextColor, With<PressAnyKeyPrompt>>) {
+    let alpha = 0.45 + 0.55 * (time.elapsed_secs() * 2.2).sin().abs();
+    for mut color in q.iter_mut() {
+        color.0 = Color::srgba(0.8, 0.8, 0.8, alpha);
+    }
 }
 
 fn despawn_ending_ui(mut commands: Commands, roots: Query<Entity, With<StateUiRoot>>) {

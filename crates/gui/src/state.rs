@@ -5,8 +5,10 @@ use bevy::prelude::*;
 /// `OnEnter`/`OnExit` hooks drive visual entity lifecycle.
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum AppState {
-    /// Main menu: new game, load game, or exit.
+    /// Intro title sequence shown on first launch.
     #[default]
+    Intro,
+    /// Main menu: new game, load game, or exit.
     MainMenu,
     /// In-world exploration: player visible on zone map, NPCs present.
     Exploration,

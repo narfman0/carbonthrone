@@ -86,6 +86,24 @@ pub struct ActiveSaveSlot(pub Option<u8>);
 #[derive(Resource, Default)]
 pub struct MinimapOpen(pub bool);
 
+/// Transient camera-shake effect. Call `trigger()` to start a shake.
+#[derive(Resource, Default)]
+pub struct ScreenShake {
+    /// Remaining shake time in seconds.
+    pub timer: f32,
+    /// Peak offset magnitude (world units).
+    pub magnitude: f32,
+    /// Offset applied to the camera last frame (subtracted before re-applying).
+    pub current_offset: Vec3,
+}
+
+impl ScreenShake {
+    pub fn trigger(&mut self, magnitude: f32) {
+        self.timer = 0.3;
+        self.magnitude = magnitude;
+    }
+}
+
 /// Queued movement path used in both exploration and combat.
 /// In combat, `actor` identifies who is moving and `total_ap_cost` is charged on completion.
 /// In exploration, only `path` is used.

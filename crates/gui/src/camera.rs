@@ -2,17 +2,22 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 
 use super::grid::map_center;
+use super::resources::ScreenShake;
 
 /// Marker for the primary isometric camera so we can query it specifically.
 #[derive(Component)]
 pub struct IsometricCamera;
+
+/// Marker for the main directional sun light so zone-tint systems can query it.
+#[derive(Component)]
+pub struct SunLight;
 
 pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_camera)
-            .add_systems(Update, scroll_zoom_system);
+            .add_systems(Update, (scroll_zoom_system, screen_shake_system).chain());
     }
 }
 
@@ -34,13 +39,21 @@ fn spawn_camera(mut commands: Commands) {
 
     // Directional sun light.
     commands.spawn((
+        SunLight,
         DirectionalLight {
-            illuminance: 12000.0,
+            illuminance: 10000.0,
             shadows_enabled: true,
             ..default()
         },
         Transform::from_xyz(8.0, 16.0, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
+
+    // Ambient fill so shadows aren't pitch-black.
+    commands.spawn(AmbientLight {
+        color: Color::WHITE,
+        brightness: 180.0,
+        ..default()
+    });
 }
 
 fn scroll_zoom_system(
@@ -57,4 +70,36 @@ fn scroll_zoom_system(
             ortho.scale = (ortho.scale * factor).clamp(0.02, 0.3);
         }
     }
+}
+
+fn screen_shake_system(
+    time: Res<Time>,
+    mut shake: ResMut<ScreenShake>,
+    mut camera_q: Query<&mut Transform, With<IsometricCamera>>,
+) {
+    let Ok(mut transform) = camera_q.single_mut() else {
+        return;
+    };
+
+    // Remove the previous frame's shake offset first.
+    transform.translation -= shake.current_offset;
+
+    if shake.timer <= 0.0 {
+        shake.current_offset = Vec3::ZERO;
+        return;
+    }
+
+    shake.timer -= time.delta_secs();
+    let t = time.elapsed_secs();
+    let decay = (shake.timer / 0.3).clamp(0.0, 1.0).sqrt();
+    let magnitude = shake.magnitude * decay;
+
+    // Deterministic sine-wave shake — no rand needed.
+    let offset = Vec3::new(
+        magnitude * (t * 41.0).sin(),
+        0.0,
+        magnitude * (t * 37.0).cos(),
+    );
+    shake.current_offset = offset;
+    transform.translation += offset;
 }

@@ -17,12 +17,13 @@ use camera::CameraPlugin;
 use character_visuals::CharacterVisualsPlugin;
 use dialog_runner::DialogRunnerPlugin;
 use input::InputPlugin;
-use resources::{
-    ActiveSaveSlot, ExplorationRng, GameSessionRes, LastKnownZone, MinimapOpen, PauseMenuOpen,
-    PendingAbilityTarget, PendingPath, PendingPlayerChoices, SelectedChoiceIndex, TerminalState,
-};
 #[cfg(feature = "dev")]
 use resources::InspectorOpen;
+use resources::{
+    ActiveSaveSlot, ExplorationRng, GameSessionRes, LastKnownZone, MinimapOpen, PauseMenuOpen,
+    PendingAbilityTarget, PendingPath, PendingPlayerChoices, ScreenShake, SelectedChoiceIndex,
+    TerminalState,
+};
 use state::AppState;
 use sync::SyncPlugin;
 use tile_mesh::TilePlugin;
@@ -30,41 +31,41 @@ use ui::UiPlugin;
 
 fn main() {
     let mut app = App::new();
-    app
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Carbonthrone".into(),
-                resolution: bevy::window::WindowResolution::new(1280_u32, 720_u32),
-                ..default()
-            }),
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(Window {
+            title: "Carbonthrone".into(),
+            resolution: bevy::window::WindowResolution::new(1280_u32, 720_u32),
             ..default()
-        }))
-        // Yarn Spinner
-        .add_plugins(YarnSpinnerPlugin::new())
-        // State machine
-        .init_state::<AppState>()
-        // Core resources
-        .insert_resource(GameSessionRes(GameSession::new()))
-        .init_resource::<ExplorationRng>()
-        .init_resource::<LastKnownZone>()
-        .init_resource::<PendingPlayerChoices>()
-        .init_resource::<SelectedChoiceIndex>()
-        .init_resource::<PendingAbilityTarget>()
-        .init_resource::<PendingPath>()
-        .init_resource::<TerminalState>()
-        .init_resource::<PauseMenuOpen>()
-        .init_resource::<MinimapOpen>()
-        .init_resource::<ActiveSaveSlot>()
-        // Plugins
-        .add_plugins((
-            CameraPlugin,
-            TilePlugin,
-            CharacterVisualsPlugin,
-            SyncPlugin,
-            InputPlugin,
-            UiPlugin,
-            DialogRunnerPlugin,
-        ));
+        }),
+        ..default()
+    }))
+    // Yarn Spinner
+    .add_plugins(YarnSpinnerPlugin::new())
+    // State machine
+    .init_state::<AppState>()
+    // Core resources
+    .insert_resource(GameSessionRes(GameSession::new()))
+    .init_resource::<ExplorationRng>()
+    .init_resource::<LastKnownZone>()
+    .init_resource::<PendingPlayerChoices>()
+    .init_resource::<SelectedChoiceIndex>()
+    .init_resource::<PendingAbilityTarget>()
+    .init_resource::<PendingPath>()
+    .init_resource::<TerminalState>()
+    .init_resource::<PauseMenuOpen>()
+    .init_resource::<MinimapOpen>()
+    .init_resource::<ActiveSaveSlot>()
+    .init_resource::<ScreenShake>()
+    // Plugins
+    .add_plugins((
+        CameraPlugin,
+        TilePlugin,
+        CharacterVisualsPlugin,
+        SyncPlugin,
+        InputPlugin,
+        UiPlugin,
+        DialogRunnerPlugin,
+    ));
 
     #[cfg(feature = "dev")]
     {

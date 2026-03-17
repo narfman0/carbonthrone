@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use carbonthrone::save::{load_all_slots, save_game};
 
-use super::{accent_text, panel_bg, text_font};
+use super::{ButtonColors, accent_text, panel_bg, text_font};
 use crate::{
     resources::{ActiveSaveSlot, GameSessionRes, PauseMenuOpen},
     state::AppState,
@@ -131,7 +131,11 @@ fn update_pause_menu(
                     );
                 } else {
                     // Save slot picker
-                    panel.spawn((Text::new("Select Slot to Save"), text_font(18.0), accent_text()));
+                    panel.spawn((
+                        Text::new("Select Slot to Save"),
+                        text_font(18.0),
+                        accent_text(),
+                    ));
 
                     for i in 0..4u8 {
                         let label = slot_label(i, slots[i as usize].as_ref());
@@ -153,9 +157,14 @@ fn update_pause_menu(
                                     ..default()
                                 },
                                 BackgroundColor(bg),
+                                ButtonColors::new(bg),
                             ))
                             .with_children(|b| {
-                                b.spawn((Text::new(label), text_font(14.0), TextColor(Color::WHITE)));
+                                b.spawn((
+                                    Text::new(label),
+                                    text_font(14.0),
+                                    TextColor(Color::WHITE),
+                                ));
                             });
                     }
 
@@ -188,9 +197,14 @@ fn spawn_pause_btn<M: Component>(
                 ..default()
             },
             BackgroundColor(bg),
+            ButtonColors::new(bg),
         ))
         .with_children(|b| {
-            b.spawn((Text::new(label.to_string()), text_font(18.0), TextColor(Color::WHITE)));
+            b.spawn((
+                Text::new(label.to_string()),
+                text_font(18.0),
+                TextColor(Color::WHITE),
+            ));
         });
 }
 

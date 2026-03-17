@@ -12,7 +12,10 @@ pub struct DialogPlugin;
 impl Plugin for DialogPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Dialog), spawn_dialog_panel)
-            .add_systems(OnExit(AppState::Dialog), (despawn_dialog_panel, reset_dialog_resources))
+            .add_systems(
+                OnExit(AppState::Dialog),
+                (despawn_dialog_panel, reset_dialog_resources),
+            )
             .add_systems(
                 Update,
                 (update_dialog_text, handle_dialog_input).run_if(in_state(AppState::Dialog)),

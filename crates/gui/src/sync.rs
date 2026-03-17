@@ -1,6 +1,7 @@
 use bevy::prelude::*;
-use carbonthrone::{combat::Turn, game::GamePhase};
+use carbonthrone::{combat::Turn, game::GamePhase, zone::ZoneKind};
 
+use super::camera::SunLight;
 use super::resources::{GameSessionRes, LastKnownZone, PendingAbilityTarget, PendingPlayerChoices};
 use super::state::AppState;
 
@@ -12,11 +13,14 @@ impl Plugin for SyncPlugin {
             Update,
             (phase_sync_system, zone_change_detect_system)
                 .chain()
-                .run_if(not(in_state(AppState::MainMenu))),
+                .run_if(not(in_state(AppState::MainMenu)).and(not(in_state(AppState::Intro)))),
         )
         .add_systems(
             Update,
-            refresh_player_choices.run_if(in_state(AppState::Battle)),
+            (
+                refresh_player_choices.run_if(in_state(AppState::Battle)),
+                zone_lighting_system,
+            ),
         );
     }
 }
@@ -36,8 +40,6 @@ pub fn phase_sync_system(
         GamePhase::Battle(_) => AppState::Battle,
         GamePhase::Transitioning | GamePhase::Ended(_) => return,
     };
-    // Note: in_dialog is set when pending_dialog_node is Some;
-    // cleared by the dialog runner system when the Yarn node completes.
     if *current_state.get() != desired {
         next_state.set(desired);
     }
@@ -50,7 +52,6 @@ pub fn zone_change_detect_system(
     current_state: Res<State<AppState>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
-    // current_zone_kind() is a method on GameSessionRes
     let new_zone = session.current_zone_kind();
     if last_zone.0 == new_zone {
         return;
@@ -93,6 +94,47 @@ fn refresh_player_choices(
             .map(|b| b.player_choices(&mut s.world))
             .unwrap_or_default();
         choices.needs_refresh = false;
-        targeting.0 = None; // cancel targeting when choices are refreshed (new actor)
+        targeting.0 = None;
+    }
+}
+
+/// Tint the directional sun light based on the current zone's atmosphere.
+fn zone_lighting_system(
+    session: Res<GameSessionRes>,
+    mut sun_q: Query<&mut DirectionalLight, With<SunLight>>,
+) {
+    if !session.is_changed() {
+        return;
+    }
+    let Some(zone_kind) = session.current_zone_kind() else {
+        return;
+    };
+    let Ok(mut sun) = sun_q.single_mut() else {
+        return;
+    };
+
+    let (color, illuminance) = zone_tint(zone_kind);
+    sun.color = color;
+    sun.illuminance = illuminance;
+}
+
+fn zone_tint(zone: ZoneKind) -> (Color, f32) {
+    match zone {
+        // Exterior zones — cold blue moonlight.
+        ZoneKind::StationExterior | ZoneKind::RelayArray | ZoneKind::ExcavationSite => {
+            (Color::srgb(0.65, 0.75, 1.00), 8000.0)
+        }
+        // Engineering/systems — warm orange heat glow.
+        ZoneKind::SystemsCore => (Color::srgb(1.00, 0.75, 0.45), 11000.0),
+        // Medical — sterile white-blue.
+        ZoneKind::MedicalBay => (Color::srgb(0.85, 0.95, 1.00), 12000.0),
+        // Military — harsh white.
+        ZoneKind::MilitaryAnnex => (Color::srgb(1.00, 0.95, 0.85), 13000.0),
+        // Docking — yellowish industrial.
+        ZoneKind::DockingBay => (Color::srgb(1.00, 0.90, 0.65), 10000.0),
+        // Hallway — dim neutral.
+        ZoneKind::Hallway => (Color::srgb(0.80, 0.80, 0.85), 7000.0),
+        // Default interior — neutral daylight.
+        _ => (Color::WHITE, 10000.0),
     }
 }

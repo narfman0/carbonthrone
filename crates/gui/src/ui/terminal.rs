@@ -7,12 +7,12 @@ use carbonthrone::{
     console::{execute_command, parse_command},
 };
 
+#[cfg(feature = "dev")]
+use crate::resources::InspectorOpen;
 use crate::{
     resources::{GameSessionRes, TerminalState},
     state::AppState,
 };
-#[cfg(feature = "dev")]
-use crate::resources::InspectorOpen;
 
 use super::{panel_bg, text_font, white_text};
 

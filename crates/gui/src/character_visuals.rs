@@ -7,25 +7,30 @@ use carbonthrone::{
 };
 
 use super::camera::IsometricCamera;
-use super::grid::{CHARACTER_HEIGHT, FLOOR_HEIGHT, TILE_SIZE, grid_to_world};
-use super::resources::GameSessionRes;
+use super::grid::{FLOOR_HEIGHT, TILE_SIZE, grid_to_world};
+use super::resources::{GameSessionRes, ScreenShake};
 use super::state::AppState;
 
 const HEALTH_BAR_WIDTH: f32 = TILE_SIZE;
 const HEALTH_BAR_HEIGHT: f32 = 0.055;
 const HEALTH_BAR_THICK: f32 = 0.020;
-/// Y offset above the character mesh top.
 const HEALTH_BAR_Y_ABOVE: f32 = 0.12;
-/// Rotation (radians around Y) to align the bar horizontally in the isometric view.
-/// Camera right direction is (1,0,-1)/√2; rotating X axis by +45° achieves this.
 const HEALTH_BAR_ROTATION: f32 = std::f32::consts::FRAC_PI_4;
+
+const FLOAT_DURATION: f32 = 0.8;
+const FLOAT_SPEED: f32 = 55.0; // pixels per second upward
+
+// ── Components ────────────────────────────────────────────────────────────────
 
 /// Marker for character visual entities: links GUI entity to its game entity.
 #[derive(Component, Clone)]
 pub struct CharacterVisual {
     pub game_entity: bevy::ecs::entity::Entity,
-    /// Last grid position the animation system has acknowledged (to detect moves).
     pub last_grid: (i32, i32),
+    /// Last known HP — used to detect damage and trigger flash.
+    pub last_hp: i32,
+    /// Base (un-flashed) color for restoration after damage flash.
+    pub base_color: Color,
 }
 
 /// Marker for NPC visual entities (NPCs aren't ECS entities in session.world).
@@ -37,10 +42,27 @@ pub struct NpcVisual {
 /// Added to a character visual while it is sliding to a new grid cell.
 #[derive(Component)]
 pub struct CharacterMoveAnim {
+    pub start: Vec3,
     pub target: Vec3,
+    /// Animation progress 0.0 → 1.0.
+    pub progress: f32,
 }
 
-/// Screen-space label showing character kind and level, positioned above the health bar.
+/// Active while a character is flashing red from a hit.
+#[derive(Component)]
+pub struct DamageFlash {
+    pub timer: Timer,
+    pub original_color: Color,
+}
+
+/// Screen-space floating damage number that drifts upward and fades.
+#[derive(Component)]
+pub struct FloatingDamageNumber {
+    pub timer: f32,
+    pub screen_y: f32,
+}
+
+/// Screen-space label showing character kind and level.
 #[derive(Component)]
 pub struct CharKindLabel(pub bevy::ecs::entity::Entity);
 
@@ -48,9 +70,13 @@ pub struct CharKindLabel(pub bevy::ecs::entity::Entity);
 #[derive(Component)]
 pub struct HealthBarBg(pub bevy::ecs::entity::Entity);
 
-/// Foreground fill of the floating HP bar — scaled along X by the HP fraction.
+/// Foreground fill of the floating HP bar.
 #[derive(Component)]
 pub struct HealthBarFill(pub bevy::ecs::entity::Entity);
+
+// ── Event ─────────────────────────────────────────────────────────────────────
+
+// ── Plugin ────────────────────────────────────────────────────────────────────
 
 pub struct CharacterVisualsPlugin;
 
@@ -74,6 +100,7 @@ impl Plugin for CharacterVisualsPlugin {
                     despawn_char_visuals,
                     despawn_health_bars,
                     despawn_char_kind_labels,
+                    despawn_floating_damage,
                 ),
             )
             .add_systems(
@@ -81,43 +108,43 @@ impl Plugin for CharacterVisualsPlugin {
                 (
                     detect_char_move,
                     animate_char_moves,
-                    sync_battle_chars,
-                    sync_health_bars,
-                    update_char_kind_labels,
+                    detect_damage_and_spawn_effects,
+                    update_damage_flash,
+                    update_floating_damage_text,
                 )
+                    .chain()
+                    .run_if(in_state(AppState::Battle)),
+            )
+            .add_systems(
+                Update,
+                (sync_battle_chars, sync_health_bars, update_char_kind_labels)
                     .chain()
                     .run_if(in_state(AppState::Battle)),
             );
     }
 }
 
-// ── Color coding ─────────────────────────────────────────────────────────────
+// ── Color helpers ─────────────────────────────────────────────────────────────
 
 pub fn character_color(kind: &CharacterKind) -> Color {
     match kind {
-        // Player characters — green
         CharacterKind::Researcher
         | CharacterKind::Orin
         | CharacterKind::Doss
         | CharacterKind::Kaleo => Color::srgb(0.20, 0.85, 0.20),
-        // The Constancy — red
         CharacterKind::Zealot
         | CharacterKind::Preacher
         | CharacterKind::Purifier
         | CharacterKind::Archon => Color::srgb(0.80, 0.20, 0.10),
-        // Drifters — amber
         CharacterKind::Scavenger | CharacterKind::VoidRaider | CharacterKind::DrifterBoss => {
             Color::srgb(0.90, 0.70, 0.10)
         }
-        // Automata — steel
         CharacterKind::MaintenanceDrone
         | CharacterKind::SecurityUnit
         | CharacterKind::CombatFrame => Color::srgb(0.50, 0.50, 0.60),
-        // Abyssal Fauna — green
         CharacterKind::MoonCrawler | CharacterKind::VoidSpitter | CharacterKind::AbyssalBrute => {
             Color::srgb(0.30, 0.80, 0.30)
         }
-        // Station Personnel — tan
         CharacterKind::SalvageOperative
         | CharacterKind::GunForHire
         | CharacterKind::StationGuard
@@ -127,13 +154,9 @@ pub fn character_color(kind: &CharacterKind) -> Color {
 
 fn npc_color(aggression: &Aggression) -> Color {
     match aggression {
-        // Friendly NPCs share the player green so the player knows they're safe.
         Aggression::Friendly => Color::srgb(0.30, 0.80, 0.30),
-        // Neutral NPCs are amber — approachable but not allied.
         Aggression::Neutral => Color::srgb(0.90, 0.70, 0.20),
-        // Aggressive NPCs are red — hostile, do not approach.
         Aggression::Aggressive => Color::srgb(0.85, 0.15, 0.10),
-        // Lethargic NPCs (degraded Abyssal Fauna) are dark purple.
         Aggression::Lethargic => Color::srgb(0.45, 0.20, 0.55),
     }
 }
@@ -142,19 +165,65 @@ fn dead_color() -> Color {
     Color::srgb(0.20, 0.20, 0.20)
 }
 
-fn char_mesh() -> Cuboid {
-    Cuboid::new(TILE_SIZE * 0.55, CHARACTER_HEIGHT, TILE_SIZE * 0.55)
+// ── Mesh sizing by CharacterKind ──────────────────────────────────────────────
+
+fn char_mesh_for(kind: &CharacterKind) -> Cuboid {
+    let (w, h, d) = match kind {
+        // Player characters — tall and slim.
+        CharacterKind::Researcher
+        | CharacterKind::Orin
+        | CharacterKind::Doss
+        | CharacterKind::Kaleo => (0.55, 1.3, 0.55),
+        // Large heavy enemies — wide and squat.
+        CharacterKind::AbyssalBrute | CharacterKind::CombatFrame => (0.75, 1.0, 0.75),
+        // Small light enemies — short.
+        CharacterKind::MoonCrawler | CharacterKind::MaintenanceDrone => (0.45, 0.6, 0.45),
+        // All others — standard.
+        _ => (0.55, 0.9, 0.55),
+    };
+    Cuboid::new(TILE_SIZE * w, h, TILE_SIZE * d)
 }
 
-fn char_y_offset() -> f32 {
-    FLOOR_HEIGHT + CHARACTER_HEIGHT * 0.5
+fn char_height_for(kind: &CharacterKind) -> f32 {
+    match kind {
+        CharacterKind::Researcher
+        | CharacterKind::Orin
+        | CharacterKind::Doss
+        | CharacterKind::Kaleo => 1.3,
+        CharacterKind::AbyssalBrute | CharacterKind::CombatFrame => 1.0,
+        CharacterKind::MoonCrawler | CharacterKind::MaintenanceDrone => 0.6,
+        _ => 0.9,
+    }
 }
 
-fn world_pos_for_grid(gx: i32, gy: i32) -> Vec3 {
-    grid_to_world(gx, gy) + Vec3::Y * char_y_offset()
+fn char_y_offset(kind: &CharacterKind) -> f32 {
+    FLOOR_HEIGHT + char_height_for(kind) * 0.5
 }
 
-// ── Exploration: spawn ───────────────────────────────────────────────────────
+fn world_pos_for_grid(gx: i32, gy: i32, kind: &CharacterKind) -> Vec3 {
+    grid_to_world(gx, gy) + Vec3::Y * char_y_offset(kind)
+}
+
+// ── Smoothstep ────────────────────────────────────────────────────────────────
+
+fn smoothstep(x: f32) -> f32 {
+    x * x * (3.0 - 2.0 * x)
+}
+
+// ── Color lerp helper ─────────────────────────────────────────────────────────
+
+fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+    let la = a.to_srgba();
+    let lb = b.to_srgba();
+    Color::srgba(
+        la.red + (lb.red - la.red) * t,
+        la.green + (lb.green - la.green) * t,
+        la.blue + (lb.blue - la.blue) * t,
+        la.alpha + (lb.alpha - la.alpha) * t,
+    )
+}
+
+// ── Exploration: spawn ────────────────────────────────────────────────────────
 
 fn spawn_exploration_chars(
     mut commands: Commands,
@@ -167,7 +236,6 @@ fn spawn_exploration_chars(
     };
     let world = &session.0.world;
 
-    // Player entity.
     let pos = world
         .get::<Position>(state.player_entity)
         .copied()
@@ -182,48 +250,55 @@ fn spawn_exploration_chars(
         &mut meshes,
         &mut materials,
         state.player_entity,
+        &kind,
         pos.x,
         pos.y,
         color,
+        0,
     );
 
-    // NPCs.
     for (i, npc) in state.npcs.iter().enumerate() {
-        let mesh = meshes.add(char_mesh());
+        let npc_kind = CharacterKind::Researcher; // NPCs in exploration use default size
+        let mesh = meshes.add(char_mesh_for(&npc_kind));
         let mat = materials.add(StandardMaterial {
             base_color: npc_color(&npc.aggression),
             ..default()
         });
-        let world_pos = world_pos_for_grid(npc.pos.0, npc.pos.1);
+        let world_p = world_pos_for_grid(npc.pos.0, npc.pos.1, &npc_kind);
         commands.spawn((
             NpcVisual { npc_index: i },
             Mesh3d(mesh),
             MeshMaterial3d(mat),
-            Transform::from_translation(world_pos),
+            Transform::from_translation(world_p),
             GlobalTransform::default(),
         ));
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_char_box(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     game_entity: bevy::ecs::entity::Entity,
+    kind: &CharacterKind,
     gx: i32,
     gy: i32,
     color: Color,
+    initial_hp: i32,
 ) {
-    let mesh = meshes.add(char_mesh());
+    let mesh = meshes.add(char_mesh_for(kind));
     let mat = materials.add(StandardMaterial {
         base_color: color,
         ..default()
     });
-    let world_pos = world_pos_for_grid(gx, gy);
+    let world_pos = world_pos_for_grid(gx, gy, kind);
     commands.spawn((
         CharacterVisual {
             game_entity,
             last_grid: (gx, gy),
+            last_hp: initial_hp,
+            base_color: color,
         },
         Mesh3d(mesh),
         MeshMaterial3d(mat),
@@ -232,21 +307,21 @@ fn spawn_char_box(
     ));
 }
 
-/// Spawn a health bar (background + fill) above a character at `world_pos`.
+// ── Health bar spawn ──────────────────────────────────────────────────────────
+
 fn spawn_health_bar(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
     game_entity: bevy::ecs::entity::Entity,
     world_pos: Vec3,
+    char_h: f32,
     is_player: bool,
 ) {
-    let bar_y = world_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE;
+    let bar_y = world_pos.y + char_h * 0.5 + HEALTH_BAR_Y_ABOVE;
     let bg_pos = Vec3::new(world_pos.x, bar_y, world_pos.z);
-
     let bar_rotation = Quat::from_rotation_y(HEALTH_BAR_ROTATION);
 
-    // Background (dark).
     let bg_mesh = meshes.add(Cuboid::new(
         HEALTH_BAR_WIDTH,
         HEALTH_BAR_THICK,
@@ -265,7 +340,6 @@ fn spawn_health_bar(
         GlobalTransform::default(),
     ));
 
-    // Fill (coloured, scaled by HP fraction).
     let fill_color = if is_player {
         Color::srgb(0.10, 0.85, 0.20)
     } else {
@@ -290,15 +364,15 @@ fn spawn_health_bar(
     ));
 }
 
-// ── Detect move → start animation (shared for exploration and battle) ─────────
+// ── Detect move → start animation ────────────────────────────────────────────
 
 fn detect_char_move(
     session: Res<GameSessionRes>,
-    mut char_q: Query<(Entity, &mut CharacterVisual)>,
+    mut char_q: Query<(Entity, &mut CharacterVisual, &Transform), Without<CharacterMoveAnim>>,
     mut commands: Commands,
 ) {
     let world = &session.0.world;
-    for (entity, mut cv) in char_q.iter_mut() {
+    for (entity, mut cv, transform) in char_q.iter_mut() {
         let Some(pos) = world.get::<Position>(cv.game_entity) else {
             continue;
         };
@@ -307,33 +381,40 @@ fn detect_char_move(
             continue;
         }
         cv.last_grid = new_grid;
-        let target = world_pos_for_grid(pos.x, pos.y);
-        commands.entity(entity).insert(CharacterMoveAnim { target });
+        let kind = world
+            .get::<Character>(cv.game_entity)
+            .map(|c| c.kind.clone())
+            .unwrap_or(CharacterKind::Researcher);
+        let target = world_pos_for_grid(pos.x, pos.y, &kind);
+        commands.entity(entity).insert(CharacterMoveAnim {
+            start: transform.translation,
+            target,
+            progress: 0.0,
+        });
     }
 }
 
-// ── Advance in-flight move animations ─────────────────────────────────────────
+// ── Advance animations with smoothstep ───────────────────────────────────────
 
 fn animate_char_moves(
     time: Res<Time>,
-    mut q: Query<(Entity, &mut Transform, &CharacterMoveAnim)>,
+    mut q: Query<(Entity, &mut Transform, &mut CharacterMoveAnim)>,
     mut commands: Commands,
 ) {
     const SPEED: f32 = 3.0;
-    for (entity, mut transform, anim) in q.iter_mut() {
-        let to_target = anim.target - transform.translation;
-        let dist = Vec2::new(to_target.x, to_target.z).length();
-        let step = SPEED * time.delta_secs();
-        if dist <= step {
+    for (entity, mut transform, mut anim) in q.iter_mut() {
+        let total = (anim.target - anim.start).length().max(0.001);
+        anim.progress = (anim.progress + SPEED * time.delta_secs() / total).min(1.0);
+        let t = smoothstep(anim.progress);
+        transform.translation = anim.start.lerp(anim.target, t);
+        if anim.progress >= 1.0 {
             transform.translation = anim.target;
             commands.entity(entity).remove::<CharacterMoveAnim>();
-        } else {
-            transform.translation += to_target.normalize() * step;
         }
     }
 }
 
-// ── Exploration: sync positions (non-animating only) ─────────────────────────
+// ── Exploration: sync positions ───────────────────────────────────────────────
 
 fn sync_exploration_chars(
     session: Res<GameSessionRes>,
@@ -344,16 +425,21 @@ fn sync_exploration_chars(
         return;
     };
     let world = &session.0.world;
+    let default_kind = CharacterKind::Researcher;
 
     for (cv, mut transform) in &mut char_q {
         if let Some(pos) = world.get::<Position>(cv.game_entity) {
-            transform.translation = world_pos_for_grid(pos.x, pos.y);
+            let kind = world
+                .get::<Character>(cv.game_entity)
+                .map(|c| c.kind.clone())
+                .unwrap_or(CharacterKind::Researcher);
+            transform.translation = world_pos_for_grid(pos.x, pos.y, &kind);
         }
     }
 
     for (nv, mut transform) in &mut npc_q {
         if let Some(npc) = state.npcs.get(nv.npc_index) {
-            transform.translation = world_pos_for_grid(npc.pos.0, npc.pos.1);
+            transform.translation = world_pos_for_grid(npc.pos.0, npc.pos.1, &default_kind);
         }
     }
 }
@@ -377,10 +463,11 @@ fn spawn_battle_chars(
                 c.kind.is_player(),
                 (p.x, p.y),
                 h.is_alive(),
+                h.current,
             )
         })
         .collect();
-    for (entity, kind, is_player, (gx, gy), alive) in chars {
+    for (entity, kind, is_player, (gx, gy), alive, current_hp) in chars {
         let color = if alive {
             character_color(&kind)
         } else {
@@ -391,23 +478,27 @@ fn spawn_battle_chars(
             &mut meshes,
             &mut materials,
             entity,
+            &kind,
             gx,
             gy,
             color,
+            current_hp,
         );
-        let world_pos = world_pos_for_grid(gx, gy);
+        let world_pos = world_pos_for_grid(gx, gy, &kind);
+        let char_h = char_height_for(&kind);
         spawn_health_bar(
             &mut commands,
             &mut meshes,
             &mut materials,
             entity,
             world_pos,
+            char_h,
             is_player,
         );
     }
 }
 
-// ── Battle: sync positions + alive/dead state ────────────────────────────────
+// ── Battle: sync positions + alive/dead ──────────────────────────────────────
 
 fn sync_battle_chars(
     session: Res<GameSessionRes>,
@@ -419,7 +510,11 @@ fn sync_battle_chars(
     let world = &session.0.world;
     for (cv, mut transform, mut vis) in &mut char_q {
         if let Some(pos) = world.get::<Position>(cv.game_entity) {
-            transform.translation = world_pos_for_grid(pos.x, pos.y);
+            let kind = world
+                .get::<Character>(cv.game_entity)
+                .map(|c| c.kind.clone())
+                .unwrap_or(CharacterKind::Researcher);
+            transform.translation = world_pos_for_grid(pos.x, pos.y, &kind);
         }
         if let Some(health) = world.get::<Health>(cv.game_entity) {
             *vis = if health.is_alive() {
@@ -428,6 +523,110 @@ fn sync_battle_chars(
                 Visibility::Hidden
             };
         }
+    }
+}
+
+// ── Damage detection + flash + floating text (combined) ───────────────────────
+
+fn detect_damage_and_spawn_effects(
+    session: Res<GameSessionRes>,
+    mut char_q: Query<(Entity, &mut CharacterVisual, &Transform)>,
+    mut commands: Commands,
+    mut shake: ResMut<ScreenShake>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+) {
+    let Ok((cam, cam_transform)) = camera_q.single() else {
+        return;
+    };
+    let world = &session.0.world;
+    for (entity, mut cv, transform) in char_q.iter_mut() {
+        let Some(health) = world.get::<Health>(cv.game_entity) else {
+            continue;
+        };
+        let current_hp = health.current;
+        if current_hp < cv.last_hp {
+            let damage = cv.last_hp - current_hp;
+            // Start damage flash.
+            commands.entity(entity).insert(DamageFlash {
+                timer: Timer::from_seconds(0.25, TimerMode::Once),
+                original_color: cv.base_color,
+            });
+            // Spawn floating damage number at screen position.
+            let text_world = transform.translation + Vec3::Y * 0.4;
+            if let Ok(screen_pos) = cam.world_to_viewport(cam_transform, text_world) {
+                commands.spawn((
+                    FloatingDamageNumber {
+                        timer: FLOAT_DURATION,
+                        screen_y: screen_pos.y - 10.0,
+                    },
+                    Text::new(format!("-{damage}")),
+                    TextFont {
+                        font_size: 15.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgba(1.0, 0.85, 0.2, 1.0)),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(screen_pos.x - 12.0),
+                        top: Val::Px(screen_pos.y - 10.0),
+                        ..default()
+                    },
+                ));
+            }
+            // Screen shake on significant hits.
+            if damage >= 3 {
+                shake.trigger(0.05 + damage as f32 * 0.004);
+            }
+        }
+        cv.last_hp = current_hp;
+    }
+}
+
+fn update_damage_flash(
+    time: Res<Time>,
+    mut flash_q: Query<(Entity, &mut DamageFlash, &MeshMaterial3d<StandardMaterial>)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut commands: Commands,
+) {
+    let flash_color = Color::srgb(1.0, 0.12, 0.08);
+    for (entity, mut flash, mat_handle) in flash_q.iter_mut() {
+        flash.timer.tick(time.delta());
+        let t = flash.timer.fraction(); // 0 = just hit (full red), 1 = restored
+        let current = lerp_color(flash_color, flash.original_color, t);
+        if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            mat.base_color = current;
+        }
+        if flash.timer.just_finished() {
+            if let Some(mat) = materials.get_mut(&mat_handle.0) {
+                mat.base_color = flash.original_color;
+            }
+            commands.entity(entity).remove::<DamageFlash>();
+        }
+    }
+}
+
+fn update_floating_damage_text(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut q: Query<(Entity, &mut FloatingDamageNumber, &mut Node, &mut TextColor)>,
+) {
+    let dt = time.delta_secs();
+    for (entity, mut fdn, mut node, mut color) in q.iter_mut() {
+        fdn.timer -= dt;
+        if fdn.timer <= 0.0 {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        fdn.screen_y -= FLOAT_SPEED * dt;
+        node.top = Val::Px(fdn.screen_y);
+        let alpha = (fdn.timer / FLOAT_DURATION).clamp(0.0, 1.0);
+        color.0 = Color::srgba(1.0, 0.85, 0.2, alpha);
+    }
+}
+
+fn despawn_floating_damage(mut commands: Commands, q: Query<Entity, With<FloatingDamageNumber>>) {
+    for e in &q {
+        commands.entity(e).despawn();
     }
 }
 
@@ -455,17 +654,14 @@ fn sync_health_bars(
 ) {
     let world = &session.0.world;
 
-    // Build a map from game_entity → visual world position.
     let char_positions: std::collections::HashMap<bevy::ecs::entity::Entity, Vec3> = char_q
         .iter()
         .map(|(cv, t)| (cv.game_entity, t.translation))
         .collect();
 
     let bar_rotation = Quat::from_rotation_y(HEALTH_BAR_ROTATION);
-    // Bar direction in world space after rotation: (1,0,-1)/√2.
     let bar_dir = Vec3::new(1.0, 0.0, -1.0) * std::f32::consts::FRAC_1_SQRT_2;
 
-    // Update background positions.
     for (bg, mut transform, mut vis) in &mut bg_q {
         let game_entity = bg.0;
         let Some(&char_pos) = char_positions.get(&game_entity) else {
@@ -480,13 +676,16 @@ fn sync_health_bars(
             *vis = Visibility::Hidden;
             continue;
         }
+        let kind = world
+            .get::<Character>(game_entity)
+            .map(|c| c.kind.clone())
+            .unwrap_or(CharacterKind::Researcher);
         *vis = Visibility::Inherited;
-        let bar_y = char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE;
+        let bar_y = char_pos.y + char_height_for(&kind) * 0.5 + HEALTH_BAR_Y_ABOVE;
         transform.translation = Vec3::new(char_pos.x, bar_y, char_pos.z);
         transform.rotation = bar_rotation;
     }
 
-    // Update fill scale and position.
     for (fill, mut transform, mut vis) in &mut fill_q {
         let game_entity = fill.0;
         let Some(&char_pos) = char_positions.get(&game_entity) else {
@@ -502,14 +701,17 @@ fn sync_health_bars(
             *vis = Visibility::Hidden;
             continue;
         }
+        let kind = world
+            .get::<Character>(game_entity)
+            .map(|c| c.kind.clone())
+            .unwrap_or(CharacterKind::Researcher);
         *vis = Visibility::Inherited;
         let fraction = if health.max > 0 {
             (health.current as f32 / health.max as f32).clamp(0.0, 1.0)
         } else {
             0.0
         };
-        let bar_y = char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE;
-        // Left-align along bar_dir: shift center toward the "left" end.
+        let bar_y = char_pos.y + char_height_for(&kind) * 0.5 + HEALTH_BAR_Y_ABOVE;
         let center = Vec3::new(char_pos.x, bar_y, char_pos.z);
         let fill_center = center + bar_dir * (HEALTH_BAR_WIDTH * (fraction - 1.0) / 2.0);
         transform.translation = fill_center;
@@ -573,7 +775,6 @@ fn update_char_kind_labels(
     };
     let world = &session.0.world;
 
-    // Build map from game_entity → visual transform.
     let char_positions: std::collections::HashMap<bevy::ecs::entity::Entity, Vec3> = char_visual_q
         .iter()
         .map(|(cv, t)| (cv.game_entity, t.translation))
@@ -593,10 +794,13 @@ fn update_char_kind_labels(
             *vis = Visibility::Hidden;
             continue;
         };
-        // Project a point above the health bar.
+        let kind = world
+            .get::<Character>(game_entity)
+            .map(|c| c.kind.clone())
+            .unwrap_or(CharacterKind::Researcher);
         let label_world_pos = Vec3::new(
             char_pos.x,
-            char_pos.y + CHARACTER_HEIGHT * 0.5 + HEALTH_BAR_Y_ABOVE + 0.18,
+            char_pos.y + char_height_for(&kind) * 0.5 + HEALTH_BAR_Y_ABOVE + 0.18,
             char_pos.z,
         );
         if let Ok(screen_pos) = cam.world_to_viewport(cam_transform, label_world_pos) {

@@ -5,7 +5,7 @@ use carbonthrone::{
 };
 use rand::SeedableRng;
 
-use super::{StateUiRoot, accent_text, panel_bg, text_font};
+use super::{ButtonColors, StateUiRoot, accent_text, panel_bg, text_font};
 use crate::{
     resources::{ActiveSaveSlot, GameSessionRes},
     state::AppState,
@@ -18,7 +18,10 @@ impl Plugin for MainMenuPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MainMenuSubstate>()
             .add_systems(OnEnter(AppState::MainMenu), spawn_main_menu)
-            .add_systems(OnExit(AppState::MainMenu), (despawn_main_menu, reset_substate))
+            .add_systems(
+                OnExit(AppState::MainMenu),
+                (despawn_main_menu, reset_substate),
+            )
             .add_systems(
                 Update,
                 (handle_menu_buttons, update_slot_panel).run_if(in_state(AppState::MainMenu)),
@@ -75,7 +78,7 @@ fn spawn_main_menu(mut commands: Commands) {
         .with_children(|parent| {
             parent.spawn((
                 Text::new("C A R B O N T H R O N E"),
-                text_font(42.0),
+                text_font(48.0),
                 accent_text(),
             ));
 
@@ -97,9 +100,14 @@ fn spawn_main_menu(mut commands: Commands) {
                         ..default()
                     },
                     BackgroundColor(Color::srgb(0.15, 0.25, 0.40)),
+                    ButtonColors::new(Color::srgb(0.15, 0.25, 0.40)),
                 ))
                 .with_children(|btn| {
-                    btn.spawn((Text::new("New Game"), text_font(20.0), TextColor(Color::WHITE)));
+                    btn.spawn((
+                        Text::new("New Game"),
+                        text_font(20.0),
+                        TextColor(Color::WHITE),
+                    ));
                 });
 
             // Load Game
@@ -125,9 +133,14 @@ fn spawn_main_menu(mut commands: Commands) {
                         ..default()
                     },
                     BackgroundColor(load_bg),
+                    ButtonColors::new(load_bg),
                 ))
                 .with_children(|btn| {
-                    btn.spawn((Text::new("Load Game"), text_font(20.0), TextColor(load_text_color)));
+                    btn.spawn((
+                        Text::new("Load Game"),
+                        text_font(20.0),
+                        TextColor(load_text_color),
+                    ));
                 });
 
             // Exit
@@ -143,6 +156,7 @@ fn spawn_main_menu(mut commands: Commands) {
                         ..default()
                     },
                     BackgroundColor(Color::srgb(0.15, 0.25, 0.40)),
+                    ButtonColors::new(Color::srgb(0.15, 0.25, 0.40)),
                 ))
                 .with_children(|btn| {
                     btn.spawn((Text::new("Exit"), text_font(20.0), TextColor(Color::WHITE)));
@@ -222,7 +236,7 @@ fn update_slot_panel(
                         BackgroundColor(bg),
                     ));
                     if has_data {
-                        btn.insert((SlotLoadButton(i), Button));
+                        btn.insert((SlotLoadButton(i), Button, ButtonColors::new(bg)));
                     }
                     btn.with_children(|b| {
                         b.spawn((Text::new(label), text_font(16.0), TextColor(text_col)));
@@ -243,6 +257,7 @@ fn update_slot_panel(
                             ..default()
                         },
                         BackgroundColor(Color::srgb(0.20, 0.10, 0.10)),
+                        ButtonColors::new(Color::srgb(0.20, 0.10, 0.10)),
                     ))
                     .with_children(|b| {
                         b.spawn((Text::new("Back"), text_font(16.0), TextColor(Color::WHITE)));
