@@ -3,7 +3,7 @@
   "configurations": [
     
     {
-      "name": "Debug executable 'carbonthrone_gui'",
+      "name": "Run carbonthrone_gui",
       "type": "lldb",
       "request": "launch",
       "cargo": {
