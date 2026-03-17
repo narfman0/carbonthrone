@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{
+    prelude::*,
+    window::{CursorIcon, PrimaryWindow, SystemCursorIcon},
+};
 use carbonthrone::{
     action_points::ActionPoints,
     character::Aggression,
@@ -64,6 +67,11 @@ impl Plugin for InputPlugin {
                     .run_if(terminal_closed),
                 detect_game_ending,
                 handle_ended_input.run_if(in_state(AppState::Ended)),
+                update_cursor_icon.run_if(
+                    in_state(AppState::Exploration)
+                        .or(in_state(AppState::Battle))
+                        .or(in_state(AppState::Dialog)),
+                ),
             ),
         );
     }
@@ -523,6 +531,59 @@ fn auto_advance_enemy_turn(
             choices_res.needs_refresh = true;
         }
     }
+}
+
+// ── Cursor icon ───────────────────────────────────────────────────────────────
+
+fn update_cursor_icon(
+    mut commands: Commands,
+    windows: Query<(Entity, &Window), With<PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    session: Res<GameSessionRes>,
+    pending_target: Res<PendingAbilityTarget>,
+) {
+    let Ok((window_entity, window)) = windows.single() else {
+        return;
+    };
+
+    let icon = if pending_target.0.is_some() {
+        // Combat ability targeting mode → crosshair
+        SystemCursorIcon::Crosshair
+    } else if let GamePhase::Exploration(state) = &session.0.phase {
+        // Adjacent non-aggressive NPC under cursor → pointer
+        let cursor_npc = window
+            .cursor_position()
+            .and_then(|pos| {
+                let (cam, cam_transform) = camera_q.single().ok()?;
+                cursor_to_grid(cam, cam_transform, pos)
+            })
+            .and_then(|(gx, gy)| {
+                let player_pos = session
+                    .0
+                    .world
+                    .get::<Position>(state.player_entity)
+                    .copied()
+                    .unwrap_or(Position::new(0, 0));
+                let adjacent =
+                    (gx - player_pos.x).abs() + (gy - player_pos.y).abs() <= 1;
+                if !adjacent {
+                    return None;
+                }
+                state
+                    .npcs
+                    .iter()
+                    .find(|n| n.pos == (gx, gy) && n.aggression != Aggression::Aggressive)
+            });
+        if cursor_npc.is_some() {
+            SystemCursorIcon::Pointer
+        } else {
+            SystemCursorIcon::Default
+        }
+    } else {
+        SystemCursorIcon::Default
+    };
+
+    commands.entity(window_entity).insert(CursorIcon::from(icon));
 }
 
 // ── Escape: toggle pause menu ─────────────────────────────────────────────────
