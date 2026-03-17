@@ -255,6 +255,46 @@ impl LevelMap {
 #[derive(Resource)]
 pub struct BattleRng(pub StdRng);
 
+// ── Zone state modifiers ──────────────────────────────────────────────────────
+
+enum ZoneStateModifier {
+    ClearRegion {
+        x_start: f32,
+        y_start: f32,
+        x_end: f32,
+        y_end: f32,
+    },
+    BlockRegion {
+        x_start: f32,
+        y_start: f32,
+        x_end: f32,
+        y_end: f32,
+    },
+}
+
+fn zone_state_modifiers(zone_kind: ZoneKind, loop_number: u32) -> Vec<ZoneStateModifier> {
+    match zone_kind {
+        ZoneKind::ExcavationSite => {
+            if loop_number >= 3 {
+                vec![ZoneStateModifier::ClearRegion {
+                    x_start: 0.0,
+                    y_start: 0.6,
+                    x_end: 0.35,
+                    y_end: 1.0,
+                }]
+            } else {
+                vec![ZoneStateModifier::BlockRegion {
+                    x_start: 0.0,
+                    y_start: 0.6,
+                    x_end: 0.35,
+                    y_end: 1.0,
+                }]
+            }
+        }
+        _ => vec![],
+    }
+}
+
 // ── Zone densities ────────────────────────────────────────────────────────────
 
 fn zone_density(zone_kind: ZoneKind) -> f32 {
@@ -283,6 +323,7 @@ pub fn generate_map(
     cols: u32,
     rows: u32,
     zone_kind: ZoneKind,
+    loop_number: u32,
     reserved_open: &[(i32, i32)],
     door_tiles: &[(i32, i32)],
     rng: &mut impl Rng,
@@ -310,6 +351,56 @@ pub fn generate_map(
     // Mark door tiles.
     for &(x, y) in door_tiles {
         map.tiles.insert((x, y), Tile::Door);
+    }
+
+    // Apply loop-based zone state modifiers (e.g. collapsed sections).
+    for modifier in zone_state_modifiers(zone_kind, loop_number) {
+        match modifier {
+            ZoneStateModifier::ClearRegion {
+                x_start,
+                y_start,
+                x_end,
+                y_end,
+            } => {
+                let (x0, y0) = (
+                    (x_start * cols as f32) as i32,
+                    (y_start * rows as f32) as i32,
+                );
+                let (x1, y1) = (
+                    (x_end * cols as f32) as i32,
+                    (y_end * rows as f32) as i32,
+                );
+                for y in y0..y1 {
+                    for x in x0..x1 {
+                        if map.get(x, y) == Tile::Obstacle {
+                            map.tiles.remove(&(x, y));
+                        }
+                    }
+                }
+            }
+            ZoneStateModifier::BlockRegion {
+                x_start,
+                y_start,
+                x_end,
+                y_end,
+            } => {
+                let (x0, y0) = (
+                    (x_start * cols as f32) as i32,
+                    (y_start * rows as f32) as i32,
+                );
+                let (x1, y1) = (
+                    (x_end * cols as f32) as i32,
+                    (y_end * rows as f32) as i32,
+                );
+                for y in y0..y1 {
+                    for x in x0..x1 {
+                        if !reserved.contains(&(x, y)) {
+                            map.tiles.insert((x, y), Tile::Obstacle);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Compute directional cover for all passable tiles from obstacle adjacency.

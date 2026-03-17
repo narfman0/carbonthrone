@@ -214,7 +214,7 @@ impl Zone {
         }
 
         let all_door_positions: Vec<(i32, i32)> = doors.keys().copied().collect();
-        let mut map = generate_map(cols, rows, kind, &[], &all_door_positions, rng);
+        let mut map = generate_map(cols, rows, kind, loop_number, &[], &all_door_positions, rng);
 
         // Ensure door tiles are set in the map (generate_map already does this,
         // but we set them here too in case of any overlap).

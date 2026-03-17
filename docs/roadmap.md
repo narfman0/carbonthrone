@@ -35,17 +35,6 @@ Core combat/exploration loops are functional. Story endings, companion dialog, s
 
 ---
 
-### Loop-Based Zone State Changes
-
-**Why**: `docs/world.md` and loop docs describe zones changing between loops (collapsed sections open, relay array signals change).
-**Files**:
-
-- `crates/core/src/zone.rs` — `Zone::enter()` signature
-- `crates/core/src/game.rs` — pass `loop_number` to zone generation
-  **Task**: `Zone::enter()` should accept `loop_number` and conditionally open/block tiles (e.g., Excavation collapsed section opens in loop 3+).
-
----
-
 ## Polish & Presentation
 
 ### Menus & UI Typography Polish
