@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::character::{Aggression, CharacterKind};
@@ -98,6 +100,10 @@ pub struct SaveData {
     /// Full battle state snapshot (present only when saved mid-battle).
     #[serde(default)]
     pub battle_snapshot: Option<BattleSnapshot>,
+    /// Last line shown per dialog node (key → (speaker, text)).
+    /// Used to re-display the last line when an NPC has nothing new to say.
+    #[serde(default)]
+    pub last_dialog_lines: HashMap<String, (String, String)>,
 }
 
 /// Write a [`SaveData`] to `{Documents}/Carbonthrone/save_{slot}.yaml`.

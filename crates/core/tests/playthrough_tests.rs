@@ -20,6 +20,7 @@ fn save_at_loop5() -> SaveData {
         fought_scripted_encounters: vec![],
         ending: None,
         battle_snapshot: None,
+        last_dialog_lines: std::collections::HashMap::new(),
     }
 }
 
@@ -161,6 +162,7 @@ fn end_dialog_below_loop5_never_ends() {
             fought_scripted_encounters: vec![],
             ending: None,
             battle_snapshot: None,
+            last_dialog_lines: std::collections::HashMap::new(),
         };
         let mut session = GameSession::from_save_data(save, &mut rng);
         dismiss_and_resolve(&mut session);

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 use bevy_yarnspinner::events::{DialogueCompleted, PresentLine, PresentOptions};
 use bevy_yarnspinner::prelude::*;
@@ -13,6 +15,8 @@ pub struct CurrentDialogLine {
     pub speaker: String,
     pub text: String,
     pub waiting: bool,
+    /// True when showing a cached last-line fallback (NPC has nothing new to say).
+    pub is_fallback: bool,
 }
 
 /// Current dialog options (choices).
@@ -22,10 +26,20 @@ pub struct CurrentDialogOptions {
     pub waiting: bool,
 }
 
+/// Stores the last line shown for each dialog node (keyed by loop-stripped name).
+/// Persists across dialog sessions so NPCs can repeat their last words.
+#[derive(Resource, Default)]
+pub struct LastDialogLines {
+    pub lines: HashMap<String, (String, String)>,
+    /// Set when a node starts; used by on_present_line to know which key to update.
+    pub current_key: String,
+}
+
 impl Plugin for DialogRunnerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CurrentDialogLine>()
             .init_resource::<CurrentDialogOptions>()
+            .init_resource::<LastDialogLines>()
             .add_systems(
                 Update,
                 start_pending_dialog_node.before(YarnSpinnerSystemSet),
@@ -40,6 +54,18 @@ impl Plugin for DialogRunnerPlugin {
 #[derive(Component)]
 pub struct GameDialogueRunner;
 
+/// Strip the loop prefix from a node name so lines are keyed by NPC identity,
+/// not loop number.  E.g.:
+///   "loop1_medical_bay_salvage_operative_on_interact"
+///   → "medical_bay_salvage_operative_on_interact"
+fn node_key(node_name: &str) -> String {
+    node_name
+        .strip_prefix("loop")
+        .and_then(|s| s.splitn(2, '_').nth(1))
+        .unwrap_or(node_name)
+        .to_string()
+}
+
 /// Each frame: if a pending Yarn node is set on the `ExplorationState`, spawn
 /// (or reuse) the `DialogueRunner` and call `start_node`.
 fn start_pending_dialog_node(
@@ -47,6 +73,8 @@ fn start_pending_dialog_node(
     mut session: ResMut<GameSessionRes>,
     yarn_project: Option<Res<YarnProject>>,
     mut runner_q: Query<&mut DialogueRunner, With<GameDialogueRunner>>,
+    mut last_lines: ResMut<LastDialogLines>,
+    mut line_res: ResMut<CurrentDialogLine>,
 ) {
     let GamePhase::Exploration(e) = &mut session.0.phase else {
         return;
@@ -60,12 +88,26 @@ fn start_pending_dialog_node(
         return;
     };
 
-    // Validate that the node exists; skip silently if not.
+    // Validate that the node exists; fall back to last cached line if not.
     if project.headers_for_node(&node_name).is_none() {
-        // No dialog for this trigger — clear in_dialog so the game can proceed.
-        e.in_dialog = false;
+        let key = node_key(&node_name);
+        if let Some((speaker, text)) = e.last_dialog_lines.get(&key) {
+            // Show the cached last line as a fallback.
+            line_res.speaker = speaker.clone();
+            line_res.text = text.clone();
+            line_res.waiting = true;
+            line_res.is_fallback = true;
+            last_lines.current_key = key;
+            // Keep in_dialog = true so the panel stays open.
+        } else {
+            // No node, no cache — dismiss silently.
+            e.in_dialog = false;
+        }
         return;
     }
+
+    // Record the key for this node so on_present_line can update the cache.
+    last_lines.current_key = node_key(&node_name);
 
     // Seed variable storage with current flags so .yarn <<if>> guards work.
     let flags: Vec<String> = e.flags.export_flags();
@@ -104,13 +146,29 @@ fn seed_runner_variables(runner: &mut DialogueRunner, flags: &[String], companio
 
 fn on_present_line(
     trigger: On<PresentLine>,
+    mut session: ResMut<GameSessionRes>,
     mut line_res: ResMut<CurrentDialogLine>,
     mut opts_res: ResMut<CurrentDialogOptions>,
+    mut last_lines: ResMut<LastDialogLines>,
 ) {
     let line = &trigger.line;
-    line_res.speaker = line.character_name().unwrap_or("").to_string();
-    line_res.text = line.text_without_character_name();
+    let speaker = line.character_name().unwrap_or("").to_string();
+    let text = line.text_without_character_name();
+
+    // Cache this line keyed by the current node.
+    if !last_lines.current_key.is_empty() {
+        let key = last_lines.current_key.clone();
+        last_lines.lines.insert(key.clone(), (speaker.clone(), text.clone()));
+        // Mirror into the core exploration state for save/load persistence.
+        if let GamePhase::Exploration(e) = &mut session.0.phase {
+            e.last_dialog_lines.insert(key, (speaker.clone(), text.clone()));
+        }
+    }
+
+    line_res.speaker = speaker;
+    line_res.text = text;
     line_res.waiting = true;
+    line_res.is_fallback = false;
     opts_res.waiting = false;
     opts_res.options.clear();
 }
@@ -157,10 +215,35 @@ fn on_dialogue_completed(
     runner_q: Query<&DialogueRunner, With<GameDialogueRunner>>,
     mut line_res: ResMut<CurrentDialogLine>,
     mut opts_res: ResMut<CurrentDialogOptions>,
+    last_lines: Res<LastDialogLines>,
 ) {
-    line_res.waiting = false;
     opts_res.waiting = false;
     opts_res.options.clear();
+
+    // If no line was presented (all <<if>> conditions were false), fall back to
+    // the last cached line for this node rather than silently dismissing.
+    if line_res.text.is_empty() && !last_lines.current_key.is_empty() {
+        let cached = {
+            // Check GUI cache first; it matches the core state.
+            last_lines.lines.get(&last_lines.current_key).cloned().or_else(|| {
+                if let GamePhase::Exploration(e) = &session.0.phase {
+                    e.last_dialog_lines.get(&last_lines.current_key).cloned()
+                } else {
+                    None
+                }
+            })
+        };
+        if let Some((speaker, text)) = cached {
+            line_res.speaker = speaker;
+            line_res.text = text;
+            line_res.waiting = true;
+            line_res.is_fallback = true;
+            // Keep in_dialog = true — do NOT call end_dialog.
+            return;
+        }
+    }
+
+    line_res.waiting = false;
 
     let Ok(runner) = runner_q.single() else {
         session.0.dismiss_dialog();

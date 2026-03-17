@@ -23,6 +23,7 @@ fn save_for(zone: ZoneKind, loop_number: u32) -> SaveData {
         fought_scripted_encounters: vec![],
         ending: None,
         battle_snapshot: None,
+        last_dialog_lines: std::collections::HashMap::new(),
     }
 }
 

@@ -210,6 +210,7 @@ fn handle_dialog_input(
     mut runner_q: Query<&mut DialogueRunner, With<GameDialogueRunner>>,
     mut opts_res: ResMut<CurrentDialogOptions>,
     mut line_res: ResMut<CurrentDialogLine>,
+    mut session: ResMut<GameSessionRes>,
 ) {
     for (choice_btn, interaction) in &choice_q {
         if *interaction == Interaction::Pressed {
@@ -228,7 +229,12 @@ fn handle_dialog_input(
 
     if let Ok(interaction) = continue_q.single() {
         if *interaction == Interaction::Pressed {
-            if let Ok(mut runner) = runner_q.single_mut() {
+            if line_res.is_fallback {
+                // Dismiss the fallback line cleanly.
+                line_res.is_fallback = false;
+                line_res.waiting = false;
+                session.0.end_dialog(vec![]);
+            } else if let Ok(mut runner) = runner_q.single_mut() {
                 if runner.is_running() && !runner.is_waiting_for_option_selection() {
                     runner.continue_in_next_update();
                     line_res.waiting = false;

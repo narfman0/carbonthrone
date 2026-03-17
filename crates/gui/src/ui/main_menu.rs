@@ -7,6 +7,7 @@ use rand::SeedableRng;
 
 use super::{ButtonColors, StateUiRoot, accent_text, panel_bg, text_font};
 use crate::{
+    dialog_runner::LastDialogLines,
     resources::{ActiveSaveSlot, GameSessionRes},
     state::AppState,
     ui::save_slot::slot_label,
@@ -276,6 +277,7 @@ fn handle_menu_buttons(
     mut next_state: ResMut<NextState<AppState>>,
     mut substate: ResMut<MainMenuSubstate>,
     mut active_slot: ResMut<ActiveSaveSlot>,
+    mut last_dialog_lines: ResMut<LastDialogLines>,
 ) {
     for interaction in &new_game_q {
         if *interaction == Interaction::Pressed {
@@ -297,6 +299,9 @@ fn handle_menu_buttons(
         if *interaction == Interaction::Pressed {
             if let Ok(data) = load_game(*slot) {
                 let mut rng = rand::rngs::StdRng::from_entropy();
+                // Hydrate the GUI dialog-line cache from the save data before
+                // discarding it into from_save_data.
+                last_dialog_lines.lines = data.last_dialog_lines.clone();
                 session.0 = GameSession::from_save_data(data, &mut rng);
                 active_slot.0 = Some(*slot);
                 next_state.set(AppState::Exploration);

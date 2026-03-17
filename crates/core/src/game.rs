@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 use rand::SeedableRng;
@@ -101,6 +101,9 @@ pub struct ExplorationState {
     pub pending_battle: bool,
     /// IDs of scripted encounters the player has already fought.
     pub fought_scripted_encounters: HashSet<String>,
+    /// Last line shown per dialog node (key → (speaker, text)).
+    /// Persisted so the GUI can re-display it when an NPC has nothing new to say.
+    pub last_dialog_lines: HashMap<String, (String, String)>,
 }
 
 impl ExplorationState {
@@ -238,6 +241,7 @@ impl GameSession {
             travel: None,
             pending_battle: false,
             fought_scripted_encounters: HashSet::new(),
+            last_dialog_lines: HashMap::new(),
         };
         exploration.set_pending_dialog_node("enter", loop_number);
 
@@ -783,6 +787,7 @@ impl GameSession {
                     fought_scripted_encounters: vec![],
                     ending: Some(k.clone()),
                     battle_snapshot: None,
+                    last_dialog_lines: HashMap::new(),
                 };
             }
             GamePhase::Transitioning => {
@@ -797,6 +802,7 @@ impl GameSession {
                     fought_scripted_encounters: vec![],
                     ending: None,
                     battle_snapshot: None,
+                    last_dialog_lines: HashMap::new(),
                 };
             }
         };
@@ -854,6 +860,7 @@ impl GameSession {
             v.sort();
             v
         };
+        let last_dialog_lines = exploration.last_dialog_lines.clone();
         SaveData {
             loop_number: self.loop_number,
             flags,
@@ -865,6 +872,7 @@ impl GameSession {
             fought_scripted_encounters,
             ending: None,
             battle_snapshot,
+            last_dialog_lines,
         }
     }
 
@@ -1077,6 +1085,7 @@ impl GameSession {
             travel: None,
             pending_battle: false,
             fought_scripted_encounters: data.fought_scripted_encounters.into_iter().collect(),
+            last_dialog_lines: data.last_dialog_lines,
         };
         exploration.set_pending_dialog_node("enter", loop_number);
 
