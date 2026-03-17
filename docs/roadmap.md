@@ -2,10 +2,9 @@
 
 ## Context
 
-Core combat/exploration loops are functional. Story endings, companion dialog, scripted encounters, and NPC aggression are implemented. Remaining work falls into three categories: Depth & Progression (temporal mechanics, loop-aware zone state), Polish & Presentation (visuals, audio, animations, UI), and Advanced Systems (armor layering, shields, equipment).
+Core combat/exploration loops are functional. Story endings, companion dialog, scripted encounters, and NPC aggression are implemented. Intro/outro sequences, screen shake, and HP polish are done. bevy_yarnspinner hot-reload support (`file_watcher`/`asset_processor` dev features) is enabled. Remaining work falls into three categories: Depth & Progression (temporal mechanics, loop-aware zone state), Polish & Presentation (visuals, audio, animations, UI), and Advanced Systems (armor layering, shields, equipment).
 
 ---
-
 
 ## Depth & Progression
 
@@ -37,11 +36,11 @@ Core combat/exploration loops are functional. Story endings, companion dialog, s
 
 ## Polish & Presentation
 
-### Menus & UI Typography Polish
+### Character Portraits in Dialog
 
-**Why**: Menus are functional but use only default Bevy fonts. Better fonts, hover transitions, and visual hierarchy improve first impressions.
-**Files**: `crates/gui/src/ui/main_menu.rs`, `crates/gui/src/ui/pause_menu.rs`, `crates/gui/src/ui/mod.rs`
-**Task**: Load a custom monospace/sci-fi TTF font (add to `assets/fonts/`). Add button hover color transition (interpolate background color on `Interaction::Hovered`). Polish main menu with a subtle background image or animated gradient. Ensure consistent font sizing hierarchy across all UI panels.
+**Why**: The dialog overlay shows speaker names and text but no visual identity — all speakers look the same.
+**Files**: `crates/gui/src/ui/dialog.rs`, `assets/portraits/`
+**Task**: Load a portrait image per `CharacterKind` from `assets/portraits/` (e.g., `sable.png`, `researcher.png`). In the dialog UI panel, display the active speaker's portrait to the left of the dialog text box. Swap portrait on speaker change. A silhouette fallback is acceptable for characters without a dedicated portrait asset.
 
 ---
 
@@ -53,11 +52,11 @@ Core combat/exploration loops are functional. Story endings, companion dialog, s
 
 ---
 
-### Character Visual Upgrade
+### Animated Characters
 
-**Why**: Characters are solid-color cubes; factions are only distinguishable by color. Better silhouettes improve readability and identity.
+**Why**: Characters are static meshes with no idle or action animations, making the world feel lifeless.
 **Files**: `crates/gui/src/character_visuals.rs`
-**Task**: Differentiate character geometry beyond same-sized cubes: player characters slightly taller, larger enemies (AbyssalBrute, CombatFrame) wider, small enemies (MoonCrawler, MaintenanceDrone) shorter. Alternatively load sprite billboards from `assets/sprites/`. Add a "selected unit" ring indicator mesh under the active combatant.
+**Task**: Add a skeletal or transform-based animation system for character entities. Implement idle animations (subtle bob/sway), walk cycle during `CharacterMoveAnim`, death, and attack/ability cast poses triggered on action execution. Can use Bevy's built-in animation graph (`AnimationPlayer`) if sprite sheets or GLTF assets are available, or procedural transform animation as a fallback.
 
 ---
 
@@ -66,14 +65,6 @@ Core combat/exploration loops are functional. Story endings, companion dialog, s
 **Why**: Single harsh directional light with no ambient gives flat, washed-out look in some zones.
 **Files**: `crates/gui/src/camera.rs`
 **Task**: Add a low-intensity ambient light to complement the directional sun. Add per-zone tint (e.g., blue-cold for Exterior zones, warm orange for Engineering). If Bevy bloom is available, add subtle bloom to emissive door/effect tiles. Consider fog/depth haze for atmosphere.
-
----
-
-### Combat Animations & Hit Feedback
-
-**Why**: Only movement is animated. Abilities fire and resolve with no visual feedback beyond text log.
-**Files**: `crates/gui/src/character_visuals.rs`, `crates/gui/src/sync.rs`
-**Task**: Add a brief damage flash (character mesh color → red → original over ~0.2s) when HP decreases. Add floating damage numbers that rise and fade. Add a screen shake system (`ScreenShake` resource) triggered by heavy attacks/explosions. Extend `CharacterMoveAnim` to support ease-in/ease-out.
 
 ---
 
@@ -124,3 +115,27 @@ Core combat/exploration loops are functional. Story endings, companion dialog, s
 **Why**: Described in `docs/weapons_and_abilities.md` (repair kits, weapon heat).
 **Dependency**: Armor system (#9) first; inventory system needed.
 **Task**: Track armor integrity per layer; add repair consumable to loot tables.
+
+### Animated Characters
+
+**Why**: Characters are static meshes with no idle or action animations, making the world feel lifeless.
+**Files**: `crates/gui/src/character_visuals.rs`
+**Task**: Add a skeletal or transform-based animation system for character entities. Implement idle animations (subtle bob/sway), walk cycle during `CharacterMoveAnim`, death, and attack/ability cast poses triggered on action execution. Can use Bevy's built-in animation graph (`AnimationPlayer`) if sprite sheets or GLTF assets are available, or procedural transform animation as a fallback.
+
+---
+
+### Animated Characters
+
+**Why**: Characters are static meshes with no idle or action animations, making the world feel lifeless.
+**Files**: `crates/gui/src/character_visuals.rs`
+**Task**: Add a skeletal or transform-based animation system for character entities. Implement idle animations (subtle bob/sway), walk cycle during `CharacterMoveAnim`, death, and attack/ability cast poses triggered on action execution. Can use Bevy's built-in animation graph (`AnimationPlayer`) if sprite sheets or GLTF assets are available, or procedural transform animation as a fallback.
+
+---
+
+### Animated Characters
+
+**Why**: Characters are static meshes with no idle or action animations, making the world feel lifeless.
+**Files**: `crates/gui/src/character_visuals.rs`
+**Task**: Add a skeletal or transform-based animation system for character entities. Implement idle animations (subtle bob/sway), walk cycle during `CharacterMoveAnim`, death, and attack/ability cast poses triggered on action execution. Can use Bevy's built-in animation graph (`AnimationPlayer`) if sprite sheets or GLTF assets are available, or procedural transform animation as a fallback.
+
+---
