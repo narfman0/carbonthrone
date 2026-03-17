@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [features]
 default = ["dev"]
-dev = ["bevy-inspector-egui", "bevy_egui"]
+dev = ["bevy-inspector-egui", "bevy_egui", "bevy/file_watcher", "bevy/asset_processor"]
 
 [dependencies]
 carbonthrone = { path = "../core" }
