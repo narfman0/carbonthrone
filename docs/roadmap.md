@@ -58,17 +58,6 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
-### 7. Companion Dialog Effects on Combat
-
-**Why**: `docs/characters.md` specifies unique combat abilities per companion (Orin heals, Doss tanks, Kaleo scouts).
-**Files**:
-
-- `crates/core/src/game.rs` — pass active companion to `transition_to_battle()`
-- `crates/core/src/combat.rs` or `turn.rs` — check companion kind when spawning ally
-  **Task**: When companion spawns, use their actual `CharacterKind` ability set (already defined in `ability.rs`). Currently they may be spawned with wrong stats.
-
----
-
 ### 8. Loop-Based Zone State Changes
 
 **Why**: `docs/world.md` and loop docs describe zones changing between loops (collapsed sections open, relay array signals change).
