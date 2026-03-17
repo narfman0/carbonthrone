@@ -8,17 +8,6 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ## HIGH PRIORITY — Core Gameplay Gaps---
 
-### Story Endings / continuity / Loop 5 Resolution
-
-**Why**: Five endings described in `docs/narrative.md` — unclear if any are implemented beyond loop 5 YAML dialog.
-**Files**:
-
-- `crates/core/data/loops/loop5.yaml` — check if ending branches are scripted
-- `crates/core/src/game.rs` — check if `GamePhase` has an `Ended` variant or equivalent
-  **Task**: Add `GamePhase::GameOver { ending: EndingKind }` and hook it into loop 5 dialog outcome choices. At minimum: Helper, Sable, and True endings.
-
----
-
 ### Dynamic NPC Placement and interaction by Zone and loop
 
 **Why**: `zone_npcs()` in `game.rs` hardcodes 4 NPCs at map center, ignoring `docs/world.md` zone-specific NPC lists.
