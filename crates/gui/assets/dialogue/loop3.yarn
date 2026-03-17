@@ -263,6 +263,13 @@ SalvageOperative: Medical consumables, two portable power cells, and one environ
 SalvageOperative: The suit's still good for thirty minutes outside if you don't mind a slow leak.
 ===
 
+title: loop3_systems_core_on_interact
+---
+Kaleo: I said what I meant.
+Kaleo: I would be more useful in the field.
+Narrator: The terminal waits. The offer stands.
+===
+
 title: loop3_systems_core_on_enter
 ---
 <<if not $kaleo_recruited>>

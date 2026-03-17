@@ -263,6 +263,12 @@ StationGuard: I'm fine. Just — have you noticed anything strange about your me
 Narrator: She asks it carefully. Like she's been wondering whether to ask for a while.
 ===
 
+title: loop2_systems_core_on_interact
+---
+Narrator: The screen displays UNIT KALEO — OPERATIONAL. MONITORING.
+Narrator: Input does nothing. Whatever is watching does not choose to speak here.
+===
+
 title: loop2_systems_core_on_enter
 ---
 <<if not $loop2_kaleo_terminal_seen>>

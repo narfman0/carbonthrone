@@ -240,3 +240,19 @@ Kaleo: It is a compromise. I know that. I have always known that.
 Narrator: Orin doesn't speak. Doss is already gone.
 <<set $ending_kaleo = true>>
 ===
+
+title: loop5_command_deck_on_interact
+---
+<<if $orin_helped or $orin_stopped>>
+    Narrator: She doesn't look up. Whatever there was to say between you has been said.
+<<else>>
+    Orin: I need your answer.
+    Narrator: She says it quietly. She has been patient a long time.
+<<endif>>
+===
+
+title: loop5_military_annex_on_interact
+---
+Doss: Whatever you're going to do — do it.
+Narrator: He doesn't look up. He's already made his peace with how this ends.
+===

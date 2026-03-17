@@ -211,6 +211,13 @@ StationGuard: Not my clearance to give. But if Orin or Doss authorise it, I can 
 Narrator: She means it. The boundaries are professional, not hostile.
 ===
 
+title: loop1_military_annex_on_interact
+---
+Doss: You're with Orin.
+Narrator: Not a question. He notes it and goes back to what he was doing.
+Doss: Stay useful. That's the only advice worth giving right now.
+===
+
 title: loop1_military_annex_on_enter
 ---
 <<if $companion == "doss" and $companion_doss and not $doss_arrived_annex>>
