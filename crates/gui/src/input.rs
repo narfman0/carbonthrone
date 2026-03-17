@@ -5,7 +5,7 @@ use carbonthrone::{
     action_points::ActionPoints,
     character::Aggression,
     combat::Turn,
-    game::GamePhase,
+    game::{GamePhase, MoveResult},
     player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
@@ -175,7 +175,12 @@ fn advance_exploration_path(
     let dx = (next.0 - px).signum();
     let dy = (next.1 - py).signum();
     if dx != 0 || dy != 0 {
-        session.0.move_player(dx, dy, &mut rng.0);
+        let result = session.0.move_player(dx, dy, &mut rng.0);
+        // Any zone transition (hallway entry, exit, or backtrack) renders the remaining
+        // path invalid — it references coordinates in the old zone.
+        if !matches!(result, MoveResult::Moved | MoveResult::Blocked) {
+            path.path.clear();
+        }
     }
 }
 

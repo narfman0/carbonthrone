@@ -38,6 +38,23 @@ pub enum EndingKind {
     DossPreserved,
 }
 
+/// Result of a [`GameSession::move_player`] call.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MoveResult {
+    /// The player did not move (blocked by an obstacle or not in exploration phase).
+    Blocked,
+    /// The player moved to an open tile with no door.
+    Moved,
+    /// The player stepped onto a named-zone door and entered a hallway.
+    EnteredHallway,
+    /// The player exited a hallway and entered another hallway (arrival roll failed).
+    ContinuedHallway,
+    /// The player exited a hallway and arrived at the destination zone.
+    ArrivedAtDestination,
+    /// The player stepped onto the hallway backtrack door and returned to the origin zone.
+    Backtracked,
+}
+
 pub enum GamePhase {
     Exploration(ExplorationState),
     Battle(ExplorationState),
@@ -534,16 +551,18 @@ impl GameSession {
     /// - Named zone door → [`Self::initiate_travel`] toward the connected zone.
     /// - Hallway exit door (travel direction) → [`Self::exit_hallway`].
     /// - Hallway backtrack door (opposite direction) → [`Self::backtrack_to_origin`].
-    pub fn move_player(&mut self, dx: i32, dy: i32, rng: &mut impl rand::Rng) {
+    pub fn move_player(&mut self, dx: i32, dy: i32, rng: &mut impl rand::Rng) -> MoveResult {
         let GamePhase::Exploration(exploration) = &mut self.phase else {
-            return;
+            return MoveResult::Blocked;
         };
         let door_dir = exploration.try_move(&mut self.world, dx, dy);
-        let Some(dir) = door_dir else { return };
+        let Some(dir) = door_dir else {
+            return MoveResult::Moved;
+        };
 
         // Player stepped on a door — trigger travel.
         let GamePhase::Exploration(exploration) = &self.phase else {
-            return;
+            return MoveResult::Moved;
         };
         let is_hallway = exploration.zone.kind == ZoneKind::Hallway;
         let travel_dir = exploration.travel.as_ref().map(|t| t.travel_dir);
@@ -551,12 +570,21 @@ impl GameSession {
 
         if is_hallway {
             if Some(dir) == travel_dir {
-                self.exit_hallway(rng);
+                let arrived = self.exit_hallway(rng);
+                if arrived {
+                    MoveResult::ArrivedAtDestination
+                } else {
+                    MoveResult::ContinuedHallway
+                }
             } else {
                 self.backtrack_to_origin(rng);
+                MoveResult::Backtracked
             }
-        } else if let Some(dest) = destination {
-            self.initiate_travel(dest, rng);
+        } else if destination.is_some() {
+            self.initiate_travel(destination.unwrap(), rng);
+            MoveResult::EnteredHallway
+        } else {
+            MoveResult::Moved
         }
     }
 
