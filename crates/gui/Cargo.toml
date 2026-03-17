@@ -8,6 +8,7 @@ name = "carbonthrone_gui"
 path = "src/main.rs"
 
 [features]
+default = ["dev"]
 dev = ["bevy-inspector-egui"]
 
 [dependencies]

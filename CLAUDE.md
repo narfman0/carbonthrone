@@ -12,8 +12,9 @@ Carbonthrone is a Rust RPG turn-based strategy game. The player assembles a smal
 cargo build                          # compile all crates
 cargo test --jobs 2                  # run all tests
 cargo test --jobs 2 <name>           # run a single test by name (substring match)
-cargo run -p carbonthrone-gui        # run the graphical GUI
-cargo run -p carbonthrone-gui --features dev  # run with bevy_inspector_egui ECS inspector panel
+cargo run -p carbonthrone-gui        # run the graphical GUI (dev feature on by default; toggle inspector with backtick)
+cargo run -p carbonthrone-gui --no-default-features  # run without bevy_inspector_egui (release-like build)
+cargo build --release --no-default-features -p carbonthrone-gui  # release build (strips inspector)
 cargo run -p carbonthrone            # run the CLI
 cargo clippy                         # lint
 cargo fmt                            # format (run on any modified .rs files after changes)
