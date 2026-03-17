@@ -31,9 +31,6 @@ pub fn phase_sync_system(
     current_state: Res<State<AppState>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
-    if !session.is_changed() {
-        return;
-    }
     let desired = match &session.0.phase {
         GamePhase::Exploration(e) if e.in_dialog => AppState::Dialog,
         GamePhase::Exploration(_) => AppState::Exploration,
