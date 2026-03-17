@@ -6,20 +6,8 @@ After reviewing the design docs and codebase (~60% complete), this plan identifi
 
 ---
 
-## HIGH PRIORITY — Core Gameplay Gaps---
 
-### Dynamic NPC Placement and interaction by Zone and loop
-
-**Why**: `zone_npcs()` in `game.rs` hardcodes 4 NPCs at map center, ignoring `docs/world.md` zone-specific NPC lists.
-**Files**:
-
-- `crates/core/src/game.rs` — `zone_npcs()`
-- `crates/core/src/zone.rs` — `ZoneKind`
-  **Task**: Map each `ZoneKind` to its faction NPCs from `docs/world.md`. Respect `loop_aggression(loop_number)` from `character.rs`. Observe and support narrative and dialog from loop yaml.
-
----
-
-## MEDIUM PRIORITY — Depth & Progression
+## Depth & Progression
 
 ### Temporal Flux Resource System
 

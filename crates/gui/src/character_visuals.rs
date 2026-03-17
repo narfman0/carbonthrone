@@ -1,6 +1,6 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
-    character::{Character, CharacterKind},
+    character::{Aggression, Character, CharacterKind},
     game::GamePhase,
     health::Health,
     position::Position,
@@ -125,6 +125,19 @@ pub fn character_color(kind: &CharacterKind) -> Color {
     }
 }
 
+fn npc_color(aggression: &Aggression) -> Color {
+    match aggression {
+        // Friendly NPCs share the player green so the player knows they're safe.
+        Aggression::Friendly => Color::srgb(0.30, 0.80, 0.30),
+        // Neutral NPCs are amber — approachable but not allied.
+        Aggression::Neutral => Color::srgb(0.90, 0.70, 0.20),
+        // Aggressive NPCs are red — hostile, do not approach.
+        Aggression::Aggressive => Color::srgb(0.85, 0.15, 0.10),
+        // Lethargic NPCs (degraded Abyssal Fauna) are dark purple.
+        Aggression::Lethargic => Color::srgb(0.45, 0.20, 0.55),
+    }
+}
+
 fn dead_color() -> Color {
     Color::srgb(0.20, 0.20, 0.20)
 }
@@ -178,7 +191,7 @@ fn spawn_exploration_chars(
     for (i, npc) in state.npcs.iter().enumerate() {
         let mesh = meshes.add(char_mesh());
         let mat = materials.add(StandardMaterial {
-            base_color: Color::srgb(0.90, 0.55, 0.10),
+            base_color: npc_color(&npc.aggression),
             ..default()
         });
         let world_pos = world_pos_for_grid(npc.pos.0, npc.pos.1);

@@ -157,6 +157,112 @@ Narrator: He doesn't elaborate. He goes back to cleaning his rifle.
 <<set $loop3_doss_oblique_seen = true>>
 ===
 
+title: loop3_docking_bay_gun_for_hire_on_interact
+---
+<<if not $gfh_docking_loop3_seen>>
+    <<jump loop3_gfh>>
+<<endif>>
+===
+
+title: loop3_gfh
+---
+GunForHire: You want to know if I'm still selling intel.
+Narrator: He says it before you can ask. Not a trick — he's been thinking about it.
+GunForHire: I am. But I want something real. Not credit. Not favors. Passage confirmation — get me on whatever's leaving this station, if anything is.
+<<set $gfh_docking_loop3_seen = true>>
+-> I can't promise that.
+    <<jump loop3_gfh_no_promise>>
+-> What do you know?
+    <<jump loop3_gfh_intel>>
+===
+
+title: loop3_gfh_no_promise
+---
+GunForHire: Then we're both being honest.
+Narrator: He leans against the wall.
+GunForHire: Here's what I'll tell you for free: Doss has been talking to my crew. Don't know what he's promising them, but they're listening.
+===
+
+title: loop3_gfh_intel
+---
+GunForHire: Drifter Boss has set up in the Relay Array. That's their command position — which means anything you do there is going to draw response from here.
+GunForHire: And the Constancy moved deeper. Past the Research Wing. Whatever they came for, they think it's in the Core.
+===
+
+title: loop3_medical_bay_salvage_operative_on_interact
+---
+<<if not $med_salvage_op_loop3_seen>>
+    <<jump loop3_med_salvage_op>>
+<<endif>>
+===
+
+title: loop3_med_salvage_op
+---
+SalvageOperative: I'm not selling anymore. What I have, I'm keeping.
+Narrator: She says it flat. Not hostile — decided.
+<<set $med_salvage_op_loop3_seen = true>>
+-> Something happened.
+    <<jump loop3_med_salvage_op_what_happened>>
+-> \[Respect it and go.\]
+===
+
+title: loop3_med_salvage_op_what_happened
+---
+SalvageOperative: The other operative who was working this wing — she was here yesterday. She's not here now and I can't reach her and I can't explain where the time went between when I last saw her and now.
+Narrator: A long pause.
+SalvageOperative: I'm keeping my supplies.
+===
+
+title: loop3_station_exterior_salvage_operative_on_interact
+---
+<<if not $exterior_salvage_op_loop3_seen>>
+    <<jump loop3_exterior_salvage_op>>
+<<endif>>
+===
+
+title: loop3_exterior_salvage_op
+---
+Narrator: She's alone on the surface. The only figure in a lot of open ground.
+SalvageOperative: Good. I've been waiting for someone with authority to move through here.
+Narrator: You don't tell her you don't have authority.
+SalvageOperative: I have supplies and I have a working ship docked at the secondary port. I want confirmation that I'm cleared to leave. That's the trade.
+<<set $exterior_salvage_op_loop3_seen = true>>
+-> I can't clear your departure.
+    <<jump loop3_exterior_salvage_op_no_clearance>>
+-> What supplies?
+    <<jump loop3_exterior_salvage_op_supplies>>
+===
+
+title: loop3_exterior_salvage_op_no_clearance
+---
+SalvageOperative: Then what can you give me?
+Narrator: It's a genuine question. She's been out here calculating trades for long enough that she's down to the honest ones.
+-> Intel on the station interior.
+    <<jump loop3_exterior_salvage_op_intel_trade>>
+-> Nothing. I'm sorry.
+    <<jump loop3_exterior_salvage_op_nothing>>
+===
+
+title: loop3_exterior_salvage_op_intel_trade
+---
+SalvageOperative: That's something.
+Narrator: She takes what you have. She gives you what she has. The exchange is quick and professional.
+SalvageOperative: The Relay Array has had signal activity in a direction that doesn't correspond to any logged installation. Started three days ago.
+SalvageOperative: I don't know what that means. Maybe you do.
+===
+
+title: loop3_exterior_salvage_op_nothing
+---
+SalvageOperative: Yeah.
+Narrator: She looks back at the horizon. The dying star is very large from out here.
+===
+
+title: loop3_exterior_salvage_op_supplies
+---
+SalvageOperative: Medical consumables, two portable power cells, and one environment suit that's missing its left glove.
+SalvageOperative: The suit's still good for thirty minutes outside if you don't mind a slow leak.
+===
+
 title: loop3_systems_core_on_enter
 ---
 <<if not $kaleo_recruited>>

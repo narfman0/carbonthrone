@@ -201,6 +201,40 @@ Narrator: Somewhere around iteration 200 there is a single deviation: a note app
 <<set $kaleo_iteration_log = true>>
 ===
 
+title: loop4_docking_bay_gun_for_hire_on_interact
+---
+<<if not $gfh_docking_loop4_seen>>
+    <<jump loop4_gfh>>
+<<endif>>
+===
+
+title: loop4_gfh
+---
+GunForHire: I don't know how many of these conversations we've had.
+Narrator: He says it without looking at you. He's watching the airlock.
+GunForHire: I keep thinking I've made this deal before. Sold you the same information. And here you still are, and here I still am, and nothing is different.
+<<set $gfh_docking_loop4_seen = true>>
+-> You remember.
+    <<jump loop4_gfh_remembers>>
+-> What do you want?
+    <<jump loop4_gfh_want>>
+===
+
+title: loop4_gfh_remembers
+---
+GunForHire: I don't know. Something.
+Narrator: A long pause.
+GunForHire: Doss came to me this loop. Recruiting. I told him no. I'm telling you so you know who he's asking.
+GunForHire: Next loop — if there is one — I don't know if I'll still be saying no.
+===
+
+title: loop4_gfh_want
+---
+GunForHire: Out.
+Narrator: The word lands like a statement of policy that has been refined over a long time.
+GunForHire: The Relay Array's signal — someone's been transmitting from it. Encoded. I can't read it. But it's been going out every six hours since loop two.
+===
+
 title: loop4_docking_bay_on_enter
 ---
 <<if not $archon_acknowledged>>

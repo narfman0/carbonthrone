@@ -141,6 +141,128 @@ Doss: Old kit. I'm used to it.
 Narrator: He doesn't ask why you're asking.
 ===
 
+title: loop2_research_wing_salvage_operative_on_interact
+---
+<<if not $rw_salvage_op_loop2_seen>>
+    <<jump loop2_rw_salvage_op>>
+<<endif>>
+===
+
+title: loop2_rw_salvage_op
+---
+Narrator: She's in the same spot. The same kit bag. She looks at you the way people look at someone they've met before but can't place.
+SalvageOperative: You again. Thought you'd be further along by now.
+Narrator: She couldn't know that.
+<<set $rw_salvage_op_loop2_seen = true>>
+-> Have we met before?
+    <<jump loop2_rw_salvage_op_deja_vu>>
+-> What's the situation?
+    <<jump loop2_rw_salvage_op_situation>>
+===
+
+title: loop2_rw_salvage_op_deja_vu
+---
+SalvageOperative: I don't think so.
+Narrator: A pause that goes a beat too long.
+SalvageOperative: Must be a type. Researchers all look the same in emergency lighting.
+===
+
+title: loop2_rw_salvage_op_situation
+---
+SalvageOperative: Worse than before. Scavengers are deeper in than they should be this fast. Something is letting them through.
+SalvageOperative: And the readings from the Anomaly Chamber — they were bad last time I checked. They're worse now.
+Narrator: Last time.
+===
+
+title: loop2_docking_bay_gun_for_hire_on_interact
+---
+<<if not $gfh_docking_loop2_seen>>
+    <<jump loop2_gfh>>
+<<endif>>
+===
+
+title: loop2_gfh
+---
+GunForHire: You made it. I had even odds on that.
+Narrator: Not sarcasm. A genuine assessment.
+GunForHire: Situation's shifted. Raiders showed up through the port — not the same crowd as last —
+Narrator: He stops.
+GunForHire: Not the same crowd as what I was expecting. They're organised.
+<<set $gfh_docking_loop2_seen = true>>
+-> Last time?
+    <<jump loop2_gfh_slip>>
+-> What do the Raiders want?
+    <<jump loop2_gfh_raiders>>
+===
+
+title: loop2_gfh_slip
+---
+GunForHire: Figure of speech.
+Narrator: His eyes don't agree.
+===
+
+title: loop2_gfh_raiders
+---
+GunForHire: Salvage. Same as always. But they're taking more risks than the payout justifies. Something's drawing them in.
+GunForHire: My advice: don't give them a reason to focus on you specifically.
+===
+
+title: loop2_medical_bay_salvage_operative_on_interact
+---
+<<if not $med_salvage_op_loop2_seen>>
+    <<jump loop2_med_salvage_op>>
+<<endif>>
+===
+
+title: loop2_med_salvage_op
+---
+SalvageOperative: Back again.
+Narrator: She doesn't mean anything by it. Or she does and doesn't know why.
+SalvageOperative: I've got supplies. Take what you need — I'm starting to think holding inventory is less useful than moving it.
+<<set $med_salvage_op_loop2_seen = true>>
+-> Are you planning to leave?
+    <<jump loop2_med_salvage_op_leaving>>
+-> \[Take the supplies.\]
+===
+
+title: loop2_med_salvage_op_leaving
+---
+SalvageOperative: Thinking about it. Something about this place —
+Narrator: She doesn't finish the sentence.
+SalvageOperative: The readings are wrong. Have been since before the breach. I've been telling myself it's equipment error.
+===
+
+title: loop2_medical_bay_station_guard_on_interact
+---
+<<if not $med_guard_loop2_seen>>
+    <<jump loop2_med_guard>>
+<<endif>>
+===
+
+title: loop2_med_guard
+---
+StationGuard: Researcher. Glad you're still moving.
+Narrator: Something in her posture is tighter than it was. Not hostile — strained.
+StationGuard: The temporal readings near the Surgery are wrong. Instruments are disagreeing with themselves.
+<<set $med_guard_loop2_seen = true>>
+-> What do you mean, disagreeing?
+    <<jump loop2_med_guard_readings>>
+-> Are you all right?
+    <<jump loop2_med_guard_wellbeing>>
+===
+
+title: loop2_med_guard_readings
+---
+StationGuard: Two sensors in the same room giving different timestamps for the same event. By six seconds. That shouldn't be possible.
+StationGuard: I logged it. Orin's team said it was a calibration error. But the gap is getting wider each time I check.
+===
+
+title: loop2_med_guard_wellbeing
+---
+StationGuard: I'm fine. Just — have you noticed anything strange about your memory? Like you're filling in gaps you shouldn't have?
+Narrator: She asks it carefully. Like she's been wondering whether to ask for a while.
+===
+
 title: loop2_systems_core_on_enter
 ---
 <<if not $loop2_kaleo_terminal_seen>>

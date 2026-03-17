@@ -105,7 +105,10 @@ fn main() {
                 // ── Exploration input ─────────────────────────────────────
                 GamePhase::Exploration(state) => {
                     let in_dialog = state.in_dialog;
-                    let adjacent = state.adjacent_to_npc(&session.world);
+                    let adjacent_npc = state
+                        .adjacent_npc(&session.world)
+                        .filter(|n| n.aggression != Aggression::Aggressive)
+                        .map(|n| n.kind.clone());
                     drop(state);
                     if in_dialog {
                         // pending_dialog_node is None here (already consumed at
@@ -131,10 +134,10 @@ fn main() {
                                 break;
                             }
                             KeyCode::Char('e') => {
-                                if adjacent {
+                                if let Some(npc_kind) = adjacent_npc {
                                     let loop_number = session.loop_number;
                                     if let GamePhase::Exploration(s) = &mut session.phase {
-                                        s.fire_interact(loop_number);
+                                        s.fire_interact(loop_number, &npc_kind);
                                     }
                                     // Dialog will be picked up at the top of the
                                     // outer loop on the next iteration.

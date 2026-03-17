@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use bevy::{prelude::*, window::PrimaryWindow};
 use carbonthrone::{
     action_points::ActionPoints,
+    character::Aggression,
     combat::Turn,
     game::GamePhase,
     player_input::PlayerActionChoice,
@@ -193,25 +194,41 @@ fn left_click_npc(
         return;
     };
 
-    let GamePhase::Exploration(state) = &session.0.phase else {
+    // Collect what we need under an immutable borrow before taking a mutable borrow.
+    let interact_info = {
+        let GamePhase::Exploration(state) = &session.0.phase else {
+            return;
+        };
+        let world = &session.0.world;
+        let player_pos = world
+            .get::<carbonthrone::position::Position>(state.player_entity)
+            .copied()
+            .unwrap_or(carbonthrone::position::Position::new(0, 0));
+
+        let adjacent = (gx - player_pos.x).abs() + (gy - player_pos.y).abs() <= 1;
+        if !adjacent {
+            return;
+        }
+
+        state
+            .npcs
+            .iter()
+            .find(|n| n.pos == (gx, gy))
+            .map(|n| (n.kind.clone(), n.aggression.clone()))
+    };
+
+    let Some((npc_kind, aggression)) = interact_info else {
         return;
     };
-    let world = &session.0.world;
 
-    // Check if player is adjacent to an NPC at the clicked position.
-    let player_pos = world
-        .get::<carbonthrone::position::Position>(state.player_entity)
-        .copied()
-        .unwrap_or(carbonthrone::position::Position::new(0, 0));
+    // Aggressive NPCs cannot be talked to — they attack on sight.
+    if aggression == Aggression::Aggressive {
+        return;
+    }
 
-    let should_interact = state.npcs.iter().any(|n| n.pos == (gx, gy))
-        && (gx - player_pos.x).abs() + (gy - player_pos.y).abs() <= 1;
-
-    if should_interact {
-        let loop_number = session.0.loop_number;
-        if let GamePhase::Exploration(e) = &mut session.0.phase {
-            e.fire_interact(loop_number);
-        }
+    let loop_number = session.0.loop_number;
+    if let GamePhase::Exploration(e) = &mut session.0.phase {
+        e.fire_interact(loop_number, &npc_kind);
     }
 }
 

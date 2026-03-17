@@ -1,4 +1,5 @@
-use carbonthrone::character::CharacterKind;
+use carbonthrone::character::{Aggression, CharacterKind};
+use carbonthrone::game::zone_npcs;
 use carbonthrone::zone::{
     CardinalDir, Zone, ZoneKind, ZoneType, encounter_chance, zone_connections,
 };
@@ -500,6 +501,242 @@ fn generated_enemies_have_loop_appropriate_aggression() {
                 }
             }
             return;
+        }
+    }
+}
+
+// ── zone_npcs: per-zone NPC placement ────────────────────────────────────────
+
+fn empty_flags() -> std::collections::HashSet<String> {
+    std::collections::HashSet::new()
+}
+
+fn flags_with(items: &[&str]) -> std::collections::HashSet<String> {
+    items.iter().map(|s| s.to_string()).collect()
+}
+
+#[test]
+fn research_wing_has_salvage_op_loops_1_and_2() {
+    for loop_n in 1..=2 {
+        let npcs = zone_npcs(ZoneKind::ResearchWing, 20, 20, loop_n, &empty_flags());
+        assert!(
+            npcs.iter().any(|n| n.kind == CharacterKind::SalvageOperative),
+            "ResearchWing loop {loop_n} should have a Salvage Operative"
+        );
+    }
+}
+
+#[test]
+fn research_wing_has_no_npcs_loop_3_plus() {
+    for loop_n in 3..=5 {
+        let npcs = zone_npcs(ZoneKind::ResearchWing, 20, 20, loop_n, &empty_flags());
+        assert!(
+            npcs.is_empty(),
+            "ResearchWing loop {loop_n} should have no NPCs (operative has left)"
+        );
+    }
+}
+
+#[test]
+fn command_deck_has_orin_unless_companion() {
+    let npcs = zone_npcs(ZoneKind::CommandDeck, 20, 20, 1, &empty_flags());
+    assert!(
+        npcs.iter().any(|n| n.kind == CharacterKind::Orin),
+        "CommandDeck should have Orin when not a companion"
+    );
+}
+
+#[test]
+fn command_deck_no_orin_when_companion_flag() {
+    let flags = flags_with(&["companion_orin"]);
+    let npcs = zone_npcs(ZoneKind::CommandDeck, 20, 20, 1, &flags);
+    assert!(
+        !npcs.iter().any(|n| n.kind == CharacterKind::Orin),
+        "CommandDeck should not have Orin when companion_orin flag is set"
+    );
+}
+
+#[test]
+fn military_annex_has_doss_unless_companion() {
+    let npcs = zone_npcs(ZoneKind::MilitaryAnnex, 20, 20, 1, &empty_flags());
+    assert!(
+        npcs.iter().any(|n| n.kind == CharacterKind::Doss),
+        "MilitaryAnnex should have Doss when not a companion"
+    );
+}
+
+#[test]
+fn military_annex_no_doss_when_companion_flag() {
+    let flags = flags_with(&["companion_doss"]);
+    let npcs = zone_npcs(ZoneKind::MilitaryAnnex, 20, 20, 1, &flags);
+    assert!(
+        !npcs.iter().any(|n| n.kind == CharacterKind::Doss),
+        "MilitaryAnnex should not have Doss when companion_doss flag is set"
+    );
+}
+
+#[test]
+fn systems_core_no_kaleo_loop_1() {
+    let npcs = zone_npcs(ZoneKind::SystemsCore, 20, 20, 1, &empty_flags());
+    assert!(
+        !npcs.iter().any(|n| n.kind == CharacterKind::Kaleo),
+        "SystemsCore loop 1 should not have Kaleo (not yet active)"
+    );
+}
+
+#[test]
+fn systems_core_has_kaleo_loop_2_plus() {
+    for loop_n in 2..=5 {
+        let npcs = zone_npcs(ZoneKind::SystemsCore, 20, 20, loop_n, &empty_flags());
+        assert!(
+            npcs.iter().any(|n| n.kind == CharacterKind::Kaleo),
+            "SystemsCore loop {loop_n} should have Kaleo"
+        );
+    }
+}
+
+#[test]
+fn systems_core_no_kaleo_when_recruited() {
+    let flags = flags_with(&["kaleo_recruited"]);
+    let npcs = zone_npcs(ZoneKind::SystemsCore, 20, 20, 3, &flags);
+    assert!(
+        !npcs.iter().any(|n| n.kind == CharacterKind::Kaleo),
+        "SystemsCore should not have Kaleo when kaleo_recruited flag is set"
+    );
+}
+
+#[test]
+fn medical_bay_has_salvage_op_and_guard_loops_1_2() {
+    for loop_n in 1..=2 {
+        let npcs = zone_npcs(ZoneKind::MedicalBay, 20, 20, loop_n, &empty_flags());
+        assert!(
+            npcs.iter().any(|n| n.kind == CharacterKind::SalvageOperative),
+            "MedicalBay loop {loop_n} should have a Salvage Operative"
+        );
+        assert!(
+            npcs.iter().any(|n| n.kind == CharacterKind::StationGuard),
+            "MedicalBay loop {loop_n} should have a Station Guard"
+        );
+    }
+}
+
+#[test]
+fn medical_bay_guard_gone_loop_3_plus() {
+    for loop_n in 3..=5 {
+        let npcs = zone_npcs(ZoneKind::MedicalBay, 20, 20, loop_n, &empty_flags());
+        assert!(
+            !npcs.iter().any(|n| n.kind == CharacterKind::StationGuard),
+            "MedicalBay loop {loop_n} should have no Station Guard (gone or hostile)"
+        );
+    }
+}
+
+#[test]
+fn docking_bay_has_gun_for_hire_loops_1_to_4() {
+    for loop_n in 1..=4 {
+        let npcs = zone_npcs(ZoneKind::DockingBay, 20, 20, loop_n, &empty_flags());
+        assert!(
+            npcs.iter().any(|n| n.kind == CharacterKind::GunForHire),
+            "DockingBay loop {loop_n} should have Gun-for-Hire"
+        );
+    }
+}
+
+#[test]
+fn docking_bay_no_gun_for_hire_loop_5() {
+    let npcs = zone_npcs(ZoneKind::DockingBay, 20, 20, 5, &empty_flags());
+    assert!(
+        !npcs.iter().any(|n| n.kind == CharacterKind::GunForHire),
+        "DockingBay loop 5 should have no Gun-for-Hire (flipped by Doss)"
+    );
+}
+
+#[test]
+fn station_exterior_salvage_op_only_loop_3() {
+    let npcs_l3 = zone_npcs(ZoneKind::StationExterior, 20, 20, 3, &empty_flags());
+    assert!(
+        npcs_l3.iter().any(|n| n.kind == CharacterKind::SalvageOperative),
+        "StationExterior loop 3 should have the last Salvage Operative"
+    );
+    for loop_n in [1, 2, 4, 5] {
+        let npcs = zone_npcs(ZoneKind::StationExterior, 20, 20, loop_n, &empty_flags());
+        assert!(
+            npcs.is_empty(),
+            "StationExterior loop {loop_n} should have no NPCs"
+        );
+    }
+}
+
+#[test]
+fn relay_array_and_excavation_site_always_empty() {
+    for loop_n in 1..=5 {
+        assert!(
+            zone_npcs(ZoneKind::RelayArray, 20, 20, loop_n, &empty_flags()).is_empty(),
+            "RelayArray loop {loop_n} should have no NPCs"
+        );
+        assert!(
+            zone_npcs(ZoneKind::ExcavationSite, 20, 20, loop_n, &empty_flags()).is_empty(),
+            "ExcavationSite loop {loop_n} should have no NPCs"
+        );
+    }
+}
+
+#[test]
+fn npc_aggression_derives_from_loop_aggression() {
+    // Salvage Operative: Friendly loops 1-2, Neutral loop 3.
+    let npcs_l1 = zone_npcs(ZoneKind::MedicalBay, 20, 20, 1, &empty_flags());
+    let op = npcs_l1
+        .iter()
+        .find(|n| n.kind == CharacterKind::SalvageOperative)
+        .expect("should have salvage op in loop 1");
+    assert_eq!(op.aggression, Aggression::Friendly);
+
+    let npcs_l3 = zone_npcs(ZoneKind::MedicalBay, 20, 20, 3, &empty_flags());
+    let op3 = npcs_l3
+        .iter()
+        .find(|n| n.kind == CharacterKind::SalvageOperative)
+        .expect("should have salvage op in loop 3");
+    assert_eq!(op3.aggression, Aggression::Neutral);
+}
+
+#[test]
+fn npc_positions_are_distinct_when_multiple_in_zone() {
+    // Medical Bay loop 1 has two NPCs — they must not share a grid tile.
+    let npcs = zone_npcs(ZoneKind::MedicalBay, 20, 20, 1, &empty_flags());
+    assert_eq!(npcs.len(), 2);
+    assert_ne!(
+        npcs[0].pos, npcs[1].pos,
+        "two NPCs in the same zone must not occupy the same tile"
+    );
+}
+
+#[test]
+fn npc_positions_clamped_to_grid_interior() {
+    // Even with a tiny grid the positions should stay within bounds.
+    for loop_n in 1..=5 {
+        for &kind in &[
+            ZoneKind::ResearchWing,
+            ZoneKind::CommandDeck,
+            ZoneKind::MilitaryAnnex,
+            ZoneKind::SystemsCore,
+            ZoneKind::MedicalBay,
+            ZoneKind::DockingBay,
+            ZoneKind::StationExterior,
+        ] {
+            let cols = 10u32;
+            let rows = 10u32;
+            for npc in zone_npcs(kind, cols, rows, loop_n, &empty_flags()) {
+                assert!(
+                    npc.pos.0 >= 1 && npc.pos.0 <= cols as i32 - 2,
+                    "{kind:?} loop {loop_n} NPC x={} out of bounds for cols={cols}",
+                    npc.pos.0
+                );
+                assert!(
+                    npc.pos.1 >= 1 && npc.pos.1 <= rows as i32 - 2,
+                    "{kind:?} loop {loop_n} NPC y={} out of bounds for rows={rows}",
+                    npc.pos.1
+                );
+            }
         }
     }
 }

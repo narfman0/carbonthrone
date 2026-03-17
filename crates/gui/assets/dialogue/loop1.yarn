@@ -96,6 +96,121 @@ title: loop1_orin_mission_start
 Orin: The anomaly chamber. We need to run a containment sequence before the readings get any worse.
 ===
 
+title: loop1_research_wing_salvage_operative_on_interact
+---
+<<if not $rw_salvage_op_loop1_seen>>
+    <<jump loop1_rw_salvage_op_intro>>
+<<endif>>
+===
+
+title: loop1_rw_salvage_op_intro
+---
+SalvageOperative: You the researcher? Right. Figured someone would come through here.
+Narrator: She's running inventory on a kit bag — the practiced economy of someone who lives out of one.
+SalvageOperative: Supplies, if you need them. Advice, if you want it.
+<<set $rw_salvage_op_loop1_seen = true>>
+-> What advice?
+    <<jump loop1_rw_salvage_op_advice>>
+-> What do you know about the Constancy?
+    <<jump loop1_rw_salvage_op_constancy>>
+-> \[Take supplies and go.\]
+===
+
+title: loop1_rw_salvage_op_advice
+---
+SalvageOperative: The maintenance corridor near the Core — drones have been strange. Not hostile yet. Just strange. Watch your step.
+SalvageOperative: And don't go near the Anomaly Chamber. Whatever's in there is putting out readings that make my equipment act wrong.
+===
+
+title: loop1_rw_salvage_op_constancy
+---
+SalvageOperative: Saw them come through the docking port two hours ago. Organised. Not panicking. That's the part that worries me.
+SalvageOperative: True believers are unpredictable. Professionals who believe are worse.
+===
+
+title: loop1_docking_bay_gun_for_hire_on_interact
+---
+<<if not $gfh_docking_loop1_seen>>
+    <<jump loop1_gfh_intro>>
+<<endif>>
+===
+
+title: loop1_gfh_intro
+---
+GunForHire: You want to move through this bay without getting shot, I can arrange that. Intel costs, though.
+Narrator: He's positioned near the airlock controls. Not guarding them. Just close enough that it reads as a statement.
+<<set $gfh_docking_loop1_seen = true>>
+-> What's the intel?
+    <<jump loop1_gfh_intel>>
+-> I don't need your help.
+    <<jump loop1_gfh_dismissal>>
+===
+
+title: loop1_gfh_intel
+---
+GunForHire: Scavengers came in through the port on the west side. They're not organised — just opportunists who smelled something wrong.
+GunForHire: The Constancy hit first. Scavengers are following the noise. If you move fast, you can get through before they figure out there's more to take.
+===
+
+title: loop1_gfh_dismissal
+---
+GunForHire: Suit yourself.
+Narrator: He doesn't look offended. He goes back to watching the airlock.
+===
+
+title: loop1_medical_bay_salvage_operative_on_interact
+---
+<<if not $med_salvage_op_loop1_seen>>
+    <<jump loop1_med_salvage_op_intro>>
+<<endif>>
+===
+
+title: loop1_med_salvage_op_intro
+---
+SalvageOperative: Good timing. I've got surplus medical stock — won't need all of it if this situation keeps going the way it's going.
+Narrator: The optimism is professional. The kind you learn.
+<<set $med_salvage_op_loop1_seen = true>>
+-> What situation?
+    <<jump loop1_med_salvage_op_situation>>
+-> \[Take the supplies.\]
+===
+
+title: loop1_med_salvage_op_situation
+---
+SalvageOperative: Station's locked down. Constancy's in the interior. Whatever they're after, it's deeper than this bay.
+SalvageOperative: I'm staying put. Medical Bay's defensible and not interesting to anyone with a real objective.
+===
+
+title: loop1_medical_bay_station_guard_on_interact
+---
+<<if not $med_guard_loop1_seen>>
+    <<jump loop1_med_guard_intro>>
+<<endif>>
+===
+
+title: loop1_med_guard_intro
+---
+StationGuard: Research team? Good. Stay off the main corridors until we know what the Constancy is after.
+Narrator: She's calm. Station security training — know the layout, control the information.
+<<set $med_guard_loop1_seen = true>>
+-> What do you know about the breach?
+    <<jump loop1_med_guard_breach>>
+-> Can you get me access to restricted sections?
+    <<jump loop1_med_guard_access>>
+===
+
+title: loop1_med_guard_breach
+---
+StationGuard: Single point of entry — Room 7-C. They cut through the bulkhead. Suppressors were already running when the alarm triggered.
+StationGuard: That kind of preparation means they knew the layout. Someone gave them a schematic.
+===
+
+title: loop1_med_guard_access
+---
+StationGuard: Not my clearance to give. But if Orin or Doss authorise it, I can confirm the access points.
+Narrator: She means it. The boundaries are professional, not hostile.
+===
+
 title: loop1_military_annex_on_enter
 ---
 <<if $companion == "doss" and $companion_doss and not $doss_arrived_annex>>
