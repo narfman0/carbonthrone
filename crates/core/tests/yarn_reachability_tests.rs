@@ -76,8 +76,8 @@ fn build_yarn_graph() -> YarnGraph {
 
     for loop_n in 1..=5u32 {
         let path = format!("{yarn_dir}/loop{loop_n}.yarn");
-        let content = fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
+        let content =
+            fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {path}: {e}"));
 
         // Nodes are separated by "===".
         for block in content.split("===") {

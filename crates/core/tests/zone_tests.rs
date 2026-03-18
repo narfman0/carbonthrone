@@ -520,7 +520,8 @@ fn research_wing_has_salvage_op_loops_1_and_2() {
     for loop_n in 1..=2 {
         let npcs = zone_npcs(ZoneKind::ResearchWing, 20, 20, loop_n, &empty_flags());
         assert!(
-            npcs.iter().any(|n| n.kind == CharacterKind::SalvageOperative),
+            npcs.iter()
+                .any(|n| n.kind == CharacterKind::SalvageOperative),
             "ResearchWing loop {loop_n} should have a Salvage Operative"
         );
     }
@@ -610,7 +611,8 @@ fn medical_bay_has_salvage_op_and_guard_loops_1_2() {
     for loop_n in 1..=2 {
         let npcs = zone_npcs(ZoneKind::MedicalBay, 20, 20, loop_n, &empty_flags());
         assert!(
-            npcs.iter().any(|n| n.kind == CharacterKind::SalvageOperative),
+            npcs.iter()
+                .any(|n| n.kind == CharacterKind::SalvageOperative),
             "MedicalBay loop {loop_n} should have a Salvage Operative"
         );
         assert!(
@@ -655,7 +657,9 @@ fn docking_bay_no_gun_for_hire_loop_5() {
 fn station_exterior_salvage_op_only_loop_3() {
     let npcs_l3 = zone_npcs(ZoneKind::StationExterior, 20, 20, 3, &empty_flags());
     assert!(
-        npcs_l3.iter().any(|n| n.kind == CharacterKind::SalvageOperative),
+        npcs_l3
+            .iter()
+            .any(|n| n.kind == CharacterKind::SalvageOperative),
         "StationExterior loop 3 should have the last Salvage Operative"
     );
     for loop_n in [1, 2, 4, 5] {

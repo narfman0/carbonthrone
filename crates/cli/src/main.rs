@@ -11,8 +11,8 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 use carbonthrone::character::{Aggression, Character};
 use carbonthrone::combat::{BattleOutcome, BattleStep, Turn, TurnAction, TurnEvent};
@@ -491,6 +491,64 @@ fn render(world: &mut World, battle: &BattleStep, last: Option<&TurnEvent>) -> S
                                     name, ability_name, target_str
                                 );
                             }
+                        }
+                        TurnAction::DisplacementQueued {
+                            target,
+                            pending_damage,
+                            resolve_round,
+                            ..
+                        } => {
+                            out += &format!(
+                                "  > {} displaces {} ({}dmg in round {})\r\n",
+                                name,
+                                entity_name(world, *target),
+                                pending_damage,
+                                resolve_round
+                            );
+                        }
+                        TurnAction::DisplacementHit { target, damage } => {
+                            out += &format!(
+                                "  > Displacement hits {} for {}\r\n",
+                                entity_name(world, *target),
+                                damage
+                            );
+                        }
+                        TurnAction::AccelerationApplied { bonus_ap, .. } => {
+                            out += &format!("  > {} accelerates (+{} AP)\r\n", name, bonus_ap);
+                        }
+                        TurnAction::DrainApplied { target, drained } => {
+                            out += &format!(
+                                "  > {} loses {} AP (delayed drain)\r\n",
+                                entity_name(world, *target),
+                                drained
+                            );
+                        }
+                        TurnAction::TemporalCollapse { victim, damage } => {
+                            out += &format!(
+                                "  > *** TEMPORAL COLLAPSE! {} takes {} dmg ***\r\n",
+                                entity_name(world, *victim),
+                                damage
+                            );
+                        }
+                        TurnAction::TemporalRecalled { target, from, to } => {
+                            out += &format!(
+                                "  > {} recalled ({},{}) -> ({},{})\r\n",
+                                entity_name(world, *target),
+                                from.x,
+                                from.y,
+                                to.x,
+                                to.y
+                            );
+                        }
+                        TurnAction::GlitchTeleport { entity, from, to } => {
+                            out += &format!(
+                                "  > {} glitch teleports ({},{}) -> ({},{})\r\n",
+                                entity_name(world, *entity),
+                                from.x,
+                                from.y,
+                                to.x,
+                                to.y
+                            );
                         }
                     }
                 }

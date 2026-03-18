@@ -53,6 +53,9 @@ pub struct BattleSnapshot {
     pub zone_kind: ZoneKind,
     /// Non-Open tiles only (Open is the default; omitting it keeps the list compact).
     pub map_tiles: Vec<((i32, i32), Tile)>,
+    /// Temporal flux level at time of save.
+    #[serde(default)]
+    pub flux: u32,
 }
 
 const SAVE_DIR: &str = "Carbonthrone";

@@ -564,8 +564,7 @@ fn update_cursor_icon(
                     .get::<Position>(state.player_entity)
                     .copied()
                     .unwrap_or(Position::new(0, 0));
-                let adjacent =
-                    (gx - player_pos.x).abs() + (gy - player_pos.y).abs() <= 1;
+                let adjacent = (gx - player_pos.x).abs() + (gy - player_pos.y).abs() <= 1;
                 if !adjacent {
                     return None;
                 }
@@ -583,7 +582,9 @@ fn update_cursor_icon(
         SystemCursorIcon::Default
     };
 
-    commands.entity(window_entity).insert(CursorIcon::from(icon));
+    commands
+        .entity(window_entity)
+        .insert(CursorIcon::from(icon));
 }
 
 // ── Escape: toggle pause menu ─────────────────────────────────────────────────

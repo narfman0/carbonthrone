@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
+use crate::ability::character_abilities;
 use crate::action_points::{ActionPoints, ap_for_speed};
 use crate::character::{Aggression, Character, CharacterKind, loop_aggression};
 use crate::combat::{BattleStep, TurnEvent};
@@ -11,7 +12,6 @@ use crate::dialog::DialogFlags;
 use crate::experience::Experience;
 use crate::health::Health;
 use crate::position::Position;
-use crate::ability::character_abilities;
 use crate::save::{BattleSnapshot, CombatantRole, CombatantSnapshot, SaveData};
 use crate::scripted_encounter::{
     PartyCompanion, ScriptedAlly, ScriptedEncounter, ScriptedFirstAction, scripted_encounter_for,
@@ -757,20 +757,19 @@ impl GameSession {
         // Extract the exploration state. For Battle, also capture the entity
         // identifiers we need for the snapshot (copy them out so we can release
         // the borrow on self.phase before calling build_battle_snapshot).
-        let battle_info: Option<(Entity, Vec<Entity>, ZoneKind, u32, u32)> =
-            match &self.phase {
-                GamePhase::Battle(e) => Some((
-                    e.player_entity,
-                    e.companion_entities.clone(),
-                    e.zone.kind,
-                    e.zone.cols,
-                    e.zone.rows,
-                )),
-                _ => None,
-            };
-        let battle_snapshot = battle_info.as_ref().map(|(p, c, zk, zc, zr)| {
-            self.build_battle_snapshot(*p, c, *zk, *zc, *zr)
-        });
+        let battle_info: Option<(Entity, Vec<Entity>, ZoneKind, u32, u32)> = match &self.phase {
+            GamePhase::Battle(e) => Some((
+                e.player_entity,
+                e.companion_entities.clone(),
+                e.zone.kind,
+                e.zone.cols,
+                e.zone.rows,
+            )),
+            _ => None,
+        };
+        let battle_snapshot = battle_info
+            .as_ref()
+            .map(|(p, c, zk, zc, zr)| self.build_battle_snapshot(*p, c, *zk, *zc, *zr));
 
         let (exploration, battle_snapshot) = match &self.phase {
             GamePhase::Exploration(e) => (e, None),
@@ -943,8 +942,9 @@ impl GameSession {
 
         // Enemies and scripted allies — all entities with Character that are
         // not the player or a companion.
-        let party_entities: std::collections::HashSet<Entity> =
-            std::iter::once(player).chain(companions.iter().copied()).collect();
+        let party_entities: std::collections::HashSet<Entity> = std::iter::once(player)
+            .chain(companions.iter().copied())
+            .collect();
         let others: Vec<Entity> = {
             let mut q = self.world.query::<(Entity, &crate::character::Character)>();
             q.iter(&self.world)
@@ -1015,6 +1015,12 @@ impl GameSession {
             .map(|b| (b.round, b.turn))
             .unwrap_or((1, crate::combat::Turn::Player));
 
+        let flux = self
+            .world
+            .get_resource::<crate::temporal_flux::TemporalFlux>()
+            .map(|f| f.flux)
+            .unwrap_or(0);
+
         BattleSnapshot {
             round,
             turn,
@@ -1024,6 +1030,7 @@ impl GameSession {
             map_rows,
             zone_kind,
             map_tiles,
+            flux,
         }
     }
 
@@ -1363,7 +1370,25 @@ fn restore_battle(session: &mut GameSession, snapshot: &BattleSnapshot) {
         .filter_map(|&idx| entity_at_index.get(idx).and_then(|e| *e))
         .collect();
 
-    session.battle = Some(BattleStep::restore(snapshot.round, snapshot.turn, actor_queue));
+    session.battle = Some(BattleStep::restore(
+        snapshot.round,
+        snapshot.turn,
+        actor_queue,
+    ));
+
+    // Restore temporal systems.
+    session
+        .world
+        .insert_resource(crate::temporal_flux::TemporalFlux {
+            flux: snapshot.flux,
+        });
+    session
+        .world
+        .insert_resource(crate::pending_effects::PendingEffects::default());
+    session
+        .world
+        .insert_resource(crate::pending_effects::CurrentRound(snapshot.round));
+    // TODO: serialize pending_effects (pending delayed damage is dropped on load — MVP)
 
     // Transition phase to Battle.
     let GamePhase::Exploration(exploration) =
@@ -1375,11 +1400,7 @@ fn restore_battle(session: &mut GameSession, snapshot: &BattleSnapshot) {
 }
 
 /// Update position, HP, and AP on an existing entity from a snapshot.
-fn update_combatant_from_snapshot(
-    world: &mut World,
-    entity: Entity,
-    snap: &CombatantSnapshot,
-) {
+fn update_combatant_from_snapshot(world: &mut World, entity: Entity, snap: &CombatantSnapshot) {
     if let Some(mut pos) = world.get_mut::<Position>(entity) {
         pos.x = snap.x;
         pos.y = snap.y;
@@ -1393,10 +1414,7 @@ fn update_combatant_from_snapshot(
 }
 
 /// Spawn a fresh enemy or scripted-ally entity from a snapshot.
-fn spawn_combatant_from_snapshot(
-    world: &mut World,
-    snap: &CombatantSnapshot,
-) -> Entity {
+fn spawn_combatant_from_snapshot(world: &mut World, snap: &CombatantSnapshot) -> Entity {
     let ch = Character::new_character(snap.kind.clone(), snap.level);
     let stats = ch.stats.clone();
     let max_hp = ch.stats.max_hp;
@@ -1551,14 +1569,18 @@ pub fn zone_npcs(
     let ri = rows as i32;
 
     // Clamp a position to the valid grid interior (1 tile from each edge).
-    let clamp = |x: i32, y: i32| -> (i32, i32) {
-        (x.max(1).min(ci - 2), y.max(1).min(ri - 2))
-    };
+    let clamp = |x: i32, y: i32| -> (i32, i32) { (x.max(1).min(ci - 2), y.max(1).min(ri - 2)) };
 
     // Build one NpcData, deriving aggression from loop_aggression.
     let npc = |npc_kind: CharacterKind, pos: (i32, i32), name: &'static str, glyph: char| {
         let aggression = loop_aggression(&npc_kind, loop_number);
-        NpcData { pos, name, glyph, kind: npc_kind, aggression }
+        NpcData {
+            pos,
+            name,
+            glyph,
+            kind: npc_kind,
+            aggression,
+        }
     };
 
     match kind {
@@ -1588,7 +1610,12 @@ pub fn zone_npcs(
         // Military Annex: Recruiter Doss (unless already a companion).
         ZoneKind::MilitaryAnnex => {
             if !flags.contains("companion_doss") {
-                vec![npc(CharacterKind::Doss, clamp(cx - 2, cy), "Recruiter Doss", 'D')]
+                vec![npc(
+                    CharacterKind::Doss,
+                    clamp(cx - 2, cy),
+                    "Recruiter Doss",
+                    'D',
+                )]
             } else {
                 vec![]
             }
@@ -1597,7 +1624,12 @@ pub fn zone_npcs(
         // Systems Core: Unit Kaleo (loop 2+, unless recruited as companion).
         ZoneKind::SystemsCore => {
             if loop_number >= 2 && !flags.contains("kaleo_recruited") {
-                vec![npc(CharacterKind::Kaleo, clamp(cx, cy + 2), "Unit Kaleo", 'K')]
+                vec![npc(
+                    CharacterKind::Kaleo,
+                    clamp(cx, cy + 2),
+                    "Unit Kaleo",
+                    'K',
+                )]
             } else {
                 vec![]
             }

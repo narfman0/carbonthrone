@@ -24,7 +24,15 @@ fn open_tile_is_passable() {
 #[test]
 fn spawn_positions_are_always_open() {
     let reserved = vec![(0i32, 0i32), (3i32, 3i32), (9i32, 9i32)];
-    let map = generate_map(10, 10, ZoneKind::ExcavationSite, 1, &reserved, &[], &mut rng());
+    let map = generate_map(
+        10,
+        10,
+        ZoneKind::ExcavationSite,
+        1,
+        &reserved,
+        &[],
+        &mut rng(),
+    );
     for (x, y) in &reserved {
         assert_eq!(
             map.get(*x, *y),
@@ -252,7 +260,15 @@ fn display_glyph_reflects_cover_levels() {
 fn excavation_site_collapsed_section_is_blocked_in_loop_1() {
     let cols = 20u32;
     let rows = 20u32;
-    let map = generate_map(cols, rows, ZoneKind::ExcavationSite, 1, &[], &[], &mut rng());
+    let map = generate_map(
+        cols,
+        rows,
+        ZoneKind::ExcavationSite,
+        1,
+        &[],
+        &[],
+        &mut rng(),
+    );
     let x1 = (0.35 * cols as f32) as i32;
     let y0 = (0.6 * rows as f32) as i32;
     for y in y0..rows as i32 {
@@ -272,7 +288,15 @@ fn excavation_site_collapsed_section_is_blocked_in_loop_1() {
 fn excavation_site_collapsed_section_opens_in_loop_3() {
     let cols = 20u32;
     let rows = 20u32;
-    let map = generate_map(cols, rows, ZoneKind::ExcavationSite, 3, &[], &[], &mut rng());
+    let map = generate_map(
+        cols,
+        rows,
+        ZoneKind::ExcavationSite,
+        3,
+        &[],
+        &[],
+        &mut rng(),
+    );
     let x1 = (0.35 * cols as f32) as i32;
     let y0 = (0.6 * rows as f32) as i32;
     let mut found_open = false;

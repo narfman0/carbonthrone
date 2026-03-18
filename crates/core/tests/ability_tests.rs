@@ -35,8 +35,8 @@ const ALL_NPC_KINDS: &[CharacterKind] = &[
 
 #[test]
 fn each_character_has_three_abilities() {
+    // Orin, Doss, Kaleo each have exactly 3 abilities.
     for character in [
-        CharacterKind::Researcher,
         CharacterKind::Orin,
         CharacterKind::Doss,
         CharacterKind::Kaleo,
@@ -47,6 +47,12 @@ fn each_character_has_three_abilities() {
             "{character:?} should have 3 abilities"
         );
     }
+    // Researcher has 8 abilities (3 original + 5 new temporal abilities).
+    assert_eq!(
+        character_abilities(&CharacterKind::Researcher).len(),
+        8,
+        "Researcher should have 8 abilities"
+    );
 }
 
 #[test]

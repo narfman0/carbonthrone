@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 
 use crate::{
-    ability::{Ability, AbilityEffect, AbilityKind},
+    ability::{Ability, AbilityEffect, AbilityKind, LastPosition, LastUsedAbility},
     action_points::ActionPoints,
     combat::{calc_damage, calc_hit_chance, roll_hit},
     health::Health,
+    pending_effects::{CurrentRound, PendingEffect, PendingEffects},
     position::Position,
     stats::Stats,
+    temporal_flux::TemporalFlux,
     terrain::{BattleRng, CoverLevel, Direction, LevelMap},
 };
 
@@ -77,6 +79,45 @@ pub enum TurnAction {
         value: i32,
         hit: bool,
     },
+    /// Displacement hit queued: target was pushed and delayed damage is pending.
+    DisplacementQueued {
+        target: Entity,
+        pending_damage: i32,
+        resolve_round: u32,
+        pushed_to: Option<Position>,
+    },
+    /// Delayed displacement damage resolved.
+    DisplacementHit {
+        target: Entity,
+        damage: i32,
+    },
+    /// Acceleration AP burst applied to the actor.
+    AccelerationApplied {
+        actor: Entity,
+        bonus_ap: i32,
+    },
+    /// AP drain resolved (from Acceleration recoil or similar).
+    DrainApplied {
+        target: Entity,
+        drained: i32,
+    },
+    /// Temporal Collapse: flux reached 100, dealing damage and draining all combatants.
+    TemporalCollapse {
+        victim: Entity,
+        damage: i32,
+    },
+    /// Temporal Recall: target snapped back to a previous position.
+    TemporalRecalled {
+        target: Entity,
+        from: Position,
+        to: Position,
+    },
+    /// Flux-induced glitch teleport.
+    GlitchTeleport {
+        entity: Entity,
+        from: Position,
+        to: Position,
+    },
 }
 
 /// Execute an action for `actor`.
@@ -124,6 +165,11 @@ pub fn apply_action(world: &mut World, actor: Entity, action: &Action) -> Option
                 return None;
             }
 
+            // Save current position as LastPosition before moving.
+            world
+                .entity_mut(actor)
+                .insert(LastPosition(Position::new(from.0, from.1)));
+
             world.get_mut::<ActionPoints>(actor).unwrap().spend(cost);
             if let Some(mut p) = world.get_mut::<Position>(actor) {
                 *p = *destination;
@@ -153,23 +199,27 @@ fn apply_ability(
 
     // Enforce melee range: target must be within Chebyshev distance 1 (adjacent or diagonal).
     // Only enforced when both actor and target have Position components.
-    if ability.kind == AbilityKind::Melee {
-        if let Some(target_entity) = target {
-            if let (Some(actor_pos), Some(target_pos)) = (
-                world.get::<Position>(actor).copied(),
-                world.get::<Position>(target_entity).copied(),
-            ) {
-                let chebyshev = (actor_pos.x - target_pos.x)
-                    .abs()
-                    .max((actor_pos.y - target_pos.y).abs());
-                if chebyshev > 1 {
-                    return None;
-                }
-            }
+    if ability.kind == AbilityKind::Melee
+        && let Some(target_entity) = target
+        && let (Some(actor_pos), Some(target_pos)) = (
+            world.get::<Position>(actor).copied(),
+            world.get::<Position>(target_entity).copied(),
+        )
+    {
+        let chebyshev = (actor_pos.x - target_pos.x)
+            .abs()
+            .max((actor_pos.y - target_pos.y).abs());
+        if chebyshev > 1 {
+            return None;
         }
     }
 
-    match &ability.effect {
+    let current_round = world
+        .get_resource::<CurrentRound>()
+        .map(|r| r.0)
+        .unwrap_or(0);
+
+    let result = match &ability.effect {
         AbilityEffect::BonusDamage { bonus } => {
             let target_entity = target?;
             if !world
@@ -315,10 +365,251 @@ fn apply_ability(
                 hit: true,
             })
         }
+
+        AbilityEffect::Displacement { delay_rounds } => {
+            let target_entity = target?;
+            if !world
+                .get::<Health>(target_entity)
+                .map(|h| h.is_alive())
+                .unwrap_or(false)
+            {
+                return None;
+            }
+            world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
+            let (hit, _cover) = roll_ability_hit(world, actor, target_entity);
+            if !hit {
+                return Some(TurnAction::UseAbility {
+                    ability_name: ability.name,
+                    target,
+                    value: 0,
+                    hit: false,
+                });
+            }
+
+            let attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
+            let defense = world
+                .get::<Stats>(target_entity)
+                .map(|s| s.defense)
+                .unwrap_or(0);
+            let damage = calc_damage(attack, defense) + 15;
+            let resolve_round = current_round + *delay_rounds as u32;
+
+            // Queue delayed damage.
+            if let Some(mut effects) = world.get_resource_mut::<PendingEffects>() {
+                effects.0.push(PendingEffect::DelayedDamage {
+                    target: target_entity,
+                    damage,
+                    resolve_on_round: resolve_round,
+                });
+            }
+
+            // Immediate pushback: push target away from actor.
+            let actor_pos = world.get::<Position>(actor).copied();
+            let target_pos = world.get::<Position>(target_entity).copied();
+            let pushed_to = if let (Some(ap), Some(tp)) = (actor_pos, target_pos) {
+                let push_dx = (tp.x - ap.x).signum();
+                let push_dy = (tp.y - ap.y).signum();
+                let occupied = occupied_tiles(world, target_entity);
+                let (cols, rows) = world
+                    .get_resource::<LevelMap>()
+                    .map(|m| (m.cols as i32, m.rows as i32))
+                    .unwrap_or((i32::MAX, i32::MAX));
+
+                let mut dest = None;
+                for dist in [2i32, 1i32] {
+                    let tx = tp.x + push_dx * dist;
+                    let ty = tp.y + push_dy * dist;
+                    if tx < 0 || ty < 0 || tx >= cols || ty >= rows {
+                        continue;
+                    }
+                    if occupied.contains(&(tx, ty)) {
+                        continue;
+                    }
+                    let passable = world
+                        .get_resource::<LevelMap>()
+                        .map(|m| m.is_passable(tx, ty))
+                        .unwrap_or(true);
+                    if passable {
+                        dest = Some(Position::new(tx, ty));
+                        break;
+                    }
+                }
+
+                if let Some(new_pos) = dest
+                    && let Some(mut pos) = world.get_mut::<Position>(target_entity)
+                {
+                    *pos = new_pos;
+                }
+                dest
+            } else {
+                None
+            };
+
+            Some(TurnAction::DisplacementQueued {
+                target: target_entity,
+                pending_damage: damage,
+                resolve_round,
+                pushed_to,
+            })
+        }
+
+        AbilityEffect::Acceleration {
+            bonus_ap,
+            drain_ap_next,
+        } => {
+            world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
+            // Grant bonus AP (allow exceeding max — burst turn).
+            if let Some(mut ap) = world.get_mut::<ActionPoints>(actor) {
+                ap.current += bonus_ap;
+            }
+            // Queue AP drain for next round.
+            if let Some(mut effects) = world.get_resource_mut::<PendingEffects>() {
+                effects.0.push(PendingEffect::DrainAP {
+                    target: actor,
+                    amount: *drain_ap_next,
+                    resolve_on_round: current_round + 1,
+                });
+            }
+            Some(TurnAction::AccelerationApplied {
+                actor,
+                bonus_ap: *bonus_ap,
+            })
+        }
+
+        AbilityEffect::EntropicRounds => {
+            let target_entity = target?;
+            if !world
+                .get::<Health>(target_entity)
+                .map(|h| h.is_alive())
+                .unwrap_or(false)
+            {
+                return None;
+            }
+            world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
+            // Unconditional hit, no defense, no cover.
+            let damage = world
+                .get::<Stats>(actor)
+                .map(|s| s.attack)
+                .unwrap_or(1)
+                .max(1);
+            world.get_mut::<Health>(target_entity)?.take_damage(damage);
+            Some(TurnAction::UseAbility {
+                ability_name: ability.name,
+                target,
+                value: damage,
+                hit: true,
+            })
+        }
+
+        AbilityEffect::EchoStrike => {
+            let target_entity = target?;
+            if !world
+                .get::<Health>(target_entity)
+                .map(|h| h.is_alive())
+                .unwrap_or(false)
+            {
+                return None;
+            }
+            world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
+
+            // Check target's last used ability.
+            let last_ability = world
+                .get::<LastUsedAbility>(target_entity)
+                .map(|l| Ability {
+                    ap_cost: 0,
+                    ..l.ability.clone()
+                });
+
+            let should_echo = last_ability
+                .as_ref()
+                .map(|a| !matches!(a.effect, AbilityEffect::EchoStrike))
+                .unwrap_or(false);
+
+            if should_echo {
+                let echo_ability = last_ability.unwrap();
+                // Recursive call with zero-cost copy of the echoed ability.
+                apply_ability(world, actor, &echo_ability, Some(target_entity))
+            } else {
+                // Fallback: basic melee damage with normal hit roll.
+                let (hit, _cover) = roll_ability_hit(world, actor, target_entity);
+                let attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
+                let defense = world
+                    .get::<Stats>(target_entity)
+                    .map(|s| s.defense)
+                    .unwrap_or(0);
+                let damage = if hit { calc_damage(attack, defense) } else { 0 };
+                if hit {
+                    world.get_mut::<Health>(target_entity)?.take_damage(damage);
+                }
+                Some(TurnAction::UseAbility {
+                    ability_name: ability.name,
+                    target,
+                    value: damage,
+                    hit,
+                })
+            }
+        }
+
+        AbilityEffect::TemporalRecall => {
+            let target_entity = target?;
+            if !world
+                .get::<Health>(target_entity)
+                .map(|h| h.is_alive())
+                .unwrap_or(false)
+            {
+                return None;
+            }
+
+            // Target must have moved (LastPosition must exist).
+            let last_pos = match world.get::<LastPosition>(target_entity) {
+                Some(lp) => lp.0,
+                None => return None,
+            };
+
+            let from_pos = world.get::<Position>(target_entity).copied()?;
+
+            // Validate destination: passable and unoccupied (excluding target itself).
+            let occupied = occupied_tiles(world, target_entity);
+            if occupied.contains(&(last_pos.x, last_pos.y)) {
+                return None;
+            }
+            let passable = world
+                .get_resource::<LevelMap>()
+                .map(|m| m.is_passable(last_pos.x, last_pos.y))
+                .unwrap_or(true);
+            if !passable {
+                return None;
+            }
+
+            world.get_mut::<ActionPoints>(actor)?.spend(ability.ap_cost);
+
+            // Move target back to last position.
+            if let Some(mut pos) = world.get_mut::<Position>(target_entity) {
+                *pos = last_pos;
+            }
+            // Remove LastPosition so the target can only be recalled once per move.
+            world.entity_mut(target_entity).remove::<LastPosition>();
+
+            Some(TurnAction::TemporalRecalled {
+                target: target_entity,
+                from: from_pos,
+                to: last_pos,
+            })
+        }
+    };
+
+    // Record the ability used by the actor (for EchoStrike targeting).
+    if result.is_some() {
+        world.entity_mut(actor).insert(LastUsedAbility {
+            ability: ability.clone(),
+        });
     }
+
+    result
 }
 
 /// Rolls a hit check for an ability (uses BattleRng if present; otherwise always hits).
+/// Applies a hit penalty when TemporalFlux is above the high-flux threshold.
 fn roll_ability_hit(world: &mut World, actor: Entity, target: Entity) -> (bool, CoverLevel) {
     if world.get_resource::<BattleRng>().is_some() {
         world.resource_scope(|world, mut rng: Mut<BattleRng>| {
@@ -334,7 +625,13 @@ fn roll_ability_hit(world: &mut World, actor: Entity, target: Entity) -> (bool, 
                 }
                 _ => CoverLevel::None,
             };
-            let hit = roll_hit(calc_hit_chance(cover), &mut rng.0);
+            let base_chance = calc_hit_chance(cover);
+            let flux_penalty = world
+                .get_resource::<TemporalFlux>()
+                .map(|f| f.hit_penalty())
+                .unwrap_or(0.0);
+            let adjusted_chance = (base_chance - flux_penalty).max(0.05);
+            let hit = roll_hit(adjusted_chance, &mut rng.0);
             (hit, cover)
         })
     } else {

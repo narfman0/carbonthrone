@@ -158,10 +158,13 @@ fn on_present_line(
     // Cache this line keyed by the current node.
     if !last_lines.current_key.is_empty() {
         let key = last_lines.current_key.clone();
-        last_lines.lines.insert(key.clone(), (speaker.clone(), text.clone()));
+        last_lines
+            .lines
+            .insert(key.clone(), (speaker.clone(), text.clone()));
         // Mirror into the core exploration state for save/load persistence.
         if let GamePhase::Exploration(e) = &mut session.0.phase {
-            e.last_dialog_lines.insert(key, (speaker.clone(), text.clone()));
+            e.last_dialog_lines
+                .insert(key, (speaker.clone(), text.clone()));
         }
     }
 
@@ -225,13 +228,17 @@ fn on_dialogue_completed(
     if line_res.text.is_empty() && !last_lines.current_key.is_empty() {
         let cached = {
             // Check GUI cache first; it matches the core state.
-            last_lines.lines.get(&last_lines.current_key).cloned().or_else(|| {
-                if let GamePhase::Exploration(e) = &session.0.phase {
-                    e.last_dialog_lines.get(&last_lines.current_key).cloned()
-                } else {
-                    None
-                }
-            })
+            last_lines
+                .lines
+                .get(&last_lines.current_key)
+                .cloned()
+                .or_else(|| {
+                    if let GamePhase::Exploration(e) = &session.0.phase {
+                        e.last_dialog_lines.get(&last_lines.current_key).cloned()
+                    } else {
+                        None
+                    }
+                })
         };
         if let Some((speaker, text)) = cached {
             line_res.speaker = speaker;

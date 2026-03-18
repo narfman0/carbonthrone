@@ -1,6 +1,7 @@
 use bevy::prelude::Component;
 
 use crate::character::CharacterKind;
+use crate::position::Position;
 
 /// Classifies how an ability is used in relation to the target's position.
 #[derive(Debug, Clone, PartialEq)]
@@ -15,6 +16,9 @@ pub enum AbilityKind {
     RangedAlly,
     /// Self-targeted or battlefield-wide; no positional restriction.
     Utility,
+    /// Targets any living combatant (ally or enemy) at any range.
+    /// Used by abilities like Temporal Recall that can reposition either side.
+    RangedAny,
 }
 
 /// The mechanical effect of using an ability in combat.
@@ -32,6 +36,16 @@ pub enum AbilityEffect {
     DrainAP { amount: i32 },
     /// Grant the caster additional action points this turn.
     GrantAP { amount: i32 },
+    /// Launch the target backward while queuing delayed damage after `delay_rounds` rounds.
+    Displacement { delay_rounds: u8 },
+    /// Grant the actor a burst of AP this turn, then drain extra AP next turn.
+    Acceleration { bonus_ap: i32, drain_ap_next: i32 },
+    /// Unconditional attack that bypasses defense and cover — always hits for raw attack damage.
+    EntropicRounds,
+    /// Mirror the target's last used ability back at them (or fall back to melee).
+    EchoStrike,
+    /// Teleport the target back to their position before their last Move action.
+    TemporalRecall,
 }
 
 /// A character ability that can be used in combat.
@@ -46,6 +60,8 @@ pub struct Ability {
     pub effect: AbilityEffect,
     /// Positional constraint: Melee requires adjacency; Ranged works at any distance.
     pub kind: AbilityKind,
+    /// Amount of temporal flux generated when this ability is used.
+    pub flux_generation: u32,
 }
 
 /// Bevy component that records which character this entity is for ability queries.
@@ -64,6 +80,18 @@ impl CharacterAbilities {
     pub fn available(&self, level: u32) -> Vec<Ability> {
         available_abilities(&self.character, level)
     }
+}
+
+/// Records the position a combatant occupied before their last `Move` action.
+/// Used by Temporal Recall to snap a target back to where they were.
+#[derive(Debug, Clone, Component)]
+pub struct LastPosition(pub Position);
+
+/// Records the last ability a combatant used this battle.
+/// Used by Echo Strike to mirror the target's most recent ability.
+#[derive(Debug, Component)]
+pub struct LastUsedAbility {
+    pub ability: Ability,
 }
 
 /// Returns all abilities defined for `character`.
@@ -118,6 +146,7 @@ fn researcher_abilities() -> Vec<Ability> {
             ap_cost: 3,
             effect: AbilityEffect::BonusDamage { bonus: 10 },
             kind: AbilityKind::Ranged,
+            flux_generation: 15,
         },
         Ability {
             name: "Stasis",
@@ -126,6 +155,7 @@ fn researcher_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::DrainAP { amount: 3 },
             kind: AbilityKind::Ranged,
+            flux_generation: 10,
         },
         Ability {
             name: "Rewind",
@@ -134,6 +164,55 @@ fn researcher_abilities() -> Vec<Ability> {
             ap_cost: 3,
             effect: AbilityEffect::Heal { amount: 35 },
             kind: AbilityKind::Utility,
+            flux_generation: 5,
+        },
+        Ability {
+            name: "Temporal Recall",
+            description: "Snap a combatant back to their position before their last move, disrupting their positioning.",
+            level_required: 2,
+            ap_cost: 2,
+            effect: AbilityEffect::TemporalRecall,
+            kind: AbilityKind::RangedAny,
+            flux_generation: 10,
+        },
+        Ability {
+            name: "Temporal Displacement",
+            description: "Fire a temporal shockwave that pushes the target backward and deals delayed damage 2 rounds later.",
+            level_required: 3,
+            ap_cost: 4,
+            effect: AbilityEffect::Displacement { delay_rounds: 2 },
+            kind: AbilityKind::Ranged,
+            flux_generation: 20,
+        },
+        Ability {
+            name: "Acceleration",
+            description: "Temporarily overdrive your temporal field, gaining 3 extra AP this turn at the cost of 4 AP next turn.",
+            level_required: 4,
+            ap_cost: 2,
+            effect: AbilityEffect::Acceleration {
+                bonus_ap: 3,
+                drain_ap_next: 4,
+            },
+            kind: AbilityKind::Utility,
+            flux_generation: 15,
+        },
+        Ability {
+            name: "Entropic Rounds",
+            description: "Fire rounds saturated with temporal entropy — bypasses all defenses and cover for pure raw damage.",
+            level_required: 6,
+            ap_cost: 3,
+            effect: AbilityEffect::EntropicRounds,
+            kind: AbilityKind::Ranged,
+            flux_generation: 12,
+        },
+        Ability {
+            name: "Echo Strike",
+            description: "Reverse-echo an enemy's last used ability back at them. If they haven't used an ability, deal melee damage.",
+            level_required: 8,
+            ap_cost: 3,
+            effect: AbilityEffect::EchoStrike,
+            kind: AbilityKind::Melee,
+            flux_generation: 18,
         },
     ]
 }
@@ -147,6 +226,7 @@ fn doss_abilities() -> Vec<Ability> {
             ap_cost: 3,
             effect: AbilityEffect::BonusDamage { bonus: 8 },
             kind: AbilityKind::Melee,
+            flux_generation: 0,
         },
         Ability {
             name: "Shield Bash",
@@ -155,6 +235,7 @@ fn doss_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::DrainAP { amount: 1 },
             kind: AbilityKind::Melee,
+            flux_generation: 0,
         },
         Ability {
             name: "Adrenaline Rush",
@@ -163,6 +244,7 @@ fn doss_abilities() -> Vec<Ability> {
             ap_cost: 0,
             effect: AbilityEffect::GrantAP { amount: 2 },
             kind: AbilityKind::Utility,
+            flux_generation: 0,
         },
     ]
 }
@@ -176,6 +258,7 @@ fn orin_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::Heal { amount: 20 },
             kind: AbilityKind::RangedAlly,
+            flux_generation: 0,
         },
         Ability {
             name: "Bioelectric Pulse",
@@ -184,6 +267,7 @@ fn orin_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::BonusDamage { bonus: 3 },
             kind: AbilityKind::Ranged,
+            flux_generation: 0,
         },
         Ability {
             name: "Greater Heal",
@@ -192,6 +276,7 @@ fn orin_abilities() -> Vec<Ability> {
             ap_cost: 3,
             effect: AbilityEffect::Heal { amount: 45 },
             kind: AbilityKind::RangedAlly,
+            flux_generation: 0,
         },
     ]
 }
@@ -205,6 +290,7 @@ fn kaleo_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::BonusDamage { bonus: 5 },
             kind: AbilityKind::Ranged,
+            flux_generation: 0,
         },
         Ability {
             name: "System Hack",
@@ -213,6 +299,7 @@ fn kaleo_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::DrainAP { amount: 2 },
             kind: AbilityKind::Ranged,
+            flux_generation: 0,
         },
         Ability {
             name: "Precision Barrage",
@@ -224,6 +311,7 @@ fn kaleo_abilities() -> Vec<Ability> {
                 bonus: 10,
             },
             kind: AbilityKind::Melee,
+            flux_generation: 0,
         },
     ]
 }
@@ -240,6 +328,7 @@ fn zealot_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 5 },
         kind: AbilityKind::Melee,
+        flux_generation: 0,
     }]
 }
 
@@ -251,6 +340,7 @@ fn preacher_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::DrainAP { amount: 1 },
         kind: AbilityKind::Ranged,
+        flux_generation: 0,
     }]
 }
 
@@ -262,6 +352,7 @@ fn purifier_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 8 },
         kind: AbilityKind::Ranged,
+        flux_generation: 0,
     }]
 }
 
@@ -276,6 +367,7 @@ fn archon_abilities() -> Vec<Ability> {
                 pierce_fraction: 0.3,
             },
             kind: AbilityKind::Melee,
+            flux_generation: 0,
         },
         Ability {
             name: "Temporal Suppression",
@@ -284,6 +376,7 @@ fn archon_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::DrainAP { amount: 2 },
             kind: AbilityKind::Ranged,
+            flux_generation: 0,
         },
     ]
 }
@@ -298,6 +391,7 @@ fn scavenger_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 3 },
         kind: AbilityKind::Melee,
+        flux_generation: 0,
     }]
 }
 
@@ -309,6 +403,7 @@ fn void_raider_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 5 },
         kind: AbilityKind::Ranged,
+        flux_generation: 0,
     }]
 }
 
@@ -321,6 +416,7 @@ fn drifter_boss_abilities() -> Vec<Ability> {
             ap_cost: 3,
             effect: AbilityEffect::BonusDamage { bonus: 10 },
             kind: AbilityKind::Melee,
+            flux_generation: 0,
         },
         Ability {
             name: "Rally",
@@ -329,6 +425,7 @@ fn drifter_boss_abilities() -> Vec<Ability> {
             ap_cost: 0,
             effect: AbilityEffect::GrantAP { amount: 1 },
             kind: AbilityKind::Utility,
+            flux_generation: 0,
         },
     ]
 }
@@ -343,6 +440,7 @@ fn maintenance_drone_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 2 },
         kind: AbilityKind::Melee,
+        flux_generation: 0,
     }]
 }
 
@@ -354,6 +452,7 @@ fn security_unit_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 6 },
         kind: AbilityKind::Ranged,
+        flux_generation: 0,
     }]
 }
 
@@ -369,6 +468,7 @@ fn combat_frame_abilities() -> Vec<Ability> {
                 bonus: 8,
             },
             kind: AbilityKind::Melee,
+            flux_generation: 0,
         },
         Ability {
             name: "Heavy Cannon",
@@ -377,6 +477,7 @@ fn combat_frame_abilities() -> Vec<Ability> {
             ap_cost: 3,
             effect: AbilityEffect::BonusDamage { bonus: 15 },
             kind: AbilityKind::Ranged,
+            flux_generation: 0,
         },
     ]
 }
@@ -391,6 +492,7 @@ fn moon_crawler_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 4 },
         kind: AbilityKind::Melee,
+        flux_generation: 0,
     }]
 }
 
@@ -402,6 +504,7 @@ fn void_spitter_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 7 },
         kind: AbilityKind::Ranged,
+        flux_generation: 0,
     }]
 }
 
@@ -415,6 +518,7 @@ fn abyssal_brute_abilities() -> Vec<Ability> {
             pierce_fraction: 0.5,
         },
         kind: AbilityKind::Melee,
+        flux_generation: 0,
     }]
 }
 
@@ -428,6 +532,7 @@ fn salvage_operative_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 3 },
         kind: AbilityKind::Ranged,
+        flux_generation: 0,
     }]
 }
 
@@ -439,6 +544,7 @@ fn gun_for_hire_abilities() -> Vec<Ability> {
         ap_cost: 2,
         effect: AbilityEffect::BonusDamage { bonus: 7 },
         kind: AbilityKind::Ranged,
+        flux_generation: 0,
     }]
 }
 
@@ -451,6 +557,7 @@ fn station_guard_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::BonusDamage { bonus: 4 },
             kind: AbilityKind::Melee,
+            flux_generation: 0,
         },
         Ability {
             name: "Warning Shot",
@@ -459,6 +566,7 @@ fn station_guard_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::BonusDamage { bonus: 5 },
             kind: AbilityKind::Ranged,
+            flux_generation: 0,
         },
     ]
 }
@@ -475,6 +583,7 @@ fn shock_trooper_abilities() -> Vec<Ability> {
                 bonus: 5,
             },
             kind: AbilityKind::Melee,
+            flux_generation: 0,
         },
         Ability {
             name: "Assault Fire",
@@ -483,6 +592,7 @@ fn shock_trooper_abilities() -> Vec<Ability> {
             ap_cost: 2,
             effect: AbilityEffect::BonusDamage { bonus: 10 },
             kind: AbilityKind::Ranged,
+            flux_generation: 0,
         },
     ]
 }

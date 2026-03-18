@@ -2,35 +2,7 @@
 
 ## Context
 
-Core combat/exploration loops are functional. Story endings, companion dialog, scripted encounters, and NPC aggression are implemented. Intro/outro sequences, screen shake, and HP polish are done. bevy_yarnspinner hot-reload support (`file_watcher`/`asset_processor` dev features) is enabled. Remaining work falls into three categories: Depth & Progression (temporal mechanics, loop-aware zone state), Polish & Presentation (visuals, audio, animations, UI), and Advanced Systems (armor layering, shields, equipment).
-
----
-
-## Depth & Progression
-
-### Temporal Flux Resource System
-
-**Why**: Core thematic mechanic described in `docs/weapons_and_abilities.md`; currently absent from code.
-**Files**:
-
-- New: `crates/core/src/temporal_flux.rs` — `TemporalFlux` Bevy Resource
-- `crates/core/src/ability.rs` — add `GeneratesFlux` / `ConsumesFlux` to `AbilityEffect`
-- `crates/core/src/combat.rs` — track flux changes per turn
-- `crates/gui/src/ui/hud.rs` or `combat.rs` — display zone flux level
-  **Task**: Add a zone-level `TemporalFlux` counter (0–100). Temporal abilities generate/consume flux. At high flux (>75): hit chance penalty to all. At 100: Temporal Collapse event (random debuff).
-
----
-
-### Advanced Temporal Abilities
-
-**Why**: Docs describe 6 temporal abilities; only basic analogs (Stasis=DrainAP, Rewind=Heal) are implemented.
-**Files**: `crates/core/src/ability.rs` — `AbilityEffect` enum and Researcher ability table
-**New effects to add**:
-
-- `Displacement { delay_rounds: u8 }` — damage lands N rounds later
-- `Acceleration { bonus_ap: i32 }` — grants extra AP but ages target (debuff after)
-- `EntropicRounds` — damage bypasses armor, ignores cover
-- `EchoStrike` — copies last used ability of target
+Core combat/exploration loops are functional. Story endings, companion dialog, scripted encounters, and NPC aggression are implemented. Intro/outro sequences, screen shake, and HP polish are done. The Temporal Flux system and all five advanced temporal abilities (Displacement, Acceleration, Entropic Rounds, Echo Strike, Temporal Recall) are implemented. Remaining work falls into two categories: Polish & Presentation (visuals, audio, animations, UI) and Advanced Systems (armor layering, shields, equipment).
 
 ---
 
@@ -115,27 +87,3 @@ Core combat/exploration loops are functional. Story endings, companion dialog, s
 **Why**: Described in `docs/weapons_and_abilities.md` (repair kits, weapon heat).
 **Dependency**: Armor system (#9) first; inventory system needed.
 **Task**: Track armor integrity per layer; add repair consumable to loot tables.
-
-### Animated Characters
-
-**Why**: Characters are static meshes with no idle or action animations, making the world feel lifeless.
-**Files**: `crates/gui/src/character_visuals.rs`
-**Task**: Add a skeletal or transform-based animation system for character entities. Implement idle animations (subtle bob/sway), walk cycle during `CharacterMoveAnim`, death, and attack/ability cast poses triggered on action execution. Can use Bevy's built-in animation graph (`AnimationPlayer`) if sprite sheets or GLTF assets are available, or procedural transform animation as a fallback.
-
----
-
-### Animated Characters
-
-**Why**: Characters are static meshes with no idle or action animations, making the world feel lifeless.
-**Files**: `crates/gui/src/character_visuals.rs`
-**Task**: Add a skeletal or transform-based animation system for character entities. Implement idle animations (subtle bob/sway), walk cycle during `CharacterMoveAnim`, death, and attack/ability cast poses triggered on action execution. Can use Bevy's built-in animation graph (`AnimationPlayer`) if sprite sheets or GLTF assets are available, or procedural transform animation as a fallback.
-
----
-
-### Animated Characters
-
-**Why**: Characters are static meshes with no idle or action animations, making the world feel lifeless.
-**Files**: `crates/gui/src/character_visuals.rs`
-**Task**: Add a skeletal or transform-based animation system for character entities. Implement idle animations (subtle bob/sway), walk cycle during `CharacterMoveAnim`, death, and attack/ability cast poses triggered on action execution. Can use Bevy's built-in animation graph (`AnimationPlayer`) if sprite sheets or GLTF assets are available, or procedural transform animation as a fallback.
-
----

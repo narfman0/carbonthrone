@@ -90,6 +90,14 @@ fn collect_turn_events(session: Res<GameSessionRes>, mut log: ResMut<TurnLog>) {
 }
 
 fn format_action(action: &TurnAction, session: &GameSessionRes) -> String {
+    let entity_name = |e| {
+        session
+            .0
+            .world
+            .get::<carbonthrone::character::Character>(e)
+            .map(|c| c.name.clone())
+            .unwrap_or_else(|| "?".to_string())
+    };
     match action {
         TurnAction::Move { to } => format!("→ ({}, {})", to.x, to.y),
         TurnAction::UseAbility {
@@ -100,19 +108,62 @@ fn format_action(action: &TurnAction, session: &GameSessionRes) -> String {
             ..
         } => {
             let target_name = target
-                .and_then(|e| {
-                    session
-                        .0
-                        .world
-                        .get::<carbonthrone::character::Character>(e)
-                        .map(|c| c.name.clone())
-                })
+                .map(entity_name)
                 .unwrap_or_else(|| "self".to_string());
             if *hit {
                 format!("{} → {} ({})", ability_name, target_name, value)
             } else {
                 format!("{} → {} MISS", ability_name, target_name)
             }
+        }
+        TurnAction::DisplacementQueued {
+            target,
+            pending_damage,
+            resolve_round,
+            ..
+        } => {
+            format!(
+                "Displacement → {} queued {}dmg (round {})",
+                entity_name(*target),
+                pending_damage,
+                resolve_round
+            )
+        }
+        TurnAction::DisplacementHit { target, damage } => {
+            format!("Displacement hits {} for {}", entity_name(*target), damage)
+        }
+        TurnAction::AccelerationApplied { bonus_ap, .. } => {
+            format!("Acceleration: +{} AP (drain next turn)", bonus_ap)
+        }
+        TurnAction::DrainApplied { target, drained } => {
+            format!("AP drain: {} loses {} AP", entity_name(*target), drained)
+        }
+        TurnAction::TemporalCollapse { victim, damage } => {
+            format!(
+                "⚡ TEMPORAL COLLAPSE! {} takes {} dmg; all AP drained",
+                entity_name(*victim),
+                damage
+            )
+        }
+        TurnAction::TemporalRecalled { target, from, to } => {
+            format!(
+                "{} recalled ({},{}) → ({},{})",
+                entity_name(*target),
+                from.x,
+                from.y,
+                to.x,
+                to.y
+            )
+        }
+        TurnAction::GlitchTeleport { entity, from, to } => {
+            format!(
+                "⚡ {} glitch teleports ({},{}) → ({},{})",
+                entity_name(*entity),
+                from.x,
+                from.y,
+                to.x,
+                to.y
+            )
         }
     }
 }

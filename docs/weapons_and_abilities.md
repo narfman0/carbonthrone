@@ -1,4 +1,4 @@
-> **Status: PARTIALLY IMPLEMENTED** — Temporal Flux and named abilities not yet in code. See roadmap items #5 and #6.
+`TemporalFlux` resource, `PendingEffects`, and all five temporal `AbilityEffect` variants are in `crates/core/src/`. Five Researcher abilities (Temporal Recall, Temporal Displacement, Acceleration, Entropic Rounds, Echo Strike) are live. Flux bar shown at top-center of combat UI.
 
 ## The Framing: "Temporal Technology"
 
@@ -24,13 +24,16 @@ A unit can *revert* to the state it was in 1-2 turns ago — position, HP, statu
 Freeze a target (or zone) in time for 1-2 turns. They take no damage, can't act, and block movement through their tile. The balance lever: stasis can protect enemies as easily as hurt them. Locking down a dangerous melee unit in the open is strong — but so is accidentally shielding a wounded enemy from a killshot.
 
 **Acceleration**
-A buff that grants a friendly unit an extra action — but ages their equipment. Armor integrity degrades, weapon heat builds, and consumables have a chance to expire. You're borrowing from the future.
+Grants the caster bonus AP immediately — but queues an AP drain for next round. You're borrowing from the future: net positive this turn, net negative next turn. Generates flux.
 
 **Entropic Rounds**
-Instead of direct damage, these age materials — cracking armor, jamming weapons, degrading shields over time. Low immediate impact, devastating over a long fight. Anti-synergy with quick engagements.
+Unconditional hit that deals the attacker's raw attack stat as damage, ignoring defense and cover entirely. Reliable baseline damage at the cost of generating flux.
 
 **Echo Strike**
-Whatever action a target takes on their next turn, they are forced to repeat it on the following turn — even if circumstances have changed. Move into cover? You move again, possibly out of it. Fire at an enemy? Fire again at the same tile, even if it's now empty. Enormously disruptive, hard to predict, deeply tactical.
+Copies and immediately executes the last ability the target used, at zero AP cost to the caster. If the target has no recorded ability (or their last was EchoStrike), deals basic melee damage instead. Enormously disruptive when echoing a powerful enemy ability back at them.
+
+**Temporal Recall** *(new)*
+Snaps a target back to their position before their last move. Fails if the target hasn't moved. Clears their `LastPosition` so they can only be recalled once per move. Works on allies or enemies (`RangedAny` targeting).
 
 ---
 
@@ -39,7 +42,7 @@ Whatever action a target takes on their next turn, they are forced to repeat it 
 This is the hard part. Time manipulation is fun until it feels broken or confusing. Here are the key design principles:
 
 **Cost in "Temporal Flux"**
-Chronurgy doesn't use ammo or mana — it generates and consumes  **Flux** . Using time abilities builds Flux in the local area. At high Flux, reality destabilizes: critical hits become more common for  *both sides* , status effects linger longer, and eventually a **Temporal Collapse** event fires — randomizing turn order for everyone. The battlefield itself becomes unstable if you overuse it.
+Chronurgy doesn't use ammo or mana — it generates **Flux**. Each Researcher ability has a `flux_generation` value; using it adds that amount to the zone's `TemporalFlux` resource (0–100). Above 75 flux, all hit rolls incur a scaling penalty (up to −20% at flux 100). At flux 76–100, the current actor risks a **glitch teleport** (random repositioning, frequency and distance increase with flux). At flux 100, a **Temporal Collapse** fires: one random combatant takes 15 damage, all combatants lose 2 AP, and flux resets to 0. The battlefield itself becomes unstable if you overuse it.
 
 **Locality**
 Time effects are  *zonal* , not global. A stasis field doesn't stop the whole battle, just a tile radius. This keeps the system legible — players can see clearly what's affected.

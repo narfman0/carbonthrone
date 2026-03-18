@@ -366,10 +366,7 @@ pub fn generate_map(
                     (x_start * cols as f32) as i32,
                     (y_start * rows as f32) as i32,
                 );
-                let (x1, y1) = (
-                    (x_end * cols as f32) as i32,
-                    (y_end * rows as f32) as i32,
-                );
+                let (x1, y1) = ((x_end * cols as f32) as i32, (y_end * rows as f32) as i32);
                 for y in y0..y1 {
                     for x in x0..x1 {
                         if map.get(x, y) == Tile::Obstacle {
@@ -388,10 +385,7 @@ pub fn generate_map(
                     (x_start * cols as f32) as i32,
                     (y_start * rows as f32) as i32,
                 );
-                let (x1, y1) = (
-                    (x_end * cols as f32) as i32,
-                    (y_end * rows as f32) as i32,
-                );
+                let (x1, y1) = ((x_end * cols as f32) as i32, (y_end * rows as f32) as i32);
                 for y in y0..y1 {
                     for x in x0..x1 {
                         if !reserved.contains(&(x, y)) {

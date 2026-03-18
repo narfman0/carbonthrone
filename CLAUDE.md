@@ -48,10 +48,12 @@ All gameplay logic lives in `crates/core/src/` as library modules. The engine us
 
 ### Combat
 
-- **`combat.rs`** — Pure math (`calc_damage`, `calc_hit_chance`, `roll_hit`, `turn_order`), `BattleStep` state machine that drives full combat rounds, and `TurnEvent` log entries. References `turn.rs` and `player_input.rs` for action execution.
-- **`turn.rs`** — `Action` enum (Move, UseAbility, Pass) and `apply_action` function that executes one action on the Bevy `World`. Enforces AP cost, melee range (Chebyshev ≤ 1), and obstacle blocking.
+- **`combat.rs`** — Pure math (`calc_damage`, `calc_hit_chance`, `roll_hit`, `turn_order`), `BattleStep` state machine that drives full combat rounds, and `TurnEvent` log entries. Initialises `TemporalFlux`, `PendingEffects`, and `CurrentRound` resources. Accumulates flux after each ability use, triggers `TemporalCollapse` at flux=100, resolves `PendingEffects` at round start, and rolls glitch-teleport events at high flux. References `turn.rs` and `player_input.rs` for action execution.
+- **`turn.rs`** — `Action` enum (Move, UseAbility, Pass) and `apply_action` function that executes one action on the Bevy `World`. Enforces AP cost, melee range (Chebyshev ≤ 1), and obstacle blocking. Saves `LastPosition` on Move. `apply_ability` handles all `AbilityEffect` variants including the five temporal effects. `roll_ability_hit` applies `TemporalFlux` hit penalty above threshold.
 - **`player_input.rs`** — `PlayerActionChoice` (richer wrapper with hit%, damage preview, cover info) and `available_player_actions` which enumerates all valid moves for a player combatant given current AP, terrain, and enemy positions.
-- **`ability.rs`** — `Ability` struct, `AbilityKind` (Melee/Ranged/Utility), `AbilityEffect` (BonusDamage, ArmorPiercing, ArmorPiercingStrike, Heal, DrainAP, GrantAP). Per-character ability tables via `character_abilities(kind)` and `available_abilities(kind, level)`. `CharacterAbilities` is a Bevy component pairing an entity to its ability set.
+- **`ability.rs`** — `Ability` struct with `flux_generation: u32` field, `AbilityKind` (Melee/Ranged/RangedAny/Utility/RangedAlly), `AbilityEffect` (BonusDamage, ArmorPiercing, ArmorPiercingStrike, Heal, DrainAP, GrantAP, Displacement, Acceleration, EntropicRounds, EchoStrike, TemporalRecall). Per-character ability tables via `character_abilities(kind)` and `available_abilities(kind, level)`. Researcher has 8 abilities (levels 1–8). `LastPosition` and `LastUsedAbility` are Bevy components used by temporal abilities.
+- **`temporal_flux.rs`** — `TemporalFlux` Bevy Resource (flux 0–100). Constants `HIGH_FLUX_THRESHOLD = 75`, `MAX_FLUX = 100`. Methods: `add`, `reset`, `is_overloaded`, `hit_penalty` (linear ramp 0.0→0.20 from 75→100 flux).
+- **`pending_effects.rs`** — `PendingEffects` Bevy Resource holding a `Vec<PendingEffect>`. `PendingEffect` variants: `DelayedDamage { target, damage, resolve_on_round }` and `DrainAP { target, amount, resolve_on_round }`. `drain_ready(round)` removes and returns effects matching the current round. `CurrentRound(u32)` resource tracks the battle round.
 
 ### World & traversal
 
@@ -80,8 +82,8 @@ Bevy app that drives the graphical frontend. Reads `GameSession` via `GameSessio
 - **`input.rs`** — `InputPlugin`; keyboard/mouse input → `GameSession` commands (move, interact, travel, combat choice selection).
 - **`ui/`** — `UiPlugin` with sub-modules:
   - `main_menu.rs` — Main menu with New Game / Load Game / Exit; `MainMenuSubstate` (Normal, LoadSlots); save slot display and loading.
-  - `hud.rs` — HUD overlay (HP bars, AP, party status).
-  - `combat.rs` — Combat UI panel (action list, turn order, targets); ability targeting and path preview.
+  - `hud.rs` — HUD overlay (zone label, loop number, party HP/AP) shown during Exploration.
+  - `combat.rs` — Combat UI panel (action list, turn order, targets, flux bar at top-center); ability targeting and path preview.
   - `dialog.rs` — Dialog overlay (speaker name, lines, choice buttons).
   - `turn_log.rs` — Scrollable turn event log.
   - `terminal.rs` — Developer console overlay (toggled with backtick); wraps `console.rs` command parsing.

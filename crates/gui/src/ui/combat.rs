@@ -9,6 +9,7 @@ use carbonthrone::{
     player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
+    temporal_flux::{HIGH_FLUX_THRESHOLD, TemporalFlux},
     terrain::{CoverLevel, Direction, LevelMap},
     turn::{bfs_move_path, move_ap_cost},
 };
@@ -25,7 +26,7 @@ pub struct CombatUiPlugin;
 
 impl Plugin for CombatUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Battle), spawn_combat_ui)
+        app.add_systems(OnEnter(AppState::Battle), (spawn_combat_ui, spawn_flux_bar))
             .add_systems(OnExit(AppState::Battle), despawn_combat_ui)
             .add_systems(
                 Update,
@@ -37,6 +38,7 @@ impl Plugin for CombatUiPlugin {
                     update_party_portraits,
                     handle_portrait_clicks,
                     update_info_panel,
+                    update_flux_bar,
                 )
                     .chain()
                     .run_if(in_state(AppState::Battle)),
@@ -79,6 +81,12 @@ struct InfoPanel;
 
 #[derive(Component)]
 struct InfoPanelText;
+
+#[derive(Component)]
+struct FluxBarText;
+
+#[derive(Component)]
+struct FluxBarWarning;
 
 // ── Spawn ─────────────────────────────────────────────────────────────────────
 
@@ -205,6 +213,82 @@ fn spawn_combat_ui(mut commands: Commands) {
                     parent.spawn((Text::new("Continue"), text_font(14.0), white_text()));
                 });
         });
+}
+
+fn spawn_flux_bar(mut commands: Commands) {
+    // Full-width transparent row pinned to the top for centering.
+    commands
+        .spawn((
+            StateUiRoot,
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(8.0),
+                left: Val::Px(0.0),
+                right: Val::Px(0.0),
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        padding: UiRect::all(Val::Px(6.0)),
+                        row_gap: Val::Px(2.0),
+                        ..default()
+                    },
+                    panel_bg(),
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        FluxBarText,
+                        Text::new("FLUX  [░░░░░░░░░░]  0"),
+                        text_font(11.0),
+                        TextColor(Color::srgb(0.3, 0.9, 0.3)),
+                    ));
+                    parent.spawn((
+                        FluxBarWarning,
+                        Text::new(""),
+                        text_font(10.0),
+                        TextColor(Color::srgb(1.0, 0.2, 0.2)),
+                    ));
+                });
+        });
+}
+
+fn update_flux_bar(
+    session: Res<GameSessionRes>,
+    mut text_q: Query<(&mut Text, &mut TextColor), (With<FluxBarText>, Without<FluxBarWarning>)>,
+    mut warn_q: Query<&mut Text, (With<FluxBarWarning>, Without<FluxBarText>)>,
+) {
+    let flux = session
+        .0
+        .world
+        .get_resource::<TemporalFlux>()
+        .map(|f| f.flux)
+        .unwrap_or(0);
+
+    if let Ok((mut text, mut color)) = text_q.single_mut() {
+        let filled = (flux / 10).min(10) as usize;
+        let bar = format!("[{}{}]", "█".repeat(filled), "░".repeat(10 - filled));
+        *text = Text::new(format!("FLUX  {}  {}", bar, flux));
+        color.0 = if flux > HIGH_FLUX_THRESHOLD {
+            Color::srgb(1.0, 0.2, 0.2)
+        } else if flux > 50 {
+            Color::srgb(1.0, 0.8, 0.1)
+        } else {
+            Color::srgb(0.3, 0.9, 0.3)
+        };
+    }
+    if let Ok(mut text) = warn_q.single_mut() {
+        *text = Text::new(if flux > HIGH_FLUX_THRESHOLD {
+            "HIGH FLUX - HIT CHANCE REDUCED"
+        } else {
+            ""
+        });
+    }
 }
 
 // ── Update: combatant list ────────────────────────────────────────────────────

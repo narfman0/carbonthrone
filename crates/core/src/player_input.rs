@@ -231,6 +231,24 @@ pub fn available_player_actions(world: &mut World, actor: Entity) -> Vec<PlayerA
                         });
                     }
                 }
+                AbilityKind::RangedAny => {
+                    // Generate one choice per living combatant (ally or enemy) at any range.
+                    let mut q = world.query::<(Entity, &Health)>();
+                    let all_living: Vec<Entity> = q
+                        .iter(world)
+                        .filter(|(e, h)| h.is_alive() && *e != actor)
+                        .map(|(e, _)| e)
+                        .collect();
+                    for target_entity in all_living {
+                        choices.push(PlayerActionChoice::UseAbility {
+                            ability: ability.clone(),
+                            target: Some(target_entity),
+                            hit_chance: None,
+                            damage: None,
+                            cover: None,
+                        });
+                    }
+                }
                 AbilityKind::Utility => {
                     choices.push(PlayerActionChoice::UseAbility {
                         ability: ability.clone(),
@@ -349,6 +367,13 @@ fn offensive_damage(
         } => {
             let eff = (defense as f32 * (1.0 - pierce_fraction)) as i32;
             (Some(calc_damage(actor_attack, eff) + bonus), cover_opt)
+        }
+        AbilityEffect::Displacement { .. } => {
+            (Some(calc_damage(actor_attack, defense) + 15), cover_opt)
+        }
+        AbilityEffect::EntropicRounds => {
+            // Ignores defense and cover — raw attack damage.
+            (Some(actor_attack.max(1)), None)
         }
         _ => (None, None),
     }

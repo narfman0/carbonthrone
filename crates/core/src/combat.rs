@@ -9,12 +9,14 @@ use crate::{
     action_points::ActionPoints,
     character::{Aggression, Character},
     health::Health,
+    pending_effects::{CurrentRound, PendingEffect, PendingEffects},
     player_input::{PlayerActionChoice, available_player_actions},
     position::Position,
     scripted_encounter::{ScriptedAlly, ScriptedFirstAction},
     stats::Stats,
-    terrain::{CoverLevel, Direction, LevelMap},
-    turn::{Action, apply_action, move_range_per_ap},
+    temporal_flux::TemporalFlux,
+    terrain::{BattleRng, CoverLevel, Direction, LevelMap, Tile},
+    turn::{Action, apply_action, move_range_per_ap, occupied_tiles},
 };
 
 pub use crate::turn::TurnAction;
@@ -116,6 +118,10 @@ impl BattleStep {
         for &e in &players {
             refresh_actor(world, e);
         }
+        // Initialize temporal systems.
+        world.insert_resource(TemporalFlux::default());
+        world.insert_resource(PendingEffects::default());
+        world.insert_resource(CurrentRound(1));
         Self {
             round: 1,
             turn: Turn::Player,
@@ -173,7 +179,17 @@ impl BattleStep {
         };
 
         let action = choice.to_action();
+        let flux_gen = match &action {
+            Action::UseAbility { ability, .. } => ability.flux_generation,
+            _ => 0,
+        };
         let logged = apply_action(world, actor, &action);
+
+        // Accumulate flux for temporal abilities.
+        if logged.is_some() && flux_gen > 0 {
+            // Store any collapse event; it will be included in the last_event on next step.
+            apply_flux(world, flux_gen);
+        }
 
         let is_pass = matches!(choice, PlayerActionChoice::Pass);
         let ap_remaining = world
@@ -366,6 +382,8 @@ impl BattleStep {
                             outcome: Some(BattleOutcome::Draw),
                         };
                     }
+                    // Update CurrentRound resource.
+                    world.insert_resource(CurrentRound(self.round));
                     self.turn = Turn::Player;
                     let players = living_players(world);
                     for &e in &players {
@@ -402,15 +420,65 @@ impl BattleStep {
         };
 
         let mut actions = Vec::new();
+
+        // Resolve any pending effects due this round (at start of actor's turn).
+        let current_round = world
+            .get_resource::<CurrentRound>()
+            .map(|r| r.0)
+            .unwrap_or(0);
+        let ready_effects = world
+            .get_resource_mut::<PendingEffects>()
+            .map(|mut pe| pe.drain_ready(current_round))
+            .unwrap_or_default();
+        for effect in ready_effects {
+            match effect {
+                PendingEffect::DelayedDamage { target, damage, .. } => {
+                    if let Some(mut h) = world.get_mut::<Health>(target) {
+                        h.take_damage(damage);
+                    }
+                    actions.push(TurnAction::DisplacementHit { target, damage });
+                }
+                PendingEffect::DrainAP { target, amount, .. } => {
+                    let drained = if let Some(ap) = world.get::<ActionPoints>(target) {
+                        amount.min(ap.current)
+                    } else {
+                        0
+                    };
+                    if let Some(mut ap) = world.get_mut::<ActionPoints>(target) {
+                        ap.current = (ap.current - drained).max(0);
+                    }
+                    actions.push(TurnAction::DrainApplied { target, drained });
+                }
+            }
+        }
+
+        // Try glitch teleport before the actor acts.
+        if let Some(teleport) = try_glitch_teleport(world, actor) {
+            actions.push(teleport);
+        }
+
         loop {
             let actor_turn = self.turn;
             match choose_action(world, actor, actor_turn) {
                 Some(Action::Pass) | None => break,
-                Some(action) => match apply_action(world, actor, &action) {
-                    Some(ev) => actions.push(ev),
-                    // Action failed without spending AP (e.g. occupied tile) — end turn.
-                    None => break,
-                },
+                Some(action) => {
+                    let flux_gen = match &action {
+                        Action::UseAbility { ability, .. } => ability.flux_generation,
+                        _ => 0,
+                    };
+                    match apply_action(world, actor, &action) {
+                        Some(ev) => {
+                            actions.push(ev);
+                            if flux_gen > 0
+                                && let Some(collapse_ev) = apply_flux(world, flux_gen)
+                            {
+                                actions.push(collapse_ev);
+                            }
+                        }
+                        // Action failed without spending AP (e.g. occupied tile) — end turn.
+                        None => break,
+                    }
+                }
             }
         }
 
@@ -440,6 +508,153 @@ pub fn simulate_battle(world: &mut World) -> BattleOutcome {
         }
     }
     BattleOutcome::Draw
+}
+
+// ── Temporal flux helpers ─────────────────────────────────────────────────────
+
+/// Add `flux_gen` to the TemporalFlux resource and trigger a Temporal Collapse if overloaded.
+/// Returns a `TurnAction::TemporalCollapse` event if a collapse occurred.
+fn apply_flux(world: &mut World, flux_gen: u32) -> Option<TurnAction> {
+    let overloaded = {
+        let mut flux = world.get_resource_mut::<TemporalFlux>()?;
+        flux.add(flux_gen);
+        flux.is_overloaded()
+    };
+    if overloaded {
+        apply_temporal_collapse(world)
+    } else {
+        None
+    }
+}
+
+/// Execute a Temporal Collapse: deal 15 damage to a random combatant, drain 2 AP from all,
+/// and reset flux.
+fn apply_temporal_collapse(world: &mut World) -> Option<TurnAction> {
+    let alive: Vec<Entity> = {
+        let mut q = world.query::<(Entity, &Health)>();
+        q.iter(world)
+            .filter(|(_, h)| h.is_alive())
+            .map(|(e, _)| e)
+            .collect()
+    };
+    if alive.is_empty() {
+        if let Some(mut flux) = world.get_resource_mut::<TemporalFlux>() {
+            flux.reset();
+        }
+        return None;
+    }
+
+    let victim = world.resource_scope(|_world, mut rng: Mut<BattleRng>| {
+        let idx = rng.0.gen_range(0..alive.len());
+        alive[idx]
+    });
+
+    let damage = 15;
+    if let Some(mut h) = world.get_mut::<Health>(victim) {
+        h.take_damage(damage);
+    }
+
+    // Drain 2 AP from all alive combatants.
+    let to_drain: Vec<Entity> = {
+        let mut q = world.query::<(Entity, &Health)>();
+        q.iter(world)
+            .filter(|(_, h)| h.is_alive())
+            .map(|(e, _)| e)
+            .collect()
+    };
+    for e in to_drain {
+        if let Some(mut ap) = world.get_mut::<ActionPoints>(e) {
+            ap.current = (ap.current - 2).max(0);
+        }
+    }
+
+    if let Some(mut flux) = world.get_resource_mut::<TemporalFlux>() {
+        flux.reset();
+    }
+
+    Some(TurnAction::TemporalCollapse { victim, damage })
+}
+
+/// Attempt a flux-induced glitch teleport for `entity`.
+/// Returns a `GlitchTeleport` event if the teleport triggers, otherwise `None`.
+fn try_glitch_teleport(world: &mut World, entity: Entity) -> Option<TurnAction> {
+    let flux = world.get_resource::<TemporalFlux>()?.flux;
+    if flux <= 75 {
+        return None;
+    }
+
+    let (trigger_chance, min_dist, max_dist): (f32, i32, i32) = if flux >= 100 {
+        (0.75, 5, 8)
+    } else if flux >= 90 {
+        (0.45, 3, 5)
+    } else {
+        // 76-89
+        (0.20, 1, 2)
+    };
+
+    // Roll trigger chance using BattleRng.
+    let triggered = if world.get_resource::<BattleRng>().is_some() {
+        world
+            .resource_scope(|_world, mut rng: Mut<BattleRng>| rng.0.r#gen::<f32>() < trigger_chance)
+    } else {
+        false
+    };
+
+    if !triggered {
+        return None;
+    }
+
+    let old_pos = world.get::<Position>(entity).copied()?;
+    let occupied = occupied_tiles(world, entity);
+    let (cols, rows) = world
+        .get_resource::<LevelMap>()
+        .map(|m| (m.cols as i32, m.rows as i32))
+        .unwrap_or((0, 0));
+
+    // Collect valid candidate tiles within the Chebyshev distance range.
+    let mut candidates: Vec<(i32, i32)> = Vec::new();
+    if let Some(map) = world.get_resource::<LevelMap>() {
+        for dy in -max_dist..=max_dist {
+            for dx in -max_dist..=max_dist {
+                let chebyshev = dx.abs().max(dy.abs());
+                if chebyshev < min_dist || chebyshev > max_dist {
+                    continue;
+                }
+                let tx = old_pos.x + dx;
+                let ty = old_pos.y + dy;
+                if tx < 0 || ty < 0 || tx >= cols || ty >= rows {
+                    continue;
+                }
+                if map.get(tx, ty) != Tile::Open {
+                    continue;
+                }
+                if occupied.contains(&(tx, ty)) {
+                    continue;
+                }
+                candidates.push((tx, ty));
+            }
+        }
+    }
+
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let new_pos = world.resource_scope(|_world, mut rng: Mut<BattleRng>| {
+        let idx = rng.0.gen_range(0..candidates.len());
+        let (cx, cy) = candidates[idx];
+        Position::new(cx, cy)
+    });
+
+    if let Some(mut pos) = world.get_mut::<Position>(entity) {
+        *pos = new_pos;
+    }
+
+    Some(TurnAction::GlitchTeleport {
+        entity,
+        from: old_pos,
+        to: new_pos,
+    })
 }
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
@@ -554,11 +769,14 @@ fn is_damage_ability(effect: &AbilityEffect) -> bool {
         AbilityEffect::BonusDamage { .. }
             | AbilityEffect::ArmorPiercing { .. }
             | AbilityEffect::ArmorPiercingStrike { .. }
+            | AbilityEffect::Displacement { .. }
+            | AbilityEffect::EntropicRounds
+            | AbilityEffect::EchoStrike
     )
 }
 
 /// Returns `true` for abilities that can be directed at an enemy to impair them
-/// (damage dealing or AP disruption).
+/// (damage dealing, AP disruption, or delayed effects).
 fn is_offensive_ability(effect: &AbilityEffect) -> bool {
     matches!(
         effect,
@@ -566,6 +784,10 @@ fn is_offensive_ability(effect: &AbilityEffect) -> bool {
             | AbilityEffect::ArmorPiercing { .. }
             | AbilityEffect::ArmorPiercingStrike { .. }
             | AbilityEffect::DrainAP { .. }
+            | AbilityEffect::Displacement { .. }
+            | AbilityEffect::EntropicRounds
+            | AbilityEffect::EchoStrike
+            | AbilityEffect::Acceleration { .. }
     )
 }
 
@@ -642,13 +864,17 @@ fn choose_scripted_action(world: &mut World, actor: Entity, turn: Turn) -> Optio
             };
             best_adjacent_target(&target_positions, actor_pos)
         }
-        AbilityKind::Ranged => best_attack_target(world, actor, turn),
+        AbilityKind::Ranged | AbilityKind::RangedAny => best_attack_target(world, actor, turn),
         // RangedAlly and Utility are not used by scripted actions.
         AbilityKind::RangedAlly | AbilityKind::Utility => None,
     };
 
     // For targeted abilities that need a target, skip if none available.
-    if matches!(ability.kind, AbilityKind::Melee | AbilityKind::Ranged) && target.is_none() {
+    if matches!(
+        ability.kind,
+        AbilityKind::Melee | AbilityKind::Ranged | AbilityKind::RangedAny
+    ) && target.is_none()
+    {
         // Can't execute yet — don't mark as executed so the normal AI can act.
         return None;
     }
@@ -697,24 +923,26 @@ fn choose_offensive_ability_action(
             .collect()
     };
 
-    // Try ranged offensive abilities first.
-    if let Some(ability) = available.iter().find(|a| a.kind == AbilityKind::Ranged) {
-        if let Some(target) = best_attack_target(world, actor, turn) {
-            return Some(Action::UseAbility {
-                ability: (*ability).clone(),
-                target: Some(target),
-            });
-        }
+    // Try ranged/any-range offensive abilities first.
+    if let Some(ability) = available
+        .iter()
+        .find(|a| matches!(a.kind, AbilityKind::Ranged | AbilityKind::RangedAny))
+        && let Some(target) = best_attack_target(world, actor, turn)
+    {
+        return Some(Action::UseAbility {
+            ability: (*ability).clone(),
+            target: Some(target),
+        });
     }
 
     // Try melee offensive abilities if an adjacent target exists.
-    if let Some(ability) = available.iter().find(|a| a.kind == AbilityKind::Melee) {
-        if let Some(target) = best_adjacent_target(&target_positions, actor_pos) {
-            return Some(Action::UseAbility {
-                ability: (*ability).clone(),
-                target: Some(target),
-            });
-        }
+    if let Some(ability) = available.iter().find(|a| a.kind == AbilityKind::Melee)
+        && let Some(target) = best_adjacent_target(&target_positions, actor_pos)
+    {
+        return Some(Action::UseAbility {
+            ability: (*ability).clone(),
+            target: Some(target),
+        });
     }
 
     None
