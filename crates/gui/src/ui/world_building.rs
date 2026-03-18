@@ -154,6 +154,31 @@ pub struct GenerationResult {
     pub texture: Option<egui::TextureId>,
 }
 
+fn bytes_to_egui_texture(
+    bytes: &[u8],
+    images: &mut Assets<Image>,
+    egui_user_textures: &mut EguiUserTextures,
+) -> Option<(Handle<Image>, egui::TextureId)> {
+    let dyn_image = image::load_from_memory(bytes).ok()?;
+    let rgba = dyn_image.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    let bevy_image = Image::new(
+        Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        rgba.into_raw(),
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    let handle = images.add(bevy_image);
+    let tex_id =
+        egui_user_textures.add_image(bevy_egui::EguiTextureHandle::Strong(handle.clone()));
+    Some((handle, tex_id))
+}
+
 // ── Main resource ──────────────────────────────────────────────────────────────
 
 #[derive(Resource)]
@@ -170,6 +195,10 @@ pub struct AssetGenState {
     pub selected_result: Option<usize>,
     pub stability_error: Option<String>,
     pub save_status: Option<String>,
+    pub base_portrait: Option<Vec<u8>>,
+    pub base_portrait_texture: Option<egui::TextureId>,
+    pub base_portrait_dirty: bool,
+    pub img2img_strength: f32,
 
     // Meshes tab
     pub mesh_character: GenCharacter,
@@ -196,6 +225,10 @@ impl Default for AssetGenState {
             selected_result: None,
             stability_error: None,
             save_status: None,
+            base_portrait: None,
+            base_portrait_texture: None,
+            base_portrait_dirty: false,
+            img2img_strength: 0.65,
             mesh_character: GenCharacter::default(),
             reference_path: String::new(),
             mesh_generating: false,
@@ -271,7 +304,14 @@ fn render_portraits_tab(ui: &mut egui::Ui, state: &mut AssetGenState) {
         }
     });
 
-    // Emotion selector
+    // Emotion selector — non-Neutral locked until base is set
+    let has_base = state.base_portrait.is_some();
+    if !has_base {
+        ui.colored_label(
+            egui::Color32::YELLOW,
+            "Generate Neutral first, then Set as Base to unlock other emotions.",
+        );
+    }
     ui.horizontal(|ui| {
         ui.label("Emotion:   ");
         for em in [
@@ -281,8 +321,9 @@ fn render_portraits_tab(ui: &mut egui::Ui, state: &mut AssetGenState) {
             Emotion::Hurt,
             Emotion::Enigmatic,
         ] {
+            let enabled = has_base || em == Emotion::Neutral;
             if ui
-                .selectable_label(state.emotion == em, em.label())
+                .add_enabled(enabled, egui::Button::selectable(state.emotion == em, em.label()))
                 .clicked()
                 && state.emotion != em
             {
@@ -308,6 +349,9 @@ fn render_portraits_tab(ui: &mut egui::Ui, state: &mut AssetGenState) {
             .clicked()
         {
             trigger_stability_generation(state);
+        }
+        if state.base_portrait.is_some() {
+            ui.colored_label(egui::Color32::from_rgb(100, 180, 255), "[img2img]");
         }
         if state.generating {
             ui.spinner();
@@ -357,6 +401,13 @@ fn render_portraits_tab(ui: &mut egui::Ui, state: &mut AssetGenState) {
         ui.separator();
         if let Some(selected) = state.selected_result {
             ui.horizontal(|ui| {
+                if ui.button("Set as Base").clicked() {
+                    if let Some(result) = state.results.get(selected) {
+                        state.base_portrait = Some(result.image_bytes.clone());
+                        state.base_portrait_dirty = true;
+                        state.save_status = Some("Base portrait set.".to_string());
+                    }
+                }
                 let label = format!(
                     "Save → portraits/{}_{}.png",
                     state.character.file_name(),
@@ -378,6 +429,30 @@ fn render_portraits_tab(ui: &mut egui::Ui, state: &mut AssetGenState) {
                 }
             });
         }
+
+        // Base portrait row
+        if let Some(tex_id) = state.base_portrait_texture {
+            ui.horizontal(|ui| {
+                ui.label("Base:");
+                let sized = egui::load::SizedTexture::new(tex_id, egui::vec2(128.0, 128.0));
+                ui.add(egui::Image::from_texture(sized));
+                if ui.button("Clear Base").clicked() {
+                    state.base_portrait = None;
+                    state.base_portrait_texture = None;
+                    state.emotion = Emotion::Neutral;
+                    state.prompt = build_prompt(state.character, Emotion::Neutral);
+                }
+            });
+        }
+
+        // Strength slider — always shown, disabled when no base
+        ui.horizontal(|ui| {
+            let has_base = state.base_portrait.is_some();
+            ui.add_enabled(
+                has_base,
+                egui::Slider::new(&mut state.img2img_strength, 0.0..=1.0).text("Strength"),
+            );
+        });
     }
 }
 
@@ -471,6 +546,8 @@ fn trigger_stability_generation(state: &mut AssetGenState) {
     };
 
     let prompt = state.prompt.clone();
+    let base_image = state.base_portrait.clone();
+    let strength = state.img2img_strength;
     let pending = Arc::clone(&state.stability_pending);
 
     {
@@ -481,7 +558,7 @@ fn trigger_stability_generation(state: &mut AssetGenState) {
     }
 
     std::thread::spawn(move || {
-        let result = run_stability_request(&api_key, &prompt);
+        let result = run_stability_request(&api_key, &prompt, base_image.as_deref(), strength);
         let mut p = pending.lock().unwrap();
         match result {
             Ok(bytes) => p.images.push(bytes),
@@ -497,14 +574,35 @@ fn trigger_stability_generation(state: &mut AssetGenState) {
     state.save_status = None;
 }
 
-fn run_stability_request(api_key: &str, prompt: &str) -> Result<Vec<u8>, String> {
+fn run_stability_request(
+    api_key: &str,
+    prompt: &str,
+    base_image: Option<&[u8]>,
+    strength: f32,
+) -> Result<Vec<u8>, String> {
     let client = reqwest::blocking::Client::new();
-    let form = reqwest::blocking::multipart::Form::new()
-        .text("prompt", prompt.to_string())
-        .text("output_format", "png");
+
+    let (url, form) = if let Some(img_bytes) = base_image {
+        let img_part = reqwest::blocking::multipart::Part::bytes(img_bytes.to_vec())
+            .file_name("base.png")
+            .mime_str("image/png")
+            .map_err(|e| format!("MIME error: {e}"))?;
+        let form = reqwest::blocking::multipart::Form::new()
+            .text("prompt", prompt.to_string())
+            .text("mode", "image-to-image")
+            .part("image", img_part)
+            .text("strength", format!("{:.2}", strength))
+            .text("output_format", "png");
+        ("https://api.stability.ai/v2beta/stable-image/generate/sd3", form)
+    } else {
+        let form = reqwest::blocking::multipart::Form::new()
+            .text("prompt", prompt.to_string())
+            .text("output_format", "png");
+        ("https://api.stability.ai/v2beta/stable-image/generate/core", form)
+    };
 
     let response = client
-        .post("https://api.stability.ai/v2beta/stable-image/generate/core")
+        .post(url)
         .header("Authorization", format!("Bearer {api_key}"))
         .header("Accept", "image/*")
         .multipart(form)
@@ -661,6 +759,18 @@ fn poll_stability_results(
     mut images: ResMut<Assets<Image>>,
     mut egui_user_textures: ResMut<EguiUserTextures>,
 ) {
+    // Register base portrait texture if dirty
+    if state.base_portrait_dirty {
+        if let Some(bytes) = state.base_portrait.clone() {
+            if let Some((_handle, tex_id)) =
+                bytes_to_egui_texture(&bytes, &mut images, &mut egui_user_textures)
+            {
+                state.base_portrait_texture = Some(tex_id);
+            }
+        }
+        state.base_portrait_dirty = false;
+    }
+
     let done = state.stability_pending.lock().unwrap().done;
     if !done {
         return;
@@ -677,23 +787,8 @@ fn poll_stability_results(
     let new_results: Vec<GenerationResult> = image_list
         .into_iter()
         .filter_map(|bytes| {
-            let dyn_image = image::load_from_memory(&bytes).ok()?;
-            let rgba = dyn_image.to_rgba8();
-            let (width, height) = rgba.dimensions();
-            let bevy_image = Image::new(
-                Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-                TextureDimension::D2,
-                rgba.into_raw(),
-                TextureFormat::Rgba8UnormSrgb,
-                RenderAssetUsages::RENDER_WORLD,
-            );
-            let handle = images.add(bevy_image);
-            let tex_id =
-                egui_user_textures.add_image(bevy_egui::EguiTextureHandle::Strong(handle.clone()));
+            let (handle, tex_id) =
+                bytes_to_egui_texture(&bytes, &mut images, &mut egui_user_textures)?;
             Some(GenerationResult {
                 image_bytes: bytes,
                 _handle: Some(handle),
