@@ -9,7 +9,8 @@ path = "src/main.rs"
 
 [features]
 default = ["dev"]
-dev = ["bevy-inspector-egui", "bevy_egui", "bevy/file_watcher", "bevy/asset_processor"]
+dev = ["bevy-inspector-egui", "bevy_egui", "bevy/file_watcher", "bevy/asset_processor",
+       "reqwest", "serde_json", "base64", "image"]
 
 [dependencies]
 carbonthrone = { path = "../core" }
@@ -18,3 +19,7 @@ rand = "0.8"
 bevy-inspector-egui = { version = "0.36", optional = true }
 bevy_egui = { version = "0.39", optional = true }
 bevy_yarnspinner = "0.8"
+reqwest = { version = "0.12", features = ["blocking", "json", "multipart"], optional = true }
+serde_json = { version = "1", optional = true }
+base64 = { version = "0.22", optional = true }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }

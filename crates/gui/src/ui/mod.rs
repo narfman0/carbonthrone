@@ -9,6 +9,8 @@ pub mod pause_menu;
 pub mod save_slot;
 pub mod terminal;
 pub mod turn_log;
+#[cfg(feature = "dev")]
+pub mod world_building;
 
 use bevy::prelude::*;
 
