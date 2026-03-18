@@ -31,6 +31,12 @@ pub fn phase_sync_system(
     current_state: Res<State<AppState>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
+    // WorldBuilding is a dev overlay — don't let the phase drive us out of it.
+    #[cfg(feature = "dev")]
+    if *current_state.get() == AppState::WorldBuilding {
+        return;
+    }
+
     let desired = match &session.0.phase {
         GamePhase::Exploration(e) if e.in_dialog => AppState::Dialog,
         GamePhase::Exploration(_) => AppState::Exploration,
@@ -49,6 +55,11 @@ pub fn zone_change_detect_system(
     current_state: Res<State<AppState>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
+    #[cfg(feature = "dev")]
+    if *current_state.get() == AppState::WorldBuilding {
+        return;
+    }
+
     let new_zone = session.current_zone_kind();
     if last_zone.0 == new_zone {
         return;

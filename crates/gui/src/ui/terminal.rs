@@ -35,7 +35,10 @@ impl Plugin for TerminalPlugin {
         );
 
         #[cfg(feature = "dev")]
-        app.add_systems(Update, handle_inspector_command.run_if(terminal_open));
+        app.add_systems(
+            Update,
+            (handle_inspector_command, handle_worldbuilding_command).run_if(terminal_open),
+        );
     }
 }
 
@@ -201,5 +204,28 @@ fn handle_inspector_command(
             "Inspector closed.".to_string()
         };
         state.last_command.clear();
+    }
+}
+
+#[cfg(feature = "dev")]
+fn handle_worldbuilding_command(
+    mut term: ResMut<TerminalState>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    if !term.is_changed() {
+        return;
+    }
+    match term.last_command.as_str() {
+        "worldbuilding" => {
+            next_state.set(AppState::WorldBuilding);
+            term.last_output = "Entering world building mode.".to_string();
+            term.last_command.clear();
+        }
+        "worldbuilding exit" => {
+            next_state.set(AppState::MainMenu);
+            term.last_output = "Exiting world building mode.".to_string();
+            term.last_command.clear();
+        }
+        _ => {}
     }
 }

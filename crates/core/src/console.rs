@@ -78,7 +78,7 @@ pub fn defeat_all_enemies(world: &mut World) {
 pub fn execute_command(cmd: ConsoleCommand, session: &mut GameSession) -> String {
     match cmd {
         ConsoleCommand::Help => {
-            "Commands: help, kill, loop <1-5>, flag list, flag set <name>, flag clear <name>, companion <orin|doss|kaleo|none>".to_string()
+            "Commands: help, kill, loop <1-5>, flag list, flag set <name>, flag clear <name>, companion <orin|doss|kaleo|none>, worldbuilding, worldbuilding exit".to_string()
         }
         ConsoleCommand::DefeatEnemies => {
             defeat_all_enemies(&mut session.world);

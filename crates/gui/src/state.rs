@@ -18,4 +18,7 @@ pub enum AppState {
     Battle,
     /// A story ending has been reached; shows the ending screen.
     Ended,
+    /// Dev-only mode for generating character portraits and 3D meshes via AI APIs.
+    #[cfg(feature = "dev")]
+    WorldBuilding,
 }

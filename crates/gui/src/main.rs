@@ -75,6 +75,7 @@ fn main() {
             bevy_inspector_egui::quick::WorldInspectorPlugin::new()
                 .run_if(|r: Res<InspectorOpen>| r.0),
         );
+        app.add_plugins(ui::world_building::WorldBuildingPlugin);
     }
 
     app.run();
