@@ -541,6 +541,7 @@ fn update_cursor_icon(
     camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
     session: Res<GameSessionRes>,
     pending_target: Res<PendingAbilityTarget>,
+    mut last_icon: Local<Option<SystemCursorIcon>>,
 ) {
     let Ok((window_entity, window)) = windows.single() else {
         return;
@@ -582,9 +583,12 @@ fn update_cursor_icon(
         SystemCursorIcon::Default
     };
 
-    commands
-        .entity(window_entity)
-        .insert(CursorIcon::from(icon));
+    if *last_icon != Some(icon) {
+        *last_icon = Some(icon);
+        commands
+            .entity(window_entity)
+            .insert(CursorIcon::from(icon));
+    }
 }
 
 // ── Escape: toggle pause menu ─────────────────────────────────────────────────
