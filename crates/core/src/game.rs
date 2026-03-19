@@ -232,7 +232,10 @@ impl GameSession {
 
         let mut rng = StdRng::seed_from_u64(rand::random::<u64>());
         let zone = Zone::enter(ZoneKind::ResearchWing, 1, loop_number, &mut rng);
-        let npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, flags.flags());
+        let mut npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, flags.flags());
+        for npc in &mut npcs {
+            npc.pos = zone.map.nearest_open_tile(npc.pos.0, npc.pos.1);
+        }
 
         let mut exploration = ExplorationState {
             player_entity,
@@ -456,8 +459,7 @@ impl GameSession {
             &mut self.world,
             &exploration.companion_entities,
             spawn,
-            exploration.zone.cols,
-            exploration.zone.rows,
+            &exploration.zone.map,
         );
     }
 
@@ -484,7 +486,7 @@ impl GameSession {
         if rng.r#gen::<f64>() < arrival_chance(loop_number) {
             // All zone-setup and dialog happen inside a scoped block so the
             // borrow on self.phase is released before we call maybe_start_battle.
-            let (spawn, companion_entities, zone_cols, zone_rows) = {
+            let (spawn, companion_entities, zone_map) = {
                 let GamePhase::Exploration(e) = &mut self.phase else {
                     unreachable!()
                 };
@@ -497,33 +499,26 @@ impl GameSession {
                     loop_number,
                     e.flags.flags(),
                 );
+                // Snap NPC positions to the nearest open tile.
+                for npc in &mut e.npcs {
+                    npc.pos = e.zone.map.nearest_open_tile(npc.pos.0, npc.pos.1);
+                }
                 // Spawn 1 tile inward from the entry door (faces back toward origin).
                 let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
                 e.set_pending_dialog_node("enter", loop_number);
-                (
-                    spawn,
-                    e.companion_entities.clone(),
-                    e.zone.cols,
-                    e.zone.rows,
-                )
+                (spawn, e.companion_entities.clone(), e.zone.map.clone())
             }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
                 .expect("player has Position") = Position::new(spawn.0, spawn.1);
-            place_companions_near(
-                &mut self.world,
-                &companion_entities,
-                spawn,
-                zone_cols,
-                zone_rows,
-            );
+            place_companions_near(&mut self.world, &companion_entities, spawn, &zone_map);
             self.sync_and_recruit_companions();
             self.apply_pending_battle();
             self.maybe_start_battle();
             true
         } else {
-            let (spawn, companion_entities, zone_cols, zone_rows) = {
+            let (spawn, companion_entities, zone_map) = {
                 let GamePhase::Exploration(e) = &mut self.phase else {
                     unreachable!()
                 };
@@ -532,24 +527,13 @@ impl GameSession {
                 e.npcs.clear();
                 // Spawn 1 tile inward from the backtrack door.
                 let spawn = spawn_pos_near_door(&e.zone, travel_dir.opposite());
-                (
-                    spawn,
-                    e.companion_entities.clone(),
-                    e.zone.cols,
-                    e.zone.rows,
-                )
+                (spawn, e.companion_entities.clone(), e.zone.map.clone())
             }; // self.phase borrow released
             *self
                 .world
                 .get_mut::<Position>(player_entity)
                 .expect("player has Position") = Position::new(spawn.0, spawn.1);
-            place_companions_near(
-                &mut self.world,
-                &companion_entities,
-                spawn,
-                zone_cols,
-                zone_rows,
-            );
+            place_companions_near(&mut self.world, &companion_entities, spawn, &zone_map);
             false
         }
     }
@@ -612,7 +596,7 @@ impl GameSession {
             (t.origin, t.travel_dir, e.zone.depth, e.player_entity)
         };
         let loop_number = self.loop_number;
-        let (spawn, companion_entities, zone_cols, zone_rows) = {
+        let (spawn, companion_entities, zone_map) = {
             let GamePhase::Exploration(e) = &mut self.phase else {
                 unreachable!()
             };
@@ -625,27 +609,20 @@ impl GameSession {
                 loop_number,
                 e.flags.flags(),
             );
+            // Snap NPC positions to the nearest open tile.
+            for npc in &mut e.npcs {
+                npc.pos = e.zone.map.nearest_open_tile(npc.pos.0, npc.pos.1);
+            }
             // Spawn 1 tile inward from the door that leads toward the destination.
             let spawn = spawn_pos_near_door(&e.zone, travel_dir);
             e.set_pending_dialog_node("enter", loop_number);
-            (
-                spawn,
-                e.companion_entities.clone(),
-                e.zone.cols,
-                e.zone.rows,
-            )
+            (spawn, e.companion_entities.clone(), e.zone.map.clone())
         }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
             .expect("player has Position") = Position::new(spawn.0, spawn.1);
-        place_companions_near(
-            &mut self.world,
-            &companion_entities,
-            spawn,
-            zone_cols,
-            zone_rows,
-        );
+        place_companions_near(&mut self.world, &companion_entities, spawn, &zone_map);
         self.sync_and_recruit_companions();
         self.apply_pending_battle();
         self.maybe_start_battle();
@@ -718,7 +695,7 @@ impl GameSession {
             h.current = h.max;
         }
 
-        let (player_entity, companion_entities, zone_cols, zone_rows) = {
+        let (player_entity, companion_entities, spawn, zone_map) = {
             let GamePhase::Exploration(e) = &mut self.phase else {
                 return;
             };
@@ -732,25 +709,24 @@ impl GameSession {
                 loop_number,
                 e.flags.flags(),
             );
+            // Snap NPC positions to the nearest open tile.
+            for npc in &mut e.npcs {
+                npc.pos = e.zone.map.nearest_open_tile(npc.pos.0, npc.pos.1);
+            }
             e.set_pending_dialog_node("enter", loop_number);
+            let spawn = e.zone.map.nearest_open_tile(1, 1);
             (
                 e.player_entity,
                 e.companion_entities.clone(),
-                e.zone.cols,
-                e.zone.rows,
+                spawn,
+                e.zone.map.clone(),
             )
         }; // self.phase borrow released
         *self
             .world
             .get_mut::<Position>(player_entity)
-            .expect("player has Position") = Position::new(1, 1);
-        place_companions_near(
-            &mut self.world,
-            &companion_entities,
-            (1, 1),
-            zone_cols,
-            zone_rows,
-        );
+            .expect("player has Position") = Position::new(spawn.0, spawn.1);
+        place_companions_near(&mut self.world, &companion_entities, spawn, &zone_map);
         self.sync_and_recruit_companions();
         self.apply_pending_battle();
         self.maybe_start_battle();
@@ -1083,7 +1059,10 @@ impl GameSession {
         let active_companion = data.active_companion.or_else(|| derive_companion(&flags));
 
         let zone = Zone::enter(data.current_zone, 1, loop_number, rng);
-        let npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, flags.flags());
+        let mut npcs = zone_npcs(zone.kind, zone.cols, zone.rows, loop_number, flags.flags());
+        for npc in &mut npcs {
+            npc.pos = zone.map.nearest_open_tile(npc.pos.0, npc.pos.1);
+        }
 
         let mut exploration = ExplorationState {
             player_entity,
@@ -1135,7 +1114,7 @@ impl GameSession {
     /// Spawn any newly recruited companions that are flagged but not yet in the party.
     pub fn sync_and_recruit_companions(&mut self) {
         // Step 1: collect which companion kinds need to be spawned.
-        let (to_spawn, researcher_level, researcher_pos, zone_cols, zone_rows, companion_count) = {
+        let (to_spawn, researcher_level, researcher_pos, zone_map, companion_count) = {
             let GamePhase::Exploration(e) = &self.phase else {
                 return;
             };
@@ -1161,8 +1140,7 @@ impl GameSession {
                 to_spawn,
                 researcher_level,
                 researcher_pos,
-                e.zone.cols,
-                e.zone.rows,
+                e.zone.map.clone(),
                 e.companion_entities.len(),
             )
         };
@@ -1174,10 +1152,12 @@ impl GameSession {
             let stats = companion.stats.clone();
             let ap_max = ap_for_speed(stats.speed);
             let offset = (companion_count + i) as i32 + 1;
-            let pos = Position::new(
-                (researcher_pos.x + offset).clamp(0, zone_cols as i32 - 1),
-                researcher_pos.y.clamp(0, zone_rows as i32 - 1),
-            );
+            let cols = zone_map.cols as i32;
+            let rows = zone_map.rows as i32;
+            let cx = (researcher_pos.x + offset).clamp(0, cols - 1);
+            let cy = researcher_pos.y.clamp(0, rows - 1);
+            let (px, py) = zone_map.nearest_open_tile(cx, cy);
+            let pos = Position::new(px, py);
             let entity = self
                 .world
                 .spawn((

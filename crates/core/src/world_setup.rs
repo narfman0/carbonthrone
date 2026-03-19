@@ -63,7 +63,8 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
     // Spawn enemies — either from the script or generated randomly.
     if let Some(s) = script {
         for placement in &s.enemies {
-            let (character, pos) = placement.to_character_and_pos(zone.cols, zone.rows);
+            let (character, raw_pos) = placement.to_character_and_pos(zone.cols, zone.rows);
+            let (sx, sy) = zone.map.nearest_open_tile(raw_pos.x, raw_pos.y);
             let stats = character.stats.clone();
             let hp = character.current_hp;
             let ap_max = ap_for_speed(stats.speed);
@@ -72,7 +73,7 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
                 stats,
                 Health::new(hp),
                 ActionPoints::new(ap_max),
-                pos,
+                Position::new(sx, sy),
             ));
             if let Some(ability_name) = placement.first_ability {
                 entity_cmd.insert(ScriptedFirstAction {
@@ -99,7 +100,8 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
     // Spawn scripted allies (temporary, fight on the player's side).
     if let Some(s) = script {
         for placement in &s.allies {
-            let (character, pos) = placement.to_character_and_pos(zone.cols, zone.rows);
+            let (character, raw_pos) = placement.to_character_and_pos(zone.cols, zone.rows);
+            let (sx, sy) = zone.map.nearest_open_tile(raw_pos.x, raw_pos.y);
             let stats = character.stats.clone();
             let hp = character.current_hp;
             let ap_max = ap_for_speed(stats.speed);
@@ -108,7 +110,7 @@ pub fn setup_battle(world: &mut World, zone: &Zone, script: Option<&ScriptedEnco
                 stats,
                 Health::new(hp),
                 ActionPoints::new(ap_max),
-                pos,
+                Position::new(sx, sy),
                 ScriptedAlly,
             ));
             if let Some(ability_name) = placement.first_ability {
