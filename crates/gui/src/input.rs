@@ -12,7 +12,7 @@ use carbonthrone::{
     player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
-    turn::{Action, bfs_move_path, move_ap_cost},
+    turn::{bfs_move_path, move_ap_cost, Action},
 };
 
 use super::{
@@ -20,8 +20,8 @@ use super::{
     character_visuals::CharacterMoveAnim,
     grid::world_to_grid,
     resources::{
-        ExplorationRng, GameSessionRes, PauseMenuOpen, PendingAbilityTarget, PendingPath,
-        PendingPlayerChoices, SelectedChoiceIndex,
+        AbilityHotkeyMap, ExplorationRng, GameSessionRes, PauseMenuOpen, PendingAbilityTarget,
+        PendingPath, PendingPlayerChoices, SelectedChoiceIndex,
     },
     state::AppState,
     ui::terminal::terminal_closed,
@@ -51,6 +51,9 @@ impl Plugin for InputPlugin {
                     .run_if(in_state(AppState::Exploration))
                     .run_if(terminal_closed),
                 apply_player_choice
+                    .run_if(in_state(AppState::Battle))
+                    .run_if(terminal_closed),
+                handle_ability_hotkeys
                     .run_if(in_state(AppState::Battle))
                     .run_if(terminal_closed),
                 left_click_ability_target
@@ -425,6 +428,66 @@ fn apply_player_choice(
             outcome: result.outcome,
         });
         choices_res.needs_refresh = true;
+    }
+}
+
+// ── Combat: number-key ability hotkeys ───────────────────────────────────────
+
+fn handle_ability_hotkeys(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    hotkey_map: Res<AbilityHotkeyMap>,
+    choices: Res<PendingPlayerChoices>,
+    mut selected: ResMut<SelectedChoiceIndex>,
+    mut targeting: ResMut<PendingAbilityTarget>,
+) {
+    // Don't activate hotkeys while in targeting mode.
+    if targeting.0.is_some() {
+        return;
+    }
+
+    // Keys 1–9 activate ability slots 0–8.
+    const DIGIT_KEYS: [(KeyCode, usize); 9] = [
+        (KeyCode::Digit1, 0),
+        (KeyCode::Digit2, 1),
+        (KeyCode::Digit3, 2),
+        (KeyCode::Digit4, 3),
+        (KeyCode::Digit5, 4),
+        (KeyCode::Digit6, 5),
+        (KeyCode::Digit7, 6),
+        (KeyCode::Digit8, 7),
+        (KeyCode::Digit9, 8),
+    ];
+    for (key, slot) in DIGIT_KEYS {
+        if keyboard.just_pressed(key) {
+            let choice_idx = hotkey_map.abilities.get(slot).copied().flatten();
+            if let Some(idx) = choice_idx {
+                if let Some(choice) = choices.choices.get(idx) {
+                    match choice {
+                        carbonthrone::player_input::PlayerActionChoice::UseAbility {
+                            ability,
+                            target,
+                            ..
+                        } => {
+                            if target.is_some() {
+                                targeting.0 = Some(ability.name);
+                            } else {
+                                selected.0 = Some(idx);
+                            }
+                        }
+                        _ => {
+                            selected.0 = Some(idx);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+    }
+    // "P" activates the Pass action.
+    if keyboard.just_pressed(KeyCode::KeyP) {
+        if let Some(idx) = hotkey_map.pass_idx {
+            selected.0 = Some(idx);
+        }
     }
 }
 

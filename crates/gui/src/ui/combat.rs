@@ -9,16 +9,17 @@ use carbonthrone::{
     player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
-    temporal_flux::{HIGH_FLUX_THRESHOLD, TemporalFlux},
+    temporal_flux::{TemporalFlux, HIGH_FLUX_THRESHOLD},
     terrain::{CoverLevel, Direction, LevelMap},
     turn::{bfs_move_path, move_ap_cost},
 };
 
-use super::{StateUiRoot, accent_text, panel_bg, text_font, white_text};
+use super::{accent_text, panel_bg, text_font, white_text, StateUiRoot};
 use crate::camera::IsometricCamera;
 use crate::grid::world_to_grid;
 use crate::resources::{
-    GameSessionRes, PendingAbilityTarget, PendingPlayerChoices, SelectedChoiceIndex,
+    AbilityHotkeyMap, GameSessionRes, PendingAbilityTarget, PendingPlayerChoices,
+    SelectedChoiceIndex,
 };
 use crate::state::AppState;
 
@@ -401,6 +402,7 @@ fn update_action_panel(
     choices: Res<PendingPlayerChoices>,
     targeting: Res<PendingAbilityTarget>,
     action_panel_q: Query<Entity, With<ActionPanel>>,
+    mut hotkey_map: ResMut<AbilityHotkeyMap>,
     mut commands: Commands,
 ) {
     if !choices.is_changed() && !targeting.is_changed() {
@@ -482,12 +484,36 @@ fn update_action_panel(
                 }
             }
         }
+
+        // Populate the hotkey map: slots 0–8 (keys 1–9) for available abilities.
+        hotkey_map.abilities.clear();
+        hotkey_map.pass_idx = None;
+        let mut hotkey_slot = 0usize;
+        for (choice_idx, _, _, _) in &ability_entries {
+            if hotkey_slot >= 9 {
+                hotkey_map.abilities.push(None);
+            } else if choice_idx.is_some() {
+                hotkey_map.abilities.push(*choice_idx);
+                hotkey_slot += 1;
+            } else {
+                hotkey_map.abilities.push(None);
+            }
+        }
+
         if !ability_entries.is_empty() {
             parent.spawn((Text::new("─── ABILITIES"), text_font(10.0), white_text()));
+            let mut display_slot = 0usize;
             for (choice_idx, name, ap_cost, needs_target) in ability_entries {
                 let available = choice_idx.is_some();
                 let target_hint = if needs_target { " [click target]" } else { "" };
-                let label = format!("{name} ({ap_cost}AP){target_hint}");
+                let hotkey_prefix = if available && display_slot < 9 {
+                    let slot = display_slot + 1;
+                    display_slot += 1;
+                    format!("[{slot}] ")
+                } else {
+                    "    ".to_string()
+                };
+                let label = format!("{hotkey_prefix}{name} ({ap_cost}AP){target_hint}");
                 let text_color = if available {
                     white_text()
                 } else {
@@ -530,7 +556,8 @@ fn update_action_panel(
         // ── Pass ──
         for (i, choice) in choices.choices.iter().enumerate() {
             if matches!(choice, PlayerActionChoice::Pass) {
-                let label = choice.display();
+                hotkey_map.pass_idx = Some(i);
+                let label = format!("[P] {}", choice.display());
                 parent
                     .spawn((
                         AbilityButton(i),
