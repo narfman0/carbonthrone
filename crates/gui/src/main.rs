@@ -20,9 +20,9 @@ use input::InputPlugin;
 #[cfg(feature = "dev")]
 use resources::InspectorOpen;
 use resources::{
-    ActiveSaveSlot, ExplorationRng, GameSessionRes, LastKnownZone, MinimapOpen, PauseMenuOpen,
-    PendingAbilityTarget, PendingPath, PendingPlayerChoices, ScreenShake, SelectedChoiceIndex,
-    TerminalState,
+    AbilityHotkeyMap, ActiveSaveSlot, ExplorationRng, GameSessionRes, LastKnownZone, MinimapOpen,
+    PauseMenuOpen, PendingAbilityTarget, PendingPath, PendingPlayerChoices, ScreenShake,
+    SelectedChoiceIndex, TerminalState,
 };
 use state::AppState;
 use sync::SyncPlugin;
@@ -56,6 +56,7 @@ fn main() {
     .init_resource::<MinimapOpen>()
     .init_resource::<ActiveSaveSlot>()
     .init_resource::<ScreenShake>()
+    .init_resource::<AbilityHotkeyMap>()
     // Plugins
     .add_plugins((
         CameraPlugin,

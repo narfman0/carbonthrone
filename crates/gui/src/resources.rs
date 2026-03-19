@@ -4,8 +4,8 @@ use carbonthrone::{
     terrain::LevelMap,
     zone::ZoneKind,
 };
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 /// Wraps `GameSession` so it can be stored as a Bevy `Resource`.
 #[derive(Resource)]
@@ -102,6 +102,17 @@ impl ScreenShake {
         self.timer = 0.3;
         self.magnitude = magnitude;
     }
+}
+
+/// Maps hotkey slots to ability choice indices for the current player turn.
+/// Slot 0 = key "1", slot 1 = key "2", …, slot 8 = key "9".
+/// `pass_idx` holds the choice index for the Pass action (triggered with "P").
+#[derive(Resource, Default)]
+pub struct AbilityHotkeyMap {
+    /// Indexed by hotkey slot (0–8). `None` means the slot is unused.
+    pub abilities: Vec<Option<usize>>,
+    /// Choice index for the Pass action, if available.
+    pub pass_idx: Option<usize>,
 }
 
 /// Queued movement path used in both exploration and combat.
