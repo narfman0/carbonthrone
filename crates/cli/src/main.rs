@@ -109,7 +109,6 @@ fn main() {
                         .adjacent_npc(&session.world)
                         .filter(|n| n.aggression != Aggression::Aggressive)
                         .map(|n| n.kind.clone());
-                    drop(state);
                     if in_dialog {
                         // pending_dialog_node is None here (already consumed at
                         // the top of the outer loop); just dismiss to unblock.
