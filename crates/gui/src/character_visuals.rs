@@ -645,14 +645,22 @@ fn despawn_char_visuals(
 
 fn sync_health_bars(
     session: Res<GameSessionRes>,
+    time: Res<Time>,
     char_q: Query<(&CharacterVisual, &Transform)>,
     mut bg_q: Query<(&HealthBarBg, &mut Transform, &mut Visibility), Without<CharacterVisual>>,
     mut fill_q: Query<
-        (&HealthBarFill, &mut Transform, &mut Visibility),
+        (
+            &HealthBarFill,
+            &mut Transform,
+            &mut Visibility,
+            &MeshMaterial3d<StandardMaterial>,
+        ),
         (Without<CharacterVisual>, Without<HealthBarBg>),
     >,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let world = &session.0.world;
+    let active_entity = session.0.battle.as_ref().and_then(|b| b.current_actor());
 
     let char_positions: std::collections::HashMap<bevy::ecs::entity::Entity, Vec3> = char_q
         .iter()
@@ -686,7 +694,10 @@ fn sync_health_bars(
         transform.rotation = bar_rotation;
     }
 
-    for (fill, mut transform, mut vis) in &mut fill_q {
+    // Smooth gradient pulse for the active-turn unit (period ≈ 3 s).
+    let pulse_t = (time.elapsed_secs() * 2.0).sin() * 0.5 + 0.5;
+
+    for (fill, mut transform, mut vis, mat_handle) in &mut fill_q {
         let game_entity = fill.0;
         let Some(&char_pos) = char_positions.get(&game_entity) else {
             *vis = Visibility::Hidden;
@@ -705,6 +716,7 @@ fn sync_health_bars(
             .get::<Character>(game_entity)
             .map(|c| c.kind.clone())
             .unwrap_or(CharacterKind::Researcher);
+        let is_player = kind.is_player();
         *vis = Visibility::Inherited;
         let fraction = if health.max > 0 {
             (health.current as f32 / health.max as f32).clamp(0.0, 1.0)
@@ -713,10 +725,26 @@ fn sync_health_bars(
         };
         let bar_y = char_pos.y + char_height_for(&kind) * 0.5 + HEALTH_BAR_Y_ABOVE;
         let center = Vec3::new(char_pos.x, bar_y, char_pos.z);
-        let fill_center = center + bar_dir * (HEALTH_BAR_WIDTH * (fraction - 1.0) / 2.0);
+        // Offset slightly above bg to prevent z-fighting.
+        let fill_center =
+            center + bar_dir * (HEALTH_BAR_WIDTH * (fraction - 1.0) / 2.0) + Vec3::Y * 0.001;
         transform.translation = fill_center;
         transform.rotation = bar_rotation;
         transform.scale = Vec3::new(fraction.max(0.001), 1.0, 1.0);
+
+        // Update fill color: smooth gradient pulse for active entity, base color otherwise.
+        if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            let (base_color, bright_color) = if is_player {
+                (Color::srgb(0.10, 0.85, 0.20), Color::srgb(0.40, 1.0, 0.55))
+            } else {
+                (Color::srgb(0.85, 0.15, 0.15), Color::srgb(1.0, 0.50, 0.50))
+            };
+            mat.base_color = if Some(game_entity) == active_entity {
+                lerp_color(base_color, bright_color, pulse_t)
+            } else {
+                base_color
+            };
+        }
     }
 }
 
