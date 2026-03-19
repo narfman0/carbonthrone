@@ -6,6 +6,27 @@ Core combat/exploration loops are functional. Story endings, companion dialog, s
 
 ---
 
+## ⚠️ High Priority
+
+### Enemy AI Overhaul
+
+**Why**: The current AI wastes AP on meaningless back-and-forth movement, making combat trivially easy and strategically uninteresting. Enemies should feel like credible tactical threats — pursuing, flanking, and using abilities intelligently rather than shuffling in place until their turn ends.
+
+**Files**: `crates/core/src/combat.rs`, `crates/core/src/turn.rs`, `crates/core/src/player_input.rs`
+
+**Task**: Replace the current movement heuristic with a proper goal-oriented AI loop:
+
+1. **Pursue & close distance**: If an enemy has a melee ability and the nearest player is out of reach, spend AP moving toward them along a valid path (no aimless oscillation). Track the last position and avoid re-visiting it on the same turn.
+2. **Use abilities purposefully**: After closing to attack range, spend remaining AP on the highest-value ability available — prefer damaging abilities over Pass. If flux is high, prefer lower-flux abilities.
+3. **Ranged enemies hold distance**: Ranged attackers should try to maintain optimal attack range (2–4 tiles), retreating if a player closes to melee range.
+4. **Opportunity costing**: If AP is insufficient to both move *and* attack, the AI should evaluate whether moving is worthwhile. If attacking from current position is possible, attack first.
+5. **Ability variety**: Enemies with utility abilities (DrainAP, Displacement) should use them opportunistically — e.g., drain a low-AP player who just moved, or displace a player out of cover.
+6. **Pass as a last resort only**: The AI should only call Pass when it genuinely has no valid moves or abilities left — never as a filler action.
+
+**Acceptance criteria**: In a standard combat encounter, no enemy should spend more than one AP on movement if they can attack instead, and no enemy should move to the same tile they just vacated on the same turn.
+
+---
+
 ## Polish & Presentation
 
 ### Character Portraits in Dialog
