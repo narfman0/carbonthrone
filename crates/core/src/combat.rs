@@ -148,6 +148,13 @@ impl BattleStep {
         if self.turn != Turn::Player || check_outcome(world).is_some() {
             return vec![];
         }
+        // Skip dead actors — they may have died mid-round from temporal effects.
+        while let Some(&front) = self.actor_queue.front() {
+            if world.get::<Health>(front).map(|h| h.is_alive()).unwrap_or(true) {
+                break;
+            }
+            self.actor_queue.pop_front();
+        }
         let actor = match self.actor_queue.front().copied() {
             Some(e) => e,
             None => return vec![],
@@ -196,7 +203,8 @@ impl BattleStep {
             .get::<ActionPoints>(actor)
             .map(|ap| ap.current)
             .unwrap_or(0);
-        let turn_ended = is_pass || ap_remaining == 0;
+        let actor_alive = world.get::<Health>(actor).map(|h| h.is_alive()).unwrap_or(false);
+        let turn_ended = is_pass || ap_remaining == 0 || !actor_alive;
 
         if turn_ended {
             self.actor_queue.pop_front();
@@ -458,6 +466,10 @@ impl BattleStep {
         }
 
         loop {
+            // Stop immediately if the actor died (e.g. from a TemporalCollapse).
+            if world.get::<Health>(actor).map(|h| !h.is_alive()).unwrap_or(false) {
+                break;
+            }
             let actor_turn = self.turn;
             match choose_action(world, actor, actor_turn) {
                 Some(Action::Pass) | None => break,
