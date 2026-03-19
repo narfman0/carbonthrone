@@ -2,8 +2,9 @@ use bevy::prelude::*;
 use carbonthrone::{
     action_points::ActionPoints,
     character::{Character, CharacterKind},
-    combat::{BattleOutcome, simulate_battle},
+    combat::{BattleOutcome, BattleStep, simulate_battle},
     health::Health,
+    player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
 };
@@ -97,4 +98,44 @@ fn faster_side_acts_first() {
 
     // Players always act first each round, so player kills enemy before taking damage
     assert_eq!(simulate_battle(&mut world), BattleOutcome::PlayerVictory);
+}
+
+/// Regression test: a player character that dies mid-round (while still in the
+/// actor queue with AP remaining) must not block the queue or act after death.
+/// The battle should detect defeat once all players are dead.
+#[test]
+fn dead_player_mid_round_does_not_get_choices() {
+    let mut world = World::new();
+    // Two players. Player A will be killed manually mid-round.
+    let player_a = player(&mut world, 10, 5, 2, 10);
+    let player_b = player(&mut world, 10, 5, 2, 8);
+    // One enemy with plenty of HP so the battle doesn't end from player attacks.
+    enemy(&mut world, 1000, 1, 50, 1);
+
+    let mut battle = BattleStep::new(&mut world);
+
+    // It should be the player turn.
+    assert_eq!(battle.turn, carbonthrone::combat::Turn::Player);
+
+    // Kill player A directly — simulating death from a mid-round temporal effect.
+    if let Some(mut h) = world.get_mut::<Health>(player_a) {
+        h.take_damage(1000);
+    }
+
+    // player_choices must skip the dead player A and return choices for B.
+    let choices = battle.player_choices(&mut world);
+    // There should still be choices (B is alive and enemies exist).
+    assert!(!choices.is_empty(), "live player B should still have choices");
+    // Passing for B ends B's turn; both players have acted (A was dead/skipped).
+    let result = battle.step_player_action(&mut world, &PlayerActionChoice::Pass);
+    assert!(result.turn_ended);
+
+    // Kill player B as well.
+    if let Some(mut h) = world.get_mut::<Health>(player_b) {
+        h.take_damage(1000);
+    }
+
+    // Now all players are dead; player_choices must return empty.
+    let choices = battle.player_choices(&mut world);
+    assert!(choices.is_empty(), "no choices expected when all players are dead");
 }
