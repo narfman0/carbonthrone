@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::position::Position;
+use crate::terrain::LevelMap;
 use crate::zone::{CardinalDir, Zone};
 
 /// Move each companion one step toward the player if Chebyshev distance > 3.
@@ -44,17 +45,22 @@ pub fn follow_companions(
 }
 
 /// Teleport each companion to a position adjacent to `spawn` within zone bounds.
+///
+/// Each companion is offset by `(i+1, 0)` from `spawn`, then snapped to the
+/// nearest passable tile using `map`.
 pub fn place_companions_near(
     world: &mut World,
     companion_entities: &[Entity],
     spawn: (i32, i32),
-    cols: u32,
-    rows: u32,
+    map: &LevelMap,
 ) {
+    let cols = map.cols as i32;
+    let rows = map.rows as i32;
     for (i, &entity) in companion_entities.iter().enumerate() {
         let ox = i as i32 + 1;
-        let nx = (spawn.0 + ox).clamp(0, cols as i32 - 1);
-        let ny = spawn.1.clamp(0, rows as i32 - 1);
+        let cx = (spawn.0 + ox).clamp(0, cols - 1);
+        let cy = spawn.1.clamp(0, rows - 1);
+        let (nx, ny) = map.nearest_open_tile(cx, cy);
         if let Some(mut pos) = world.get_mut::<Position>(entity) {
             *pos = Position::new(nx, ny);
         }
@@ -84,5 +90,5 @@ pub fn spawn_pos_near_door(zone: &Zone, door_dir: CardinalDir) -> (i32, i32) {
         CardinalDir::South => (y - 1).max(0),
         _ => y,
     };
-    (nx, ny)
+    zone.map.nearest_open_tile(nx, ny)
 }

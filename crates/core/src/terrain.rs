@@ -196,6 +196,40 @@ impl LevelMap {
         vec![]
     }
 
+    /// Returns the nearest passable tile to `(x, y)` using BFS.
+    ///
+    /// If `(x, y)` is already passable it is returned as-is.  The search
+    /// expands outward until an open or door tile is found.  Falls back to
+    /// `(0, 0)` only if the entire map contains no passable tile.
+    pub fn nearest_open_tile(&self, x: i32, y: i32) -> (i32, i32) {
+        let cols = self.cols as i32;
+        let rows = self.rows as i32;
+        let start = (x.clamp(0, cols - 1), y.clamp(0, rows - 1));
+        if self.is_passable(start.0, start.1) {
+            return start;
+        }
+        let mut visited = std::collections::HashSet::new();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(start);
+        visited.insert(start);
+        while let Some((cx, cy)) = queue.pop_front() {
+            if self.is_passable(cx, cy) {
+                return (cx, cy);
+            }
+            for (dx, dy) in [(0, 1), (0, -1), (1, 0), (-1, 0)] {
+                let nx = cx + dx;
+                let ny = cy + dy;
+                if nx < 0 || ny < 0 || nx >= cols || ny >= rows {
+                    continue;
+                }
+                if visited.insert((nx, ny)) {
+                    queue.push_back((nx, ny));
+                }
+            }
+        }
+        (0, 0)
+    }
+
     /// Returns all non-Open tiles as a vec of `(position, tile)` pairs.
     /// Used for serializing the map; only sparse (obstacle/door) tiles are stored.
     pub fn non_default_tiles(&self) -> Vec<((i32, i32), Tile)> {
