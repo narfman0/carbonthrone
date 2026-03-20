@@ -333,15 +333,26 @@ fn zealot_abilities() -> Vec<Ability> {
 }
 
 fn preacher_abilities() -> Vec<Ability> {
-    vec![Ability {
-        name: "Dampen Temporal Field",
-        description: "Emit a suppression pulse that drains a target's temporal action economy.",
-        level_required: 1,
-        ap_cost: 2,
-        effect: AbilityEffect::DrainAP { amount: 1 },
-        kind: AbilityKind::Ranged,
-        flux_generation: 0,
-    }]
+    vec![
+        Ability {
+            name: "Condemnation",
+            description: "A ranged shot fired with righteous conviction — weak but always threatening.",
+            level_required: 1,
+            ap_cost: 2,
+            effect: AbilityEffect::BonusDamage { bonus: 3 },
+            kind: AbilityKind::Ranged,
+            flux_generation: 0,
+        },
+        Ability {
+            name: "Dampen Temporal Field",
+            description: "Emit a suppression pulse that drains a target's temporal action economy.",
+            level_required: 1,
+            ap_cost: 2,
+            effect: AbilityEffect::DrainAP { amount: 1 },
+            kind: AbilityKind::Ranged,
+            flux_generation: 0,
+        },
+    ]
 }
 
 fn purifier_abilities() -> Vec<Ability> {
