@@ -16,7 +16,7 @@ use crate::{
     stats::Stats,
     temporal_flux::TemporalFlux,
     terrain::{BattleRng, CoverLevel, Direction, LevelMap, Tile},
-    turn::{Action, apply_action, move_range_per_ap, occupied_tiles},
+    turn::{Action, apply_action, move_ap_cost, move_range_per_ap, occupied_tiles},
 };
 
 pub use crate::turn::TurnAction;
@@ -150,7 +150,11 @@ impl BattleStep {
         }
         // Skip dead actors — they may have died mid-round from temporal effects.
         while let Some(&front) = self.actor_queue.front() {
-            if world.get::<Health>(front).map(|h| h.is_alive()).unwrap_or(true) {
+            if world
+                .get::<Health>(front)
+                .map(|h| h.is_alive())
+                .unwrap_or(true)
+            {
                 break;
             }
             self.actor_queue.pop_front();
@@ -203,7 +207,10 @@ impl BattleStep {
             .get::<ActionPoints>(actor)
             .map(|ap| ap.current)
             .unwrap_or(0);
-        let actor_alive = world.get::<Health>(actor).map(|h| h.is_alive()).unwrap_or(false);
+        let actor_alive = world
+            .get::<Health>(actor)
+            .map(|h| h.is_alive())
+            .unwrap_or(false);
         let turn_ended = is_pass || ap_remaining == 0 || !actor_alive;
 
         if turn_ended {
@@ -467,7 +474,11 @@ impl BattleStep {
 
         loop {
             // Stop immediately if the actor died (e.g. from a TemporalCollapse).
-            if world.get::<Health>(actor).map(|h| !h.is_alive()).unwrap_or(false) {
+            if world
+                .get::<Health>(actor)
+                .map(|h| !h.is_alive())
+                .unwrap_or(false)
+            {
                 break;
             }
             let actor_turn = self.turn;
@@ -803,29 +814,81 @@ fn is_offensive_ability(effect: &AbilityEffect) -> bool {
     )
 }
 
-/// AI entry point: execute a scripted first action if present, then seek cover
-/// and choose an ability via normal tactics.
+/// Returns `true` if the actor only has melee offensive abilities (no offensive ranged).
+/// Melee-primary enemies pursue players; ranged-primary enemies hold distance.
+fn is_primarily_melee(world: &mut World, actor: Entity) -> bool {
+    let kind = match world.get::<Character>(actor) {
+        Some(c) => c.kind.clone(),
+        None => return false,
+    };
+    let abilities = character_abilities(&kind);
+    let has_offensive_ranged = abilities.iter().any(|a| {
+        matches!(a.kind, AbilityKind::Ranged | AbilityKind::RangedAny)
+            && is_offensive_ability(&a.effect)
+    });
+    let has_melee = abilities
+        .iter()
+        .any(|a| a.kind == AbilityKind::Melee && is_offensive_ability(&a.effect));
+    has_melee && !has_offensive_ranged
+}
+
+/// Chebyshev distance between two grid positions.
+fn chebyshev(ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
+    (ax - bx).abs().max((ay - by).abs())
+}
+
+/// Collect positions of all living opponents for the given turn side.
+fn collect_opponent_positions(world: &mut World, turn: Turn) -> Vec<(i32, i32)> {
+    let mut q = world.query::<(&Character, &Health, &Position)>();
+    match turn {
+        Turn::Enemy => q
+            .iter(world)
+            .filter(|(c, h, _)| c.kind.is_player() && h.is_alive())
+            .map(|(_, _, pos)| (pos.x, pos.y))
+            .collect(),
+        Turn::Player => q
+            .iter(world)
+            .filter(|(c, h, _)| {
+                !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
+            })
+            .map(|(_, _, pos)| (pos.x, pos.y))
+            .collect(),
+    }
+}
+
+/// AI entry point.
+///
+/// Priority order:
+/// 1. Scripted first action (boss / scripted encounter overrides).
+/// 2. Attack if in range — never delay an attack to move first.
+/// 3. Move to enable an attack:
+///    - Melee-primary: pursue the nearest player; anti-oscillation prevents back-and-forth.
+///    - Ranged-primary: retreat if a player is adjacent; otherwise seek cover.
+/// 4. Pass (only when no valid action remains).
 fn choose_action(world: &mut World, actor: Entity, turn: Turn) -> Option<Action> {
     let ap = world.get::<ActionPoints>(actor)?.current;
     if ap == 0 {
         return Some(Action::Pass);
     }
 
-    // Check for a scripted first action before falling back to tactical AI.
+    // Scripted first action takes absolute priority.
     if let Some(scripted) = choose_scripted_action(world, actor, turn) {
         return Some(scripted);
     }
 
-    let min_cost = min_offensive_ap_cost(world, actor);
-
-    // Phase 1: move to cover if not already well-covered from nearest enemy.
-    if let Some(mv) = seek_cover_action(world, actor, turn, ap, min_cost) {
-        return Some(mv);
+    // Phase 1: attack if already in range — never defer a strike for movement.
+    if let Some(action) = choose_offensive_ability_action(world, actor, turn, ap) {
+        return Some(action);
     }
 
-    // Phase 2: use an offensive ability.
-    if let Some(ability_action) = choose_offensive_ability_action(world, actor, turn, ap) {
-        return Some(ability_action);
+    // Phase 2: no valid attack from current position — move to create one.
+    let min_cost = min_offensive_ap_cost(world, actor);
+    if is_primarily_melee(world, actor) {
+        if let Some(action) = pursue_target_action(world, actor, turn, ap, min_cost) {
+            return Some(action);
+        }
+    } else if let Some(action) = ranged_position_action(world, actor, turn, ap, min_cost) {
+        return Some(action);
     }
 
     Some(Action::Pass)
@@ -899,10 +962,11 @@ fn choose_scripted_action(world: &mut World, actor: Entity, turn: Turn) -> Optio
     Some(Action::UseAbility { ability, target })
 }
 
-/// Chooses an offensive ability and target for the actor.
+/// Chooses the highest-value offensive ability and target for the actor.
 ///
-/// Prefers ranged abilities (usable from any distance), then melee (adjacent only).
-/// Returns `None` if no valid target/ability combination is available.
+/// Scores every (ability, target) pair by expected value (hit_chance × damage for damage
+/// abilities; AP-equivalent value for disruption abilities).  When flux is high, high-flux
+/// abilities are penalised so the AI naturally prefers lower-flux options.
 fn choose_offensive_ability_action(
     world: &mut World,
     actor: Entity,
@@ -914,6 +978,11 @@ fn choose_offensive_ability_action(
         (c.kind.clone(), c.level)
     };
     let actor_pos = world.get::<Position>(actor).copied()?;
+    let actor_attack = world.get::<Stats>(actor).map(|s| s.attack).unwrap_or(0);
+    let current_flux = world
+        .get_resource::<TemporalFlux>()
+        .map(|f| f.flux)
+        .unwrap_or(0);
 
     let abilities = character_abilities(&kind);
     let available: Vec<_> = abilities
@@ -921,43 +990,316 @@ fn choose_offensive_ability_action(
         .filter(|a| a.level_required <= level && a.ap_cost <= ap && is_offensive_ability(&a.effect))
         .collect();
 
-    // Collect target positions for adjacency checks.
-    let target_positions: Vec<(Entity, i32, i32)> = {
-        let mut q = world.query::<(Entity, &Character, &Health, &Position)>();
+    if available.is_empty() {
+        return None;
+    }
+
+    // Collect opponent data: (entity, defense, current_ap, x, y).
+    let targets: Vec<(Entity, i32, i32, i32, i32)> = {
+        let mut q = world.query::<(
+            Entity,
+            &Character,
+            &Health,
+            &Stats,
+            &ActionPoints,
+            &Position,
+        )>();
         q.iter(world)
-            .filter(|(_, c, h, _)| match turn {
+            .filter(|(_, c, h, _, _, _)| match turn {
                 Turn::Player => {
                     !c.kind.is_player() && c.aggression != Aggression::Friendly && h.is_alive()
                 }
                 Turn::Enemy => c.kind.is_player() && h.is_alive(),
             })
-            .map(|(e, _, _, pos)| (e, pos.x, pos.y))
+            .map(|(e, _, _, stats, ap_comp, pos)| (e, stats.defense, ap_comp.current, pos.x, pos.y))
             .collect()
     };
 
-    // Try ranged/any-range offensive abilities first.
-    if let Some(ability) = available
+    let high_flux = current_flux >= crate::temporal_flux::HIGH_FLUX_THRESHOLD;
+    let mut best_score = f32::NEG_INFINITY;
+    let mut best_action: Option<Action> = None;
+
+    for ability in &available {
+        // When flux is high, penalise high-flux abilities so the AI prefers safer options.
+        let flux_penalty = if high_flux {
+            ability.flux_generation as f32 * 0.5
+        } else {
+            0.0
+        };
+
+        match &ability.kind {
+            AbilityKind::Utility => {
+                // Self-targeted offensive utilities (Acceleration).
+                let base = match &ability.effect {
+                    AbilityEffect::Acceleration { bonus_ap, .. } => *bonus_ap as f32 * 5.0,
+                    _ => 0.0,
+                };
+                let score = base - flux_penalty;
+                if score > 0.0 && score > best_score {
+                    best_score = score;
+                    best_action = Some(Action::UseAbility {
+                        ability: (*ability).clone(),
+                        target: None,
+                    });
+                }
+            }
+            AbilityKind::Ranged | AbilityKind::RangedAny | AbilityKind::Melee => {
+                for &(target_entity, defense, target_ap, tx, ty) in &targets {
+                    // Enforce adjacency requirement for melee.
+                    if ability.kind == AbilityKind::Melee {
+                        if chebyshev(actor_pos.x, actor_pos.y, tx, ty) > 1 {
+                            continue;
+                        }
+                    }
+
+                    let dir = Direction::from_attack((actor_pos.x, actor_pos.y), (tx, ty));
+                    let cover = world
+                        .get_resource::<LevelMap>()
+                        .map(|m| m.get_cover(tx, ty, dir))
+                        .unwrap_or(CoverLevel::None);
+                    let hit_chance = calc_hit_chance(cover);
+
+                    let base = match &ability.effect {
+                        AbilityEffect::BonusDamage { bonus } => {
+                            hit_chance * (calc_damage(actor_attack, defense) + bonus) as f32
+                        }
+                        AbilityEffect::ArmorPiercing { pierce_fraction } => {
+                            let eff = (defense as f32 * (1.0 - pierce_fraction)) as i32;
+                            hit_chance * calc_damage(actor_attack, eff) as f32
+                        }
+                        AbilityEffect::ArmorPiercingStrike {
+                            pierce_fraction,
+                            bonus,
+                        } => {
+                            let eff = (defense as f32 * (1.0 - pierce_fraction)) as i32;
+                            hit_chance * (calc_damage(actor_attack, eff) + bonus) as f32
+                        }
+                        AbilityEffect::DrainAP { amount } => {
+                            // Prefer targets with more AP remaining to maximise the drain.
+                            let drained = (*amount).min(target_ap);
+                            drained as f32 * 5.0
+                        }
+                        AbilityEffect::Displacement { .. } => {
+                            hit_chance * (calc_damage(actor_attack, defense) + 15) as f32
+                        }
+                        AbilityEffect::EntropicRounds => actor_attack.max(1) as f32,
+                        AbilityEffect::EchoStrike => {
+                            hit_chance * calc_damage(actor_attack, defense) as f32
+                        }
+                        _ => 0.0,
+                    };
+
+                    let score = base - flux_penalty;
+                    if score > best_score {
+                        best_score = score;
+                        best_action = Some(Action::UseAbility {
+                            ability: (*ability).clone(),
+                            target: Some(target_entity),
+                        });
+                    }
+                }
+            }
+            AbilityKind::RangedAlly => {} // Not used offensively.
+        }
+    }
+
+    best_action
+}
+
+/// Advances a melee enemy toward the nearest player, reserving AP to attack afterward.
+///
+/// Phase 1: move to an adjacent tile within `ap - min_attack_cost` AP so the actor
+/// can still strike this turn.
+/// Phase 2: if Phase 1 is not possible (target too far), spend all AP advancing.
+///
+/// Anti-oscillation: the actor's `LastPosition` (the tile they came from this turn)
+/// is excluded from candidate destinations.
+fn pursue_target_action(
+    world: &mut World,
+    actor: Entity,
+    turn: Turn,
+    ap: i32,
+    min_attack_cost: i32,
+) -> Option<Action> {
+    let actor_pos = world.get::<Position>(actor).copied()?;
+    let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
+    let range = move_range_per_ap(speed);
+
+    // Anti-oscillation: avoid moving back to the tile we just vacated.
+    let last_pos = world
+        .get::<crate::ability::LastPosition>(actor)
+        .map(|lp| (lp.0.x, lp.0.y));
+
+    let opponents = collect_opponent_positions(world, turn);
+    if opponents.is_empty() {
+        return None;
+    }
+
+    // Find the nearest opponent by Chebyshev distance.
+    let nearest = *opponents
         .iter()
-        .find(|a| matches!(a.kind, AbilityKind::Ranged | AbilityKind::RangedAny))
-        && let Some(target) = best_attack_target(world, actor, turn)
-    {
-        return Some(Action::UseAbility {
-            ability: (*ability).clone(),
-            target: Some(target),
+        .min_by_key(|(ox, oy)| chebyshev(actor_pos.x, actor_pos.y, *ox, *oy))?;
+
+    let (cols, rows) = world
+        .get_resource::<LevelMap>()
+        .map(|m| (m.cols as i32, m.rows as i32))
+        .unwrap_or((0, 0));
+    let occupied = occupied_tiles(world, actor);
+
+    // Enumerate passable, unoccupied tiles adjacent to the nearest opponent.
+    let adj_tiles: Vec<(i32, i32)> = [
+        (-1, 0),
+        (1, 0),
+        (0, -1),
+        (0, 1),
+        (-1, -1),
+        (-1, 1),
+        (1, -1),
+        (1, 1),
+    ]
+    .iter()
+    .filter_map(|(dx, dy)| {
+        let tx = nearest.0 + dx;
+        let ty = nearest.1 + dy;
+        if tx < 0 || ty < 0 || tx >= cols || ty >= rows {
+            return None;
+        }
+        if occupied.contains(&(tx, ty)) {
+            return None;
+        }
+        // Skip the tile we came from to prevent oscillation.
+        if last_pos == Some((tx, ty)) {
+            return None;
+        }
+        let passable = world
+            .get_resource::<LevelMap>()
+            .map(|m| m.is_passable(tx, ty))
+            .unwrap_or(false);
+        passable.then_some((tx, ty))
+    })
+    .collect();
+
+    // Compute BFS paths to each candidate and choose the shortest.
+    let best = adj_tiles
+        .iter()
+        .filter_map(|&dest| {
+            let path = world
+                .get_resource::<LevelMap>()
+                .map(|map| map.bfs_path((actor_pos.x, actor_pos.y), dest, &occupied))?;
+            if path.is_empty() {
+                return None;
+            }
+            Some((dest, path))
+        })
+        .min_by_key(|(_, path)| path.len());
+
+    let (full_dest, path) = best?;
+    let full_cost = move_ap_cost(path.len() as i32, speed);
+    let attack_budget = ap - min_attack_cost;
+
+    // Phase 1: move into attack position while keeping AP to strike this turn.
+    if attack_budget > 0 && full_cost <= attack_budget {
+        return Some(Action::Move {
+            destination: Position::new(full_dest.0, full_dest.1),
         });
     }
 
-    // Try melee offensive abilities if an adjacent target exists.
-    if let Some(ability) = available.iter().find(|a| a.kind == AbilityKind::Melee)
-        && let Some(target) = best_adjacent_target(&target_positions, actor_pos)
-    {
-        return Some(Action::UseAbility {
-            ability: (*ability).clone(),
-            target: Some(target),
+    // Phase 2: advance as far as AP allows along the path (can't attack this turn).
+    let max_tiles = (ap * range) as usize;
+    let steps = max_tiles.min(path.len());
+    if steps == 0 {
+        return None;
+    }
+    let (tx, ty) = path[steps - 1];
+    let cost = move_ap_cost(steps as i32, speed);
+    if cost <= ap {
+        return Some(Action::Move {
+            destination: Position::new(tx, ty),
         });
     }
 
     None
+}
+
+/// Positions a ranged enemy tactically:
+/// - If a player is adjacent (Chebyshev ≤ 1), retreat to gain safe shooting distance.
+/// - Otherwise, seek a tile with better cover against the nearest player.
+fn ranged_position_action(
+    world: &mut World,
+    actor: Entity,
+    turn: Turn,
+    ap: i32,
+    min_attack_cost: i32,
+) -> Option<Action> {
+    let actor_pos = world.get::<Position>(actor).copied()?;
+    let opponents = collect_opponent_positions(world, turn);
+
+    let nearest = opponents
+        .iter()
+        .min_by_key(|(ox, oy)| chebyshev(actor_pos.x, actor_pos.y, *ox, *oy))?;
+
+    // Retreat if a player closed to melee range.
+    if chebyshev(actor_pos.x, actor_pos.y, nearest.0, nearest.1) <= 1 {
+        if let Some(action) = retreat_from_adjacent(world, actor, ap, *nearest) {
+            return Some(action);
+        }
+    }
+
+    // Otherwise seek a better-covered position.
+    seek_cover_action(world, actor, turn, ap, min_attack_cost)
+}
+
+/// Moves a ranged enemy away from an adjacent threat to a tile at Chebyshev ≥ 2.
+/// Prefers the cheapest (fewest AP) safe tile to minimise AP spent on repositioning.
+fn retreat_from_adjacent(
+    world: &mut World,
+    actor: Entity,
+    ap: i32,
+    threat: (i32, i32),
+) -> Option<Action> {
+    let actor_pos = world.get::<Position>(actor).copied()?;
+    let speed = world.get::<Stats>(actor).map(|s| s.speed).unwrap_or(8);
+    let (cols, rows) = world
+        .get_resource::<LevelMap>()
+        .map(|m| (m.cols as i32, m.rows as i32))
+        .unwrap_or((0, 0));
+    let occupied = occupied_tiles(world, actor);
+    let max_tiles = ap * move_range_per_ap(speed);
+
+    let mut candidates: Vec<(i32, i32, i32)> = Vec::new(); // (ap_cost, x, y)
+    if let Some(map) = world.get_resource::<LevelMap>() {
+        for dy in -max_tiles..=max_tiles {
+            for dx in -max_tiles..=max_tiles {
+                let tx = actor_pos.x + dx;
+                let ty = actor_pos.y + dy;
+                if tx < 0 || ty < 0 || tx >= cols || ty >= rows {
+                    continue;
+                }
+                if !map.is_passable(tx, ty) || occupied.contains(&(tx, ty)) {
+                    continue;
+                }
+                // Must end up at safe shooting distance from the threat.
+                if chebyshev(tx, ty, threat.0, threat.1) < 2 {
+                    continue;
+                }
+                let path = map.bfs_path((actor_pos.x, actor_pos.y), (tx, ty), &occupied);
+                if path.is_empty() {
+                    continue;
+                }
+                let cost = move_ap_cost(path.len() as i32, speed);
+                if cost > ap {
+                    continue;
+                }
+                candidates.push((cost, tx, ty));
+            }
+        }
+    }
+
+    // Pick the cheapest escape tile (spend the least AP to get safe).
+    candidates.sort_by_key(|(cost, _, _)| *cost);
+    candidates.first().map(|&(_, tx, ty)| Action::Move {
+        destination: Position::new(tx, ty),
+    })
 }
 
 /// Returns the entity that gives the highest expected damage (hit_chance × damage),
@@ -1011,8 +1353,8 @@ fn best_adjacent_target(targets: &[(Entity, i32, i32)], actor_pos: Position) -> 
     targets
         .iter()
         .filter(|&&(_, tx, ty)| {
-            let chebyshev = (actor_pos.x - tx).abs().max((actor_pos.y - ty).abs());
-            chebyshev <= 1 && chebyshev > 0
+            let c = chebyshev(actor_pos.x, actor_pos.y, tx, ty);
+            c <= 1 && c > 0
         })
         .map(|&(e, tx, ty)| {
             let dist = (actor_pos.x - tx).abs() + (actor_pos.y - ty).abs();
@@ -1022,13 +1364,11 @@ fn best_adjacent_target(targets: &[(Entity, i32, i32)], actor_pos: Position) -> 
         .map(|(e, _)| e)
 }
 
-/// Returns a `Move` action toward the best available cover tile.
+/// Returns a `Move` action toward the best available cover tile for a ranged enemy.
 ///
 /// Phase 1 — reserve AP for attack: look for better cover within `ap - min_attack_cost` tiles.
-///   If found, move there so the actor can still attack this turn.
-/// Phase 2 — advance toward cover: if no in-range cover exists, spend ALL AP to advance toward
-///   the best reachable cover tile (skipping the attack this turn).
-/// Returns `None` only if already at Full cover or no better cover exists anywhere in range.
+/// Phase 2 — advance toward cover: spend ALL AP to advance toward best reachable cover.
+/// Returns `None` if already at Full cover or no better cover exists.
 fn seek_cover_action(
     world: &mut World,
     actor: Entity,
@@ -1118,7 +1458,7 @@ fn seek_cover_action(
                 if path.is_empty() {
                     continue;
                 }
-                let cost = crate::turn::move_ap_cost(path.len() as i32, speed);
+                let cost = move_ap_cost(path.len() as i32, speed);
                 if cost > ap {
                     continue;
                 }

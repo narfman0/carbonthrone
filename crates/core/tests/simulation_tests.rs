@@ -125,7 +125,10 @@ fn dead_player_mid_round_does_not_get_choices() {
     // player_choices must skip the dead player A and return choices for B.
     let choices = battle.player_choices(&mut world);
     // There should still be choices (B is alive and enemies exist).
-    assert!(!choices.is_empty(), "live player B should still have choices");
+    assert!(
+        !choices.is_empty(),
+        "live player B should still have choices"
+    );
     // Passing for B ends B's turn; both players have acted (A was dead/skipped).
     let result = battle.step_player_action(&mut world, &PlayerActionChoice::Pass);
     assert!(result.turn_ended);
@@ -137,5 +140,8 @@ fn dead_player_mid_round_does_not_get_choices() {
 
     // Now all players are dead; player_choices must return empty.
     let choices = battle.player_choices(&mut world);
-    assert!(choices.is_empty(), "no choices expected when all players are dead");
+    assert!(
+        choices.is_empty(),
+        "no choices expected when all players are dead"
+    );
 }

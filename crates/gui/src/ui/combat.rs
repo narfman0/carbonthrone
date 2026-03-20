@@ -9,12 +9,12 @@ use carbonthrone::{
     player_input::PlayerActionChoice,
     position::Position,
     stats::Stats,
-    temporal_flux::{TemporalFlux, HIGH_FLUX_THRESHOLD},
+    temporal_flux::{HIGH_FLUX_THRESHOLD, TemporalFlux},
     terrain::{CoverLevel, Direction, LevelMap},
     turn::{bfs_move_path, move_ap_cost},
 };
 
-use super::{accent_text, panel_bg, text_font, white_text, StateUiRoot};
+use super::{StateUiRoot, accent_text, panel_bg, text_font, white_text};
 use crate::camera::IsometricCamera;
 use crate::grid::world_to_grid;
 use crate::resources::{

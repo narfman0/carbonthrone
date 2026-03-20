@@ -4,8 +4,8 @@ use carbonthrone::{
     terrain::LevelMap,
     zone::ZoneKind,
 };
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 /// Wraps `GameSession` so it can be stored as a Bevy `Resource`.
 #[derive(Resource)]

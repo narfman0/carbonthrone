@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass, EguiUserTextures};
+use bevy_egui::{EguiContexts, EguiPrimaryContextPass, EguiUserTextures, egui};
 
 use crate::state::AppState;
 
@@ -174,8 +174,7 @@ fn bytes_to_egui_texture(
         RenderAssetUsages::RENDER_WORLD,
     );
     let handle = images.add(bevy_image);
-    let tex_id =
-        egui_user_textures.add_image(bevy_egui::EguiTextureHandle::Strong(handle.clone()));
+    let tex_id = egui_user_textures.add_image(bevy_egui::EguiTextureHandle::Strong(handle.clone()));
     Some((handle, tex_id))
 }
 
@@ -323,7 +322,10 @@ fn render_portraits_tab(ui: &mut egui::Ui, state: &mut AssetGenState) {
         ] {
             let enabled = has_base || em == Emotion::Neutral;
             if ui
-                .add_enabled(enabled, egui::Button::selectable(state.emotion == em, em.label()))
+                .add_enabled(
+                    enabled,
+                    egui::Button::selectable(state.emotion == em, em.label()),
+                )
                 .clicked()
                 && state.emotion != em
             {
@@ -593,12 +595,18 @@ fn run_stability_request(
             .part("image", img_part)
             .text("strength", format!("{:.2}", strength))
             .text("output_format", "png");
-        ("https://api.stability.ai/v2beta/stable-image/generate/sd3", form)
+        (
+            "https://api.stability.ai/v2beta/stable-image/generate/sd3",
+            form,
+        )
     } else {
         let form = reqwest::blocking::multipart::Form::new()
             .text("prompt", prompt.to_string())
             .text("output_format", "png");
-        ("https://api.stability.ai/v2beta/stable-image/generate/core", form)
+        (
+            "https://api.stability.ai/v2beta/stable-image/generate/core",
+            form,
+        )
     };
 
     let response = client
