@@ -1,6 +1,7 @@
 mod camera;
 mod character_visuals;
 mod dialog_runner;
+mod effects;
 mod grid;
 mod input;
 mod resources;
@@ -16,6 +17,7 @@ use carbonthrone::game::GameSession;
 use camera::CameraPlugin;
 use character_visuals::CharacterVisualsPlugin;
 use dialog_runner::DialogRunnerPlugin;
+use effects::EffectsPlugin;
 use input::InputPlugin;
 #[cfg(feature = "dev")]
 use resources::InspectorOpen;
@@ -62,6 +64,7 @@ fn main() {
         CameraPlugin,
         TilePlugin,
         CharacterVisualsPlugin,
+        EffectsPlugin,
         SyncPlugin,
         InputPlugin,
         UiPlugin,

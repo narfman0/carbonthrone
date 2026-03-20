@@ -17,7 +17,7 @@ const HEALTH_BAR_THICK: f32 = 0.020;
 const HEALTH_BAR_Y_ABOVE: f32 = 0.12;
 const HEALTH_BAR_ROTATION: f32 = std::f32::consts::FRAC_PI_4;
 
-const FLOAT_DURATION: f32 = 0.8;
+pub const FLOAT_DURATION: f32 = 0.8;
 const FLOAT_SPEED: f32 = 55.0; // pixels per second upward
 
 // ── Components ────────────────────────────────────────────────────────────────
@@ -53,6 +53,13 @@ pub struct CharacterMoveAnim {
 pub struct DamageFlash {
     pub timer: Timer,
     pub original_color: Color,
+}
+
+/// Dissolve-out effect for a just-died character visual.
+#[derive(Component)]
+pub struct Dissolve {
+    pub timer: Timer,
+    pub mat_handle: Handle<StandardMaterial>,
 }
 
 /// Screen-space floating damage number that drifts upward and fades.
@@ -117,7 +124,12 @@ impl Plugin for CharacterVisualsPlugin {
             )
             .add_systems(
                 Update,
-                (sync_battle_chars, sync_health_bars, update_char_kind_labels)
+                (
+                    sync_battle_chars,
+                    sync_health_bars,
+                    update_char_kind_labels,
+                    update_dissolve,
+                )
                     .chain()
                     .run_if(in_state(AppState::Battle)),
             );
@@ -503,12 +515,20 @@ fn spawn_battle_chars(
 fn sync_battle_chars(
     session: Res<GameSessionRes>,
     mut char_q: Query<
-        (&CharacterVisual, &mut Transform, &mut Visibility),
+        (
+            Entity,
+            &CharacterVisual,
+            &mut Transform,
+            &mut Visibility,
+            Option<&Dissolve>,
+            &MeshMaterial3d<StandardMaterial>,
+        ),
         Without<CharacterMoveAnim>,
     >,
+    mut commands: Commands,
 ) {
     let world = &session.0.world;
-    for (cv, mut transform, mut vis) in &mut char_q {
+    for (entity, cv, mut transform, mut vis, dissolve, mat_handle) in &mut char_q {
         if let Some(pos) = world.get::<Position>(cv.game_entity) {
             let kind = world
                 .get::<Character>(cv.game_entity)
@@ -517,11 +537,16 @@ fn sync_battle_chars(
             transform.translation = world_pos_for_grid(pos.x, pos.y, &kind);
         }
         if let Some(health) = world.get::<Health>(cv.game_entity) {
-            *vis = if health.is_alive() {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            };
+            if health.is_alive() {
+                *vis = Visibility::Inherited;
+            } else if dissolve.is_none() {
+                commands.entity(entity).insert(Dissolve {
+                    timer: Timer::from_seconds(0.5, TimerMode::Once),
+                    mat_handle: mat_handle.0.clone(),
+                });
+                *vis = Visibility::Inherited;
+            }
+            // If Dissolve is present, update_dissolve manages visibility.
         }
     }
 }
@@ -627,6 +652,29 @@ fn update_floating_damage_text(
 fn despawn_floating_damage(mut commands: Commands, q: Query<Entity, With<FloatingDamageNumber>>) {
     for e in &q {
         commands.entity(e).despawn();
+    }
+}
+
+// ── Dissolve ──────────────────────────────────────────────────────────────────
+
+fn update_dissolve(
+    time: Res<Time>,
+    mut q: Query<(Entity, &mut Dissolve, &mut Visibility)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut commands: Commands,
+) {
+    for (entity, mut dissolve, mut vis) in q.iter_mut() {
+        dissolve.timer.tick(time.delta());
+        let alpha = 1.0 - dissolve.timer.fraction();
+        if let Some(mat) = materials.get_mut(&dissolve.mat_handle) {
+            let base = mat.base_color.to_srgba();
+            mat.base_color = Color::srgba(base.red, base.green, base.blue, alpha);
+            mat.alpha_mode = AlphaMode::Blend;
+        }
+        *vis = Visibility::Inherited;
+        if dissolve.timer.just_finished() {
+            commands.entity(entity).despawn();
+        }
     }
 }
 
