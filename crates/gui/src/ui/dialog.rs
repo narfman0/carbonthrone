@@ -83,34 +83,47 @@ fn spawn_dialog_panel(mut commands: Commands) {
                 white_text(),
             ));
 
-            // Choices container.
-            parent
-                .spawn((
-                    DialogChoicesContainer,
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(4.0),
-                        ..default()
-                    },
-                ))
-                .with_children(|_| {
-                    // Populated dynamically in update_dialog_text.
-                });
+            // Spacer — pushes buttons to the bottom of the panel.
+            parent.spawn(Node {
+                flex_grow: 1.0,
+                ..default()
+            });
 
-            // Continue button (shown when no choices).
+            // Bottom button area: choices or continue, always at the same position.
             parent
-                .spawn((
-                    ContinueButton,
-                    Button,
-                    Node {
-                        padding: UiRect::axes(Val::Px(16.0), Val::Px(6.0)),
-                        align_self: AlignSelf::FlexEnd,
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.2, 0.4, 0.6)),
-                ))
+                .spawn(Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(4.0),
+                    align_self: AlignSelf::FlexEnd,
+                    ..default()
+                })
                 .with_children(|parent| {
-                    parent.spawn((Text::new("Continue"), text_font(13.0), white_text()));
+                    // Choices container.
+                    parent.spawn((
+                        DialogChoicesContainer,
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: Val::Px(4.0),
+                            ..default()
+                        },
+                    ));
+
+                    // Continue button (shown when no choices).
+                    parent
+                        .spawn((
+                            ContinueButton,
+                            Button,
+                            Node {
+                                padding: UiRect::axes(Val::Px(16.0), Val::Px(6.0)),
+                                align_self: AlignSelf::FlexEnd,
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(0.2, 0.4, 0.6)),
+                        ))
+                        .with_children(|parent| {
+                            parent
+                                .spawn((Text::new("Continue"), text_font(13.0), white_text()));
+                        });
                 });
         });
 }
