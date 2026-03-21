@@ -23,6 +23,10 @@ pub struct CoverIcon;
 #[derive(Component)]
 pub struct BattleCursorHighlight;
 
+/// Screen-space floating label showing cover info for the tile under the cursor.
+#[derive(Component)]
+struct HoverCoverLabel;
+
 pub struct TilePlugin;
 
 impl Plugin for TilePlugin {
@@ -37,6 +41,7 @@ impl Plugin for TilePlugin {
                     spawn_battle_tiles,
                     spawn_cover_icons,
                     spawn_cursor_highlight,
+                    spawn_hover_cover_label,
                 ),
             )
             .add_systems(
@@ -45,11 +50,13 @@ impl Plugin for TilePlugin {
                     despawn_tile_visuals,
                     despawn_cover_icons,
                     despawn_cursor_highlight,
+                    despawn_hover_cover_label,
                 ),
             )
             .add_systems(
                 Update,
-                update_cursor_highlight.run_if(in_state(AppState::Battle)),
+                (update_cursor_highlight, update_hover_cover_label)
+                    .run_if(in_state(AppState::Battle)),
             );
     }
 }
@@ -317,6 +324,133 @@ fn update_cursor_highlight(
 }
 
 fn despawn_cursor_highlight(mut commands: Commands, q: Query<Entity, With<BattleCursorHighlight>>) {
+    for e in &q {
+        commands.entity(e).despawn();
+    }
+}
+
+// ── Hover cover label ─────────────────────────────────────────────────────────
+
+fn spawn_hover_cover_label(mut commands: Commands) {
+    commands.spawn((
+        HoverCoverLabel,
+        Text::new(""),
+        TextFont {
+            font_size: 11.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Node {
+            position_type: PositionType::Absolute,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.05, 0.05, 0.08, 0.82)),
+        Visibility::Hidden,
+    ));
+}
+
+fn update_hover_cover_label(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<IsometricCamera>>,
+    session: Res<GameSessionRes>,
+    mut label_q: Query<(&mut Text, &mut Node, &mut Visibility), With<HoverCoverLabel>>,
+) {
+    let Ok((mut text, mut node, mut visibility)) = label_q.single_mut() else {
+        return;
+    };
+
+    // Hide when not player turn.
+    let is_player_turn = session
+        .0
+        .battle
+        .as_ref()
+        .map(|b| b.turn == Turn::Player)
+        .unwrap_or(false);
+    if !is_player_turn {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+
+    let Ok(window) = windows.single() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    let Some(cursor) = window.cursor_position() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    let Ok((cam, cam_transform)) = camera_q.single() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    let Ok(ray) = cam.viewport_to_world(cam_transform, cursor) else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    if ray.direction.y.abs() < 1e-6 {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+    let t = -ray.origin.y / ray.direction.y;
+    if t < 0.0 {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+    let hit = ray.origin + ray.direction * t;
+    let (gx, gy) = world_to_grid(hit);
+
+    let world = &session.0.world;
+    let Some(map) = world.get_resource::<LevelMap>() else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+    if gx < 0 || gy < 0 || gx >= map.cols as i32 || gy >= map.rows as i32 {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+    if !map.is_passable(gx, gy) {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+
+    // Build cover summary string. Skip if this tile has no cover at all.
+    let dir_entries = [
+        (Direction::North, "N"),
+        (Direction::South, "S"),
+        (Direction::East, "E"),
+        (Direction::West, "W"),
+    ];
+    let parts: Vec<String> = dir_entries
+        .iter()
+        .filter_map(|(dir, label)| {
+            let level = map.get_cover(gx, gy, *dir);
+            match level {
+                CoverLevel::Full => Some(format!("{label}:full")),
+                CoverLevel::Partial => Some(format!("{label}:part")),
+                CoverLevel::None => None,
+            }
+        })
+        .collect();
+
+    if parts.is_empty() {
+        *visibility = Visibility::Hidden;
+        return;
+    }
+
+    // Position label just above the tile center in screen space.
+    let tile_world = grid_to_world(gx, gy) + Vec3::Y * (FLOOR_HEIGHT + 0.6);
+    let Ok(screen_pos) = cam.world_to_viewport(cam_transform, tile_world) else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+
+    *text = Text::new(parts.join("  "));
+    node.left = Val::Px(screen_pos.x - 28.0);
+    node.top = Val::Px(screen_pos.y - 10.0);
+    *visibility = Visibility::Inherited;
+}
+
+fn despawn_hover_cover_label(mut commands: Commands, q: Query<Entity, With<HoverCoverLabel>>) {
     for e in &q {
         commands.entity(e).despawn();
     }
