@@ -90,7 +90,9 @@ pub struct CharacterVisualsPlugin;
 impl Plugin for CharacterVisualsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Exploration), spawn_exploration_chars)
-            .add_systems(OnExit(AppState::Exploration), despawn_char_visuals)
+            .add_systems(OnEnter(AppState::Battle), despawn_char_visuals)
+            .add_systems(OnEnter(AppState::MainMenu), despawn_char_visuals)
+            .add_systems(OnEnter(AppState::Ended), despawn_char_visuals)
             .add_systems(
                 Update,
                 (detect_char_move, animate_char_moves, sync_exploration_chars)
@@ -242,7 +244,12 @@ fn spawn_exploration_chars(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     session: Res<GameSessionRes>,
+    existing: Query<Entity, Or<(With<CharacterVisual>, With<NpcVisual>)>>,
 ) {
+    // Already spawned (e.g. returning from Dialog state) — skip.
+    if !existing.is_empty() {
+        return;
+    }
     let GamePhase::Exploration(state) = &session.0.phase else {
         return;
     };

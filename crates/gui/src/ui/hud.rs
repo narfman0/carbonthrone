@@ -10,8 +10,13 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Exploration), spawn_exploration_hud)
-            .add_systems(OnExit(AppState::Exploration), despawn_state_ui::<AppState>)
-            .add_systems(Update, update_hud.run_if(in_state(AppState::Exploration)));
+            .add_systems(OnEnter(AppState::Battle), despawn_state_ui::<AppState>)
+            .add_systems(OnEnter(AppState::MainMenu), despawn_state_ui::<AppState>)
+            .add_systems(OnEnter(AppState::Ended), despawn_state_ui::<AppState>)
+            .add_systems(
+                Update,
+                update_hud.run_if(in_state(AppState::Exploration).or(in_state(AppState::Dialog))),
+            );
     }
 }
 
