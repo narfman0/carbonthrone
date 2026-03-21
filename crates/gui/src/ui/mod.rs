@@ -1,3 +1,4 @@
+pub mod character_detail;
 pub mod combat;
 pub mod dialog;
 pub mod ending;
@@ -29,6 +30,7 @@ impl Plugin for UiPlugin {
             ending::EndingPlugin,
             pause_menu::PauseMenuPlugin,
             minimap::MinimapPlugin,
+            character_detail::CharacterDetailPlugin,
         ))
         .add_systems(Update, button_hover_system);
     }

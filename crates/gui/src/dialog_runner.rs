@@ -5,7 +5,7 @@ use bevy_yarnspinner::events::{DialogueCompleted, PresentLine, PresentOptions};
 use bevy_yarnspinner::prelude::*;
 use carbonthrone::game::GamePhase;
 
-use crate::resources::GameSessionRes;
+use crate::resources::{ExplorationRng, GameSessionRes};
 
 pub struct DialogRunnerPlugin;
 
@@ -219,6 +219,7 @@ fn on_dialogue_completed(
     mut line_res: ResMut<CurrentDialogLine>,
     mut opts_res: ResMut<CurrentDialogOptions>,
     last_lines: Res<LastDialogLines>,
+    mut rng: ResMut<ExplorationRng>,
 ) {
     opts_res.waiting = false;
     opts_res.options.clear();
@@ -257,5 +258,9 @@ fn on_dialogue_completed(
         return;
     };
     let new_flags = collect_set_flags(runner);
+    let loop_complete = new_flags.contains(&"loop_complete".to_string());
     session.0.end_dialog(new_flags);
+    if loop_complete {
+        session.0.reset_loop(&mut rng.0);
+    }
 }

@@ -121,8 +121,7 @@ fn spawn_dialog_panel(mut commands: Commands) {
                             BackgroundColor(Color::srgb(0.2, 0.4, 0.6)),
                         ))
                         .with_children(|parent| {
-                            parent
-                                .spawn((Text::new("Continue"), text_font(13.0), white_text()));
+                            parent.spawn((Text::new("Continue"), text_font(13.0), white_text()));
                         });
                 });
         });

@@ -639,7 +639,8 @@ fn update_battle_outcome(
         }
     }
 
-    // Continue button: on victory/draw return to exploration; on defeat return to main menu.
+    // Continue button: on victory/draw return to exploration; on defeat restart
+    // the current loop from the beginning.
     // Guard on still being in Battle phase so the button can't double-fire
     // on the frame after the transition already ran.
     if matches!(&session_res.0.phase, GamePhase::Battle(_)) {
@@ -653,8 +654,8 @@ fn update_battle_outcome(
                     .map(|o| matches!(o, BattleOutcome::PlayerDefeated))
                     .unwrap_or(false);
                 if defeated {
-                    session_res.0 = carbonthrone::game::GameSession::new();
-                    next_state.set(crate::state::AppState::MainMenu);
+                    session_res.0.restart_current_loop();
+                    next_state.set(crate::state::AppState::Exploration);
                 } else {
                     session_res.0.transition_to_exploration();
                 }

@@ -662,6 +662,47 @@ impl GameSession {
             .is_some()
     }
 
+    /// Restart the current loop after player defeat: clean up battle state and
+    /// re-enter the loop start without advancing loop_number.
+    pub fn restart_current_loop(&mut self) {
+        if matches!(self.phase, GamePhase::Ended(_)) {
+            return;
+        }
+        // Strip out battle state so enter_loop_start (which requires Exploration
+        // phase) can run.
+        if let GamePhase::Battle(_) = &self.phase {
+            let GamePhase::Battle(exploration) =
+                std::mem::replace(&mut self.phase, GamePhase::Transitioning)
+            else {
+                unreachable!()
+            };
+            let enemies: Vec<Entity> = {
+                let mut q = self.world.query::<(Entity, &Character)>();
+                q.iter(&self.world)
+                    .filter(|(_, c)| !c.kind.is_player())
+                    .map(|(e, _)| e)
+                    .collect()
+            };
+            for e in enemies {
+                self.world.despawn(e);
+            }
+            let scripted_allies: Vec<Entity> = {
+                let mut q = self.world.query::<(Entity, &ScriptedAlly)>();
+                q.iter(&self.world).map(|(e, _)| e).collect()
+            };
+            for e in scripted_allies {
+                self.world.despawn(e);
+            }
+            self.world.remove_resource::<LevelMap>();
+            self.world.remove_resource::<BattleRng>();
+            self.battle = None;
+            self.last_event = None;
+            self.phase = GamePhase::Exploration(exploration);
+        }
+        let mut rng = StdRng::from_entropy();
+        self.enter_loop_start(&mut rng);
+    }
+
     /// Jump to a specific loop (1–5): set loop_number, restore party HP, and
     /// restart the player in ResearchWing with the appropriate opening scene.
     pub fn goto_loop(&mut self, target: u32) {
